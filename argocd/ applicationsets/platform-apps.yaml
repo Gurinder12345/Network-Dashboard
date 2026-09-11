@@ -1,0 +1,34 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: platform-apps
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - name: hello-app
+            path: kubernetes/apps/hello-app
+            namespace: network-platform
+
+  template:
+    metadata:
+      name: '{{name}}'
+    spec:
+      project: network-platform
+
+      source:
+        repoURL: 'YOUR-GITHUB-REPO-URL'
+        targetRevision: HEAD
+        path: '{{path}}'
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{namespace}}'
+
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=false
