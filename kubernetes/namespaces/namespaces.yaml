@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: network-platform
+  labels:
+    app.kubernetes.io/part-of: network-management-platform
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+  labels:
+    app.kubernetes.io/part-of: network-management-platform
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: security
+  labels:
+    app.kubernetes.io/part-of: network-management-platform
