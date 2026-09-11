@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: network-platform
+  namespace: argocd
+
+spec:
+  description: Network Management Platform
+
+  sourceRepos:
+    - "*"
+
+  destinations:
+    - namespace: network-platform
+      server: https://kubernetes.default.svc
+
+    - namespace: monitoring
+      server: https://kubernetes.default.svc
+
+    - namespace: security
+      server: https://kubernetes.default.svc
+
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"
