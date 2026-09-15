@@ -14,6 +14,9 @@ spec:
           - name: network-automation-worker
             path: kubernetes/network-platform/serviceaccounts
             namespace: network-platform
+          - name: network-worker
+            path: kubernetes/network-platform/network-worker
+            namespace: network-platform
 
   template:
     metadata:

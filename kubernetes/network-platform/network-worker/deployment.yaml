@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: network-worker
+  namespace: network-platform
+
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: network-worker
+
+  template:
+    metadata:
+      labels:
+        app: network-worker
+
+    spec:
+      serviceAccountName: network-automation-worker
+
+      containers:
+        - name: network-worker
+          image: ghcr.io/gurinder12345/network-worker:v0.1.0
+          imagePullPolicy: IfNotPresent
+
+          env:
+            - name: CELERY_BROKER_URL
+              value: redis://redis-master.network-platform.svc.cluster.local:6379/0
+
+            - name: VAULT_ADDR
+              value: http://vault.security.svc:8200
