@@ -24,7 +24,7 @@ spec:
 
       containers:
         - name: network-worker
-          image: ghcr.io/gurinder12345/network-worker:v0.4.2
+          image: ghcr.io/gurinder12345/network-worker:v0.5.0
           imagePullPolicy: IfNotPresent
 
           env:

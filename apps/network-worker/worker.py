@@ -1,6 +1,6 @@
 import os
 from celery import Celery
-
+from tasks.dell_os6 import run_show_command, backup_running_config
 from tasks.dell_os6 import run_show_command
 from vault.client import get_os6_credentials
 
@@ -40,6 +40,10 @@ def vault_test():
 @app.task(name="network_worker.os6_show_version")
 def os6_show_version():
     return run_show_command("show version")
+
+@app.task(name="network_worker.os6_backup_running_config")
+def os6_backup_running_config():
+    return backup_running_config()
 
 
 @app.task(name="network_worker.os6_show_interfaces_status")
