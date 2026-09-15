@@ -19,6 +19,9 @@ spec:
     spec:
       serviceAccountName: network-automation-worker
 
+      imagePullSecrets:
+        - name: ghcr-secret
+
       containers:
         - name: network-worker
           image: ghcr.io/gurinder12345/network-worker:v0.1.0
