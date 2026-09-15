@@ -54,10 +54,10 @@ spec:
                 secretKeyRef:
                   name: postgresql-auth
                   key: password
-         volumeMounts:
-           - name: backups
-             mountPath: /backups
-     
+
+          volumeMounts:
+            - name: backups
+              mountPath: /backups
 
       volumes:
         - name: backups
