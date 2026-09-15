@@ -1,0 +1,69 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+
+metadata:
+  name: postgresql-app
+  namespace: argocd
+
+spec:
+  generators:
+    - list:
+        elements:
+          - name: postgresql
+            namespace: network-platform
+            chart: postgresql
+            repoURL: https://charts.bitnami.com/bitnami
+            revision: "18.1.4"
+
+  template:
+    metadata:
+      name: "{{name}}"
+
+    spec:
+      project: network-platform
+
+      source:
+        repoURL: "{{repoURL}}"
+        chart: "{{chart}}"
+        targetRevision: "{{revision}}"
+
+        helm:
+          releaseName: postgresql
+          values: |
+            architecture: standalone
+
+            auth:
+              enablePostgresUser: true
+              username: networkapp
+              database: networkdb
+              existingSecret: postgresql-auth
+
+              secretKeys:
+                adminPasswordKey: postgres-password
+                userPasswordKey: password
+
+            primary:
+              persistence:
+                enabled: true
+                storageClass: local-path
+                size: 10Gi
+
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: "{{namespace}}"
+
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+
+        syncOptions:
+          - CreateNamespace=false
