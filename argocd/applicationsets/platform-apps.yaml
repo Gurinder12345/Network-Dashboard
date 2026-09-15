@@ -11,6 +11,9 @@ spec:
           - name: hello-app
             path: kubernetes/apps/hello-app
             namespace: network-platform
+          - name: network-automation-worker
+            path: kubernetes/network-platform/serviceaccounts
+            namespace: network-platform
 
   template:
     metadata:
