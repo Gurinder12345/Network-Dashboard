@@ -4,6 +4,20 @@ from tasks.dell_os6 import run_show_command, backup_running_config
 from tasks.dell_os6 import run_show_command
 from vault.client import get_os6_credentials
 from db.client import get_connection
+from tasks.dell_os6 import backup_running_config
+
+
+
+
+from db.jobs import (
+    create_job,
+    mark_job_success,
+    mark_job_failed,
+    create_backup_record,
+    create_audit_event,
+)
+
+
 
 REDIS_URL = os.getenv(
     "CELERY_BROKER_URL",
@@ -43,7 +57,85 @@ def os6_show_version():
 
 @app.task(name="network_worker.os6_backup_running_config")
 def os6_backup_running_config():
-    return backup_running_config()
+    device_id = 1
+    hostname = "n3224-test-01"
+
+    job_id = create_job(
+        device_id=device_id,
+        job_type="backup_running_config",
+        requested_by="system",
+    )
+
+    create_audit_event(
+        job_id=job_id,
+        device_id=device_id,
+        event_type="backup_started",
+        message=f"Running-config backup started for {hostname}",
+    )
+
+    try:
+        result = backup_running_config()
+
+        device_result = result[hostname]
+
+        if device_result["failed"]:
+            raise RuntimeError("Running-config backup failed")
+
+        storage_path = (
+            f"/backups/{hostname}/"
+            f"{device_result['timestamp']}.cfg"
+        )
+        
+
+ 
+        backup_directory = os.path.dirname(storage_path)
+
+        os.makedirs(
+                   backup_directory,
+                  mode=0o750,
+                  exist_ok=True,
+                              )
+
+        with open(storage_path, "w", encoding="utf-8") as backup_file:
+             backup_file.write(device_result["config"])
+
+        os.chmod(storage_path, 0o600)
+
+        create_backup_record(
+            job_id=job_id,
+            device_id=device_id,
+            storage_path=storage_path,
+            checksum=device_result["checksum"],
+        )
+
+        create_audit_event(
+            job_id=job_id,
+            device_id=device_id,
+            event_type="backup_completed",
+            message=f"Running-config backup completed for {hostname}",
+        )
+
+        mark_job_success(job_id)
+
+        return {
+            "job_id": job_id,
+            "status": "success",
+            "hostname": hostname,
+            "storage_path": storage_path,
+            "checksum": device_result["checksum"],
+        }
+
+    except Exception as exc:
+        mark_job_failed(job_id, str(exc))
+
+        create_audit_event(
+            job_id=job_id,
+            device_id=device_id,
+            event_type="backup_failed",
+            message=str(exc),
+        )
+
+        raise
 
 @app.task(name="network_worker.db_health_check")
 def db_health_check():

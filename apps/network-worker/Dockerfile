@@ -12,8 +12,12 @@ COPY tasks ./tasks
 COPY vault ./vault
 COPY db ./db
 
-RUN groupadd --system appgroup && \
-    useradd --system --gid appgroup --create-home appuser && \
+RUN groupadd --gid 10001 appgroup && \
+    useradd --uid 10001 \
+            --gid 10001 \
+            --create-home \
+            --shell /usr/sbin/nologin \
+            appuser && \
     chown -R appuser:appgroup /app
 
 USER appuser

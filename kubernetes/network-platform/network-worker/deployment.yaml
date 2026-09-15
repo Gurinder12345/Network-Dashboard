@@ -22,9 +22,12 @@ spec:
       imagePullSecrets:
         - name: ghcr-secret
 
+      securityContext:
+        fsGroup: 10001
+
       containers:
         - name: network-worker
-          image: ghcr.io/gurinder12345/network-worker:v0.6.0
+          image: ghcr.io/gurinder12345/network-worker:v0.7.0
           imagePullPolicy: IfNotPresent
 
           env:
@@ -51,4 +54,12 @@ spec:
                 secretKeyRef:
                   name: postgresql-auth
                   key: password
+         volumeMounts:
+           - name: backups
+             mountPath: /backups
+     
 
+      volumes:
+        - name: backups
+          persistentVolumeClaim:
+            claimName: network-backups
