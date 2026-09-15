@@ -24,7 +24,7 @@ spec:
 
       containers:
         - name: network-worker
-          image: ghcr.io/gurinder12345/network-worker:v0.5.1
+          image: ghcr.io/gurinder12345/network-worker:v0.6.0
           imagePullPolicy: IfNotPresent
 
           env:
@@ -33,3 +33,22 @@ spec:
 
             - name: VAULT_ADDR
               value: http://vault.security.svc:8200
+             
+            - name: DB_HOST
+              value: postgresql.network-platform.svc.cluster.local
+
+            - name: DB_PORT
+              value: "5432"
+
+            - name: DB_NAME
+              value: networkdb
+
+            - name: DB_USER
+              value: networkapp
+
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql-auth
+                  key: password
+

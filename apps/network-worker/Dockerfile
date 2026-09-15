@@ -10,6 +10,7 @@ COPY worker.py .
 COPY inventory ./inventory
 COPY tasks ./tasks
 COPY vault ./vault
+COPY db ./db
 
 RUN groupadd --system appgroup && \
     useradd --system --gid appgroup --create-home appuser && \

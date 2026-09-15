@@ -4,3 +4,4 @@ nornir==3.5.0
 nornir-netmiko==1.0.1
 hvac==2.3.0
 requests==2.32.5
+psycopg[binary]==3.2.10

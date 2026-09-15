@@ -3,7 +3,7 @@ from celery import Celery
 from tasks.dell_os6 import run_show_command, backup_running_config
 from tasks.dell_os6 import run_show_command
 from vault.client import get_os6_credentials
-
+from db.client import get_connection
 
 REDIS_URL = os.getenv(
     "CELERY_BROKER_URL",
@@ -44,6 +44,19 @@ def os6_show_version():
 @app.task(name="network_worker.os6_backup_running_config")
 def os6_backup_running_config():
     return backup_running_config()
+
+@app.task(name="network_worker.db_health_check")
+def db_health_check():
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT current_database(), current_user;")
+            database, user = cur.fetchone()
+
+    return {
+        "status": "ok",
+        "database": database,
+        "user": user,
+    }
 
 
 @app.task(name="network_worker.os6_show_interfaces_status")
