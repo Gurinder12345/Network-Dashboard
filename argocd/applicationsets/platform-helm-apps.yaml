@@ -1,0 +1,62 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+
+metadata:
+  name: platform-helm-apps
+  namespace: argocd
+
+spec:
+  generators:
+    - list:
+        elements:
+          - name: redis
+            namespace: network-platform
+            chart: redis
+            repoURL: https://charts.bitnami.com/bitnami
+            revision: "21.2.13"
+
+  template:
+    metadata:
+      name: "{{name}}"
+
+    spec:
+      project: network-platform
+
+      source:
+        repoURL: "{{repoURL}}"
+        chart: "{{chart}}"
+        targetRevision: "{{revision}}"
+
+        helm:
+          releaseName: "{{name}}"
+          values: |
+            architecture: standalone
+
+            auth:
+              enabled: false
+
+            master:
+              persistence:
+                enabled: true
+                storageClass: local-path
+                size: 2Gi
+
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                limits:
+                  cpu: 250m
+                  memory: 256Mi
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: "{{namespace}}"
+
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+
+        syncOptions:
+          - CreateNamespace=false
