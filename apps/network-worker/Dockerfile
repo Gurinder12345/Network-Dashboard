@@ -8,6 +8,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY worker.py .
 COPY inventory ./inventory
+COPY tasks ./tasks
+COPY vault ./vault
 
 RUN groupadd --system appgroup && \
     useradd --system --gid appgroup --create-home appuser && \
