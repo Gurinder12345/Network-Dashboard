@@ -7,6 +7,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY worker.py .
+COPY inventory ./inventory
 
 RUN groupadd --system appgroup && \
     useradd --system --gid appgroup --create-home appuser && \

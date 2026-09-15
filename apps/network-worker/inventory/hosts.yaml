@@ -1,0 +1,6 @@
+n3224-test-01:
+  hostname: 10.0.0.31 
+  platform: dell_os6
+  groups:
+    - dell_os6
+

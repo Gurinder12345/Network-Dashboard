@@ -1,18 +1,14 @@
 import os
-import hvac
 from celery import Celery
+
+from tasks.dell_os6 import run_show_command
+from vault.client import get_os6_credentials
+
 
 REDIS_URL = os.getenv(
     "CELERY_BROKER_URL",
     "redis://redis-master.network-platform.svc.cluster.local:6379/0",
 )
-
-VAULT_ADDR = os.getenv(
-    "VAULT_ADDR",
-    "http://vault.security.svc:8200",
-)
-
-VAULT_ROLE = "network-automation-worker"
 
 app = Celery(
     "network_worker",
@@ -29,41 +25,38 @@ def health_check():
     }
 
 
-def get_vault_client():
-    with open(
-        "/var/run/secrets/kubernetes.io/serviceaccount/token",
-        "r"
-    ) as token_file:
-        jwt = token_file.read()
-
-    client = hvac.Client(url=VAULT_ADDR)
-
-    response = client.auth.kubernetes.login(
-        role=VAULT_ROLE,
-        jwt=jwt,
-    )
-
-    client.token = response["auth"]["client_token"]
-
-    return client
-
-
 @app.task(name="network_worker.vault_test")
 def vault_test():
-    client = get_vault_client()
+    credentials = get_os6_credentials()
 
-    secret = client.secrets.kv.v2.read_secret_version(
-        mount_point="kv",
-        path="network/dell-os10",
-        raise_on_deleted_version=True,
-    )
-
-    secret_data = secret["data"]["data"]
-
-    # Do NOT return credential values.
     return {
         "status": "ok",
         "vault_authenticated": True,
-        "secret_path": "kv/network/dell-os10",
-        "available_fields": list(secret_data.keys()),
+        "secret_path": "kv/network/dell-os6",
+        "available_fields": list(credentials.keys()),
     }
+
+
+@app.task(name="network_worker.os6_show_version")
+def os6_show_version():
+    return run_show_command("show version")
+
+
+@app.task(name="network_worker.os6_show_interfaces_status")
+def os6_show_interfaces_status():
+    return run_show_command("show interfaces status")
+
+
+@app.task(name="network_worker.os6_show_vlan")
+def os6_show_vlan():
+    return run_show_command("show vlan")
+
+
+@app.task(name="network_worker.os6_show_ip_interface")
+def os6_show_ip_interface():
+    return run_show_command("show ip interface")
+
+
+@app.task(name="network_worker.os6_show_spanning_tree")
+def os6_show_spanning_tree():
+    return run_show_command("show spanning-tree")
