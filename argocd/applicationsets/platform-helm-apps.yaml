@@ -32,6 +32,15 @@ spec:
           values: |
             architecture: standalone
 
+            image:
+              registry: docker.io
+              repository: bitnamilegacy/redis
+              tag: 8.0.3-debian-12-r3
+
+            global:
+              security:
+                allowInsecureImages: true
+
             auth:
               enabled: false
 
