@@ -1,0 +1,21 @@
+---
+- name: Dell OS6 configuration validation
+  hosts: all
+  gather_facts: false
+
+  vars:
+    ansible_user: "{{ lookup('env', 'ANSIBLE_REMOTE_USER') }}"
+    ansible_password: "{{ lookup('env', 'ANSIBLE_PASSWORD') }}"
+    ansible_become_password: "{{ lookup('env', 'ANSIBLE_BECOME_PASSWORD') }}"
+
+  tasks:
+
+    - name: Retrieve running configuration
+      dellemc.os6.os6_command:
+        commands:
+          - show running-config
+      register: running_config
+
+    - name: Return running configuration
+      ansible.builtin.debug:
+        var: running_config.stdout

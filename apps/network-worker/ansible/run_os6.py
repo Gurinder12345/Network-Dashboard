@@ -190,3 +190,28 @@ def run_os6_config_check(target_host, config_lines):
     finally:
         if os.path.exists(inventory_file):
             os.remove(inventory_file)
+
+
+def compare_config_lines(running_config, config_lines):
+    existing_lines = {
+        line.strip()
+        for line in running_config.splitlines()
+        if line.strip()
+    }
+
+    already_present = []
+    proposed = []
+
+    for line in config_lines:
+        normalized = line.strip()
+
+        if normalized in existing_lines:
+            already_present.append(normalized)
+        else:
+            proposed.append(normalized)
+
+    return {
+        "already_present": already_present,
+        "proposed_changes": proposed,
+        "would_change": len(proposed) > 0,
+    }
