@@ -1,6 +1,6 @@
 ---
 - name: Dell OS6 read-only validation
-  hosts: dell_os6
+  hosts: all
   gather_facts: false
 
   vars:

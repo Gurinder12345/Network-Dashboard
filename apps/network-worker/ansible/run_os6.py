@@ -1,13 +1,64 @@
 import os
 import subprocess
+import tempfile
+import yaml
 
 from vault.client import get_device_credentials
 
 
+HOSTS_FILE = "/app/inventory/hosts.yaml"
+PLAYBOOK = "/app/ansible/playbooks/os6_show_version.yml"
+
+
+def load_device(target_host):
+    with open(HOSTS_FILE, "r") as f:
+        inventory = yaml.safe_load(f)
+
+    if target_host not in inventory:
+        raise ValueError(
+            f"Device not found in inventory: {target_host}"
+        )
+
+    device = inventory[target_host]
+
+    if device.get("platform") != "dell_os6":
+        raise ValueError(
+            f"{target_host} is platform "
+            f"{device.get('platform')}, not dell_os6"
+        )
+
+    credential_path = device.get(
+        "data", {}
+    ).get("credential_path")
+
+    if not credential_path:
+        raise ValueError(
+            f"No credential_path configured for {target_host}"
+        )
+
+    return device, credential_path
+
+
 def run_os6_show_version(target_host):
+    device, credential_path = load_device(target_host)
+
     credentials = get_device_credentials(
-        f"network/devices/{target_host}"
+        credential_path
     )
+
+    ansible_inventory = {
+        "all": {
+            "hosts": {
+                target_host: {
+                    "ansible_host": device["hostname"],
+                    "ansible_network_os": "dellemc.os6.os6",
+                    "ansible_connection": "ansible.netcommon.network_cli",
+                    "ansible_become": True,
+                    "ansible_become_method": "enable",
+                }
+            }
+        }
+    }
 
     env = os.environ.copy()
 
@@ -16,25 +67,44 @@ def run_os6_show_version(target_host):
     env["ANSIBLE_PASSWORD"] = credentials["password"]
     env["ANSIBLE_BECOME_PASSWORD"] = credentials["secret"]
 
-    command = [
-        "ansible-playbook",
-        "-i",
-        "/app/ansible/inventory.yml",
-        "/app/ansible/playbooks/os6_show_version.yml",
-        "--limit",
-        target_host,
-    ]
+    with tempfile.NamedTemporaryFile(
+        mode="w",
+        suffix=".yml",
+        delete=False,
+    ) as temp_inventory:
 
-    result = subprocess.run(
-        command,
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=120,
-    )
+        yaml.safe_dump(
+            ansible_inventory,
+            temp_inventory,
+            default_flow_style=False,
+        )
 
-    return {
-        "returncode": result.returncode,
-        "stdout": result.stdout,
-        "stderr": result.stderr,
-    }
+        inventory_file = temp_inventory.name
+
+    try:
+        command = [
+            "ansible-playbook",
+            "-i",
+            inventory_file,
+            PLAYBOOK,
+        ]
+
+        result = subprocess.run(
+            command,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+
+        return {
+            "target_host": target_host,
+            "platform": "dell_os6",
+            "returncode": result.returncode,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+        }
+
+    finally:
+        if os.path.exists(inventory_file):
+            os.remove(inventory_file)
