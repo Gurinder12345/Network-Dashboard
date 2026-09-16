@@ -5,9 +5,12 @@ from tasks.dell_os6 import run_show_command
 from vault.client import get_device_credentials
 from db.client import get_connection
 from tasks.dell_os6 import backup_running_config
-from tasks.dell_os10 import run_show_command as run_os10_show_command
-from nornir import InitNornir
 
+from nornir import InitNornir
+from tasks.dell_os10 import (
+    run_show_command as run_os10_show_command,
+    get_running_config as get_os10_running_config,
+)
 
 from db.jobs import (
     create_job,
@@ -248,7 +251,4 @@ def os10_show_spanning_tree(target_host):
 
 @app.task(name="network_worker.os10_show_running_config")
 def os10_show_running_config(target_host):
-    return run_os10_show_command(
-        target_host,
-        "show running-configuration",
-    )
+    return get_os10_running_config(target_host)

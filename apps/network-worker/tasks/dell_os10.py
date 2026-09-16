@@ -66,3 +66,34 @@ def run_show_command(target_host, command):
         }
 
     return output
+
+
+
+def get_running_config(target_host):
+    nr = get_nornir(target_host)
+
+    # Disable paging first
+    nr.run(
+        task=netmiko_send_command,
+        command_string="terminal length 0",
+        read_timeout=30,
+    )
+
+    result = nr.run(
+        task=netmiko_send_command,
+        command_string="show running-configuration",
+        use_timing=True,
+        read_timeout=120,
+    )
+
+    output = {}
+
+    for hostname, multi_result in result.items():
+        task_result = multi_result[0]
+
+        output[hostname] = {
+            "failed": task_result.failed,
+            "result": str(task_result.result),
+        }
+
+    return output
