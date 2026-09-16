@@ -11,6 +11,11 @@ COPY inventory ./inventory
 COPY tasks ./tasks
 COPY vault ./vault
 COPY db ./db
+COPY ansible ./ansible
+COPY collections-requirements.yml .
+
+RUN ansible-galaxy collection install \
+    -r collections-requirements.yml
 
 RUN groupadd --gid 10001 appgroup && \
     useradd --uid 10001 \

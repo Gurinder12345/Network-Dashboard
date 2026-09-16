@@ -1,0 +1,16 @@
+---
+- name: Dell OS6 read-only validation
+  hosts: dell_os6
+  gather_facts: false
+
+  tasks:
+    - name: Show version
+      dellemc.os6.os6_command:
+        commands:
+          - show version
+
+      register: show_version
+
+    - name: Display result
+      ansible.builtin.debug:
+        var: show_version.stdout

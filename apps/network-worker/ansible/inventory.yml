@@ -1,0 +1,10 @@
+all:
+  children:
+    dell_os6:
+      hosts:
+        Kenda-HARO-IDF-A:
+          ansible_host: 10.0.0.31
+          ansible_network_os: dellemc.os6.os6
+          ansible_connection: ansible.netcommon.network_cli
+          ansible_become: true
+          ansible_become_method: enable
