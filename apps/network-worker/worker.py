@@ -5,7 +5,7 @@ from tasks.dell_os6 import run_show_command
 from vault.client import get_device_credentials
 from db.client import get_connection
 from tasks.dell_os6 import backup_running_config
-
+from tasks.dell_os10 import run_show_command as run_os10_show_command
 from nornir import InitNornir
 
 
@@ -29,6 +29,13 @@ app = Celery(
     broker=REDIS_URL,
     backend=REDIS_URL,
 )
+
+@app.task(name="network_worker.os10_show_version")
+def os10_show_version(target_host):
+    return run_os10_show_command(
+        target_host,
+        "show version",
+    )
 
 
 @app.task(name="network_worker.health_check")
