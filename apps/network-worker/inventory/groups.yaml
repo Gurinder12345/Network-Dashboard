@@ -1,2 +1,5 @@
 dell_os6:
   port: 22
+
+dell_os10:
+  port: 22

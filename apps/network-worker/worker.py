@@ -52,8 +52,11 @@ def vault_test():
 
 
 @app.task(name="network_worker.os6_show_version")
-def os6_show_version():
-    return run_show_command("show version")
+def os6_show_version(target_host):
+    return run_show_command(
+        target_host,
+        "show version",
+    )
 
 @app.task(name="network_worker.os6_backup_running_config")
 def os6_backup_running_config():
@@ -157,8 +160,11 @@ def os6_show_interfaces_status():
 
 
 @app.task(name="network_worker.os6_show_vlan")
-def os6_show_vlan():
-    return run_show_command("show vlan")
+def os6_show_vlan(target_host):
+    return run_show_command(
+        target_host,
+        "show vlan",
+    )
 
 
 @app.task(name="network_worker.os6_show_ip_interface")

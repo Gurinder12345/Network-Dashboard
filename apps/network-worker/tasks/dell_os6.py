@@ -1,16 +1,13 @@
 from datetime import datetime, timezone
 import hashlib
-
+from nornir.core.filter import F
 from nornir import InitNornir
 from nornir.core.inventory import ConnectionOptions
 from nornir_netmiko.tasks import netmiko_send_command
+from vault.client import get_device_credentials
 
-from vault.client import get_os6_credentials
 
-
-def get_nornir():
-    credentials = get_os6_credentials()
-
+def get_nornir(target_host):
     nr = InitNornir(
         inventory={
             "plugin": "SimpleInventory",
@@ -22,7 +19,20 @@ def get_nornir():
         }
     )
 
+    nr = nr.filter(F(name=target_host))
+
+    if len(nr.inventory.hosts) == 0:
+        raise ValueError(f"Device not found in inventory: {target_host}")
+
     for host in nr.inventory.hosts.values():
+        if host.platform != "dell_os6":
+            raise ValueError(
+                f"{host.name} is platform {host.platform}, not dell_os6"
+            )
+
+        credential_path = host.data["credential_path"]
+        credentials = get_device_credentials(credential_path)
+
         host.username = credentials["username"]
         host.password = credentials["password"]
 
@@ -35,8 +45,8 @@ def get_nornir():
     return nr
 
 
-def run_show_command(command):
-    nr = get_nornir()
+def run_show_command(target_host, command):
+    nr = get_nornir(target_host)
 
     result = nr.run(
         task=netmiko_send_command,

@@ -1,6 +1,81 @@
-n3224-test-01:
-  hostname: 10.0.0.31 
+# HQ Building
+Kenda-Core-1:
+  hostname: 10.0.0.10
+  platform: dell_os10
+  groups:
+    - dell_os10
+  data:
+    credential_path: network/devices/Kenda-Core-1
+
+Kenda-Core-2:
+  hostname: 10.0.0.20
+  platform: dell_os10
+  groups:
+    - dell_os10
+  data:
+    credential_path: network/devices/Kenda-Core-2
+
+Kenda-Access-user-1:
+  hostname: 10.0.0.250
   platform: dell_os6
   groups:
     - dell_os6
+  data:
+    credential_path: network/devices/Kenda-Access-user-1
 
+Kenda-Access-user-2:
+  hostname: 10.0.0.251
+  platform: dell_os6
+  groups:
+    - dell_os6
+  data:
+    credential_path: network/devices/Kenda-Access-user-2
+
+Kenda-HQ-IDF-A:
+  hostname: 10.0.0.29
+  platform: dell_os6
+  groups:
+    - dell_os6
+  data:
+    credential_path: network/devices/Kenda-HQ-IDF-A
+
+Kenda-HQ-IDF-B:
+  hostname: 10.0.0.30
+  platform: dell_os6
+  groups:
+    - dell_os6
+  data:
+    credential_path: network/devices/Kenda-HQ-IDF-B
+
+Kenda-HQ-SW-01:
+  hostname: 10.0.0.3
+  platform: dell_os6
+  groups:
+    - dell_os6
+  data:
+    credential_path: network/devices/Kenda-HQ-SW-01
+
+# HARO Building
+Kenda-HARO-SW-01:
+  hostname: 10.0.0.4
+  platform: dell_os6
+  groups:
+    - dell_os6
+  data:
+    credential_path: network/devices/Kenda-HARO-SW-01
+
+Kenda-HARO-SW-02:
+  hostname: 10.0.0.25
+  platform: dell_os6
+  groups:
+    - dell_os6
+  data:
+    credential_path: network/devices/Kenda-HARO-SW-02
+
+Kenda-HARO-IDF-A:
+  hostname: 10.0.0.31
+  platform: dell_os6
+  groups:
+    - dell_os6
+  data:
+    credential_path: network/devices/Kenda-HARO-IDF-A

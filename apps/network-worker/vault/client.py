@@ -27,12 +27,12 @@ def get_vault_client():
     return client
 
 
-def get_os6_credentials():
+def get_device_credentials(path):
     client = get_vault_client()
 
     secret = client.secrets.kv.v2.read_secret_version(
         mount_point="kv",
-        path="network/dell-os6",
+        path=path,
         raise_on_deleted_version=True,
     )
 
