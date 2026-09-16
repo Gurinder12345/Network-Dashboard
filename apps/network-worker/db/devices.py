@@ -1,4 +1,4 @@
-from db.client import get_db_connection
+from db.client import get_connection
 
 
 def get_device_by_hostname(hostname):
