@@ -252,11 +252,10 @@ def backup_running_config_task(target_host):
         )
 
         create_backup_record(
-            job_id=job_id,
-            device_id=device_id,
-            backup_type="running-config",
-            storage_path=backup_path,
-            checksum=checksum,
+        job_id=job_id,
+        device_id=device_id,
+        storage_path=backup_path,
+        checksum=checksum,
         )
 
         create_audit_event(
