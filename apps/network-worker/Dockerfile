@@ -14,8 +14,10 @@ COPY db ./db
 COPY ansible ./ansible
 COPY collections-requirements.yml .
 
-RUN ansible-galaxy collection install \
-    -r collections-requirements.yml
+RUN mkdir -p /usr/share/ansible/collections && \
+    ansible-galaxy collection install \
+    -r collections-requirements.yml \
+    -p /usr/share/ansible/collections
 
 RUN groupadd --gid 10001 appgroup && \
     useradd --uid 10001 \
