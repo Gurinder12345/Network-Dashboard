@@ -214,3 +214,41 @@ def os6_show_spanning_tree(target_host):
         target_host,
         "show spanning-tree",
     )
+@app.task(name="network_worker.os10_show_interfaces_status")
+def os10_show_interfaces_status(target_host):
+    return run_os10_show_command(
+        target_host,
+        "show interface status",
+    )
+
+
+@app.task(name="network_worker.os10_show_vlan")
+def os10_show_vlan(target_host):
+    return run_os10_show_command(
+        target_host,
+        "show vlan",
+    )
+
+
+@app.task(name="network_worker.os10_show_ip_interface")
+def os10_show_ip_interface(target_host):
+    return run_os10_show_command(
+        target_host,
+        "show ip interface brief",
+    )
+
+
+@app.task(name="network_worker.os10_show_spanning_tree")
+def os10_show_spanning_tree(target_host):
+    return run_os10_show_command(
+        target_host,
+        "show spanning-tree",
+    )
+
+
+@app.task(name="network_worker.os10_show_running_config")
+def os10_show_running_config(target_host):
+    return run_os10_show_command(
+        target_host,
+        "show running-configuration",
+    )
