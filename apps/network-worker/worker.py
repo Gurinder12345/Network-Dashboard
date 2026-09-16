@@ -6,7 +6,7 @@ from vault.client import get_device_credentials
 from db.client import get_connection
 from tasks.dell_os6 import backup_running_config
 
-
+from nornir import InitNornir
 
 
 from db.jobs import (
@@ -40,15 +40,37 @@ def health_check():
 
 
 @app.task(name="network_worker.vault_test")
-def vault_test():
+def vault_test(target_host):
+
+    nr = InitNornir(
+        inventory={
+            "plugin": "SimpleInventory",
+            "options": {
+                "host_file": "/app/inventory/hosts.yaml",
+                "group_file": "/app/inventory/groups.yaml",
+                "defaults_file": "/app/inventory/defaults.yaml",
+            },
+        }
+    )
+
+    if target_host not in nr.inventory.hosts:
+        raise ValueError(
+            f"Device not found in inventory: {target_host}"
+        )
+
+    host = nr.inventory.hosts[target_host]
+
+    credential_path = host.data["credential_path"]
+
     credentials = get_device_credentials(
-        "network/devices/Kenda-HARO-IDF-A"
+        credential_path
     )
 
     return {
         "status": "ok",
-        "vault_authenticated": True,
-        "secret_path": "kv/network/devices/Kenda-HARO-IDF-A",
+        "target_host": target_host,
+        "platform": host.platform,
+        "credential_path": credential_path,
         "available_fields": list(credentials.keys()),
     }
 
@@ -156,8 +178,11 @@ def db_health_check():
 
 
 @app.task(name="network_worker.os6_show_interfaces_status")
-def os6_show_interfaces_status():
-    return run_show_command("show interfaces status")
+def os6_show_interfaces_status(target_host):
+    return run_show_command(
+        target_host,
+        "show interfaces status",
+    )
 
 
 @app.task(name="network_worker.os6_show_vlan")
@@ -169,10 +194,16 @@ def os6_show_vlan(target_host):
 
 
 @app.task(name="network_worker.os6_show_ip_interface")
-def os6_show_ip_interface():
-    return run_show_command("show ip interface")
+def os6_show_ip_interface(target_host):
+    return run_show_command(
+        target_host,
+        "show ip interface",
+    )
 
 
 @app.task(name="network_worker.os6_show_spanning_tree")
-def os6_show_spanning_tree():
-    return run_show_command("show spanning-tree")
+def os6_show_spanning_tree(target_host):
+    return run_show_command(
+        target_host,
+        "show spanning-tree",
+    )
