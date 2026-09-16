@@ -7,7 +7,7 @@ from db.client import get_connection
 from tasks.dell_os6 import backup_running_config
 from db.devices import get_device_by_hostname
 from nornir import InitNornir
-
+from ansible.run_os6 import run_os6_show_version
 
 from db.jobs import (
     create_job,
@@ -39,6 +39,12 @@ app = Celery(
     broker=REDIS_URL,
     backend=REDIS_URL,
 )
+
+@app.task(name="network_worker.ansible_os6_show_version")
+def ansible_os6_show_version(target_host):
+    return run_os6_show_version(target_host)
+
+
 
 @app.task(name="network_worker.os10_show_version")
 def os10_show_version(target_host):
