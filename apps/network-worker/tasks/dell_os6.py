@@ -67,31 +67,43 @@ def run_show_command(target_host, command):
     return output
 
 
-def backup_running_config():
-    nr = get_nornir()
+
+
+
+def backup_running_config(target_host):
+    nr = get_nornir(target_host)
 
     result = nr.run(
         task=netmiko_send_command,
         command_string="show running-config",
         enable=True,
+        read_timeout=120,
     )
 
     output = {}
 
     for hostname, multi_result in result.items():
         task_result = multi_result[0]
+
+        if task_result.failed:
+            output[hostname] = {
+                "failed": True,
+                "result": str(task_result.result),
+            }
+            continue
+
         config = str(task_result.result)
 
-        timestamp = datetime.now(timezone.utc).strftime(
-            "%Y%m%dT%H%M%SZ"
-        )
+        timestamp = datetime.now(
+            timezone.utc
+        ).strftime("%Y%m%dT%H%M%SZ")
 
         checksum = hashlib.sha256(
             config.encode("utf-8")
         ).hexdigest()
 
         output[hostname] = {
-            "failed": task_result.failed,
+            "failed": False,
             "timestamp": timestamp,
             "checksum": checksum,
             "config": config,

@@ -4,7 +4,8 @@ from nornir.core.inventory import ConnectionOptions
 from nornir_netmiko.tasks import netmiko_send_command
 
 from vault.client import get_device_credentials
-
+from datetime import datetime, timezone
+import hashlib
 
 def get_nornir(target_host):
     nr = InitNornir(
@@ -94,6 +95,55 @@ def get_running_config(target_host):
         output[hostname] = {
             "failed": task_result.failed,
             "result": str(task_result.result),
+        }
+
+    return output
+
+
+
+def backup_running_config(target_host):
+    nr = get_nornir(target_host)
+
+    nr.run(
+        task=netmiko_send_command,
+        command_string="terminal length 0",
+        read_timeout=30,
+    )
+
+    result = nr.run(
+        task=netmiko_send_command,
+        command_string="show running-configuration",
+        use_timing=True,
+        read_timeout=120,
+    )
+
+    output = {}
+
+    for hostname, multi_result in result.items():
+        task_result = multi_result[0]
+
+        if task_result.failed:
+            output[hostname] = {
+                "failed": True,
+                "result": str(task_result.result),
+            }
+            continue
+
+        config = str(task_result.result)
+
+        timestamp = datetime.now(
+            timezone.utc
+        ).strftime("%Y%m%dT%H%M%SZ")
+
+        checksum = hashlib.sha256(
+            config.encode("utf-8")
+        ).hexdigest()
+
+        output[hostname] = {
+            "failed": False,
+            "timestamp": timestamp,
+            "checksum": checksum,
+            "config": config,
         }
 
     return output

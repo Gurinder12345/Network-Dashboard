@@ -5,12 +5,9 @@ from tasks.dell_os6 import run_show_command
 from vault.client import get_device_credentials
 from db.client import get_connection
 from tasks.dell_os6 import backup_running_config
-
+from db.devices import get_device_by_hostname
 from nornir import InitNornir
-from tasks.dell_os10 import (
-    run_show_command as run_os10_show_command,
-    get_running_config as get_os10_running_config,
-)
+
 
 from db.jobs import (
     create_job,
@@ -20,7 +17,17 @@ from db.jobs import (
     create_audit_event,
 )
 
+from tasks.dell_os6 import (
+    run_show_command as run_os6_show_command,
+    backup_running_config as backup_os6_running_config,
+)
 
+
+from tasks.dell_os10 import (
+    run_show_command as run_os10_show_command,
+    get_running_config as get_os10_running_config,
+    backup_running_config as backup_os10_running_config,
+)
 
 REDIS_URL = os.getenv(
     "CELERY_BROKER_URL",
@@ -91,87 +98,8 @@ def os6_show_version(target_host):
         "show version",
     )
 
-@app.task(name="network_worker.os6_backup_running_config")
-def os6_backup_running_config():
-    device_id = 1
-    hostname = "n3224-test-01"
 
-    job_id = create_job(
-        device_id=device_id,
-        job_type="backup_running_config",
-        requested_by="system",
-    )
 
-    create_audit_event(
-        job_id=job_id,
-        device_id=device_id,
-        event_type="backup_started",
-        message=f"Running-config backup started for {hostname}",
-    )
-
-    try:
-        result = backup_running_config()
-
-        device_result = result[hostname]
-
-        if device_result["failed"]:
-            raise RuntimeError("Running-config backup failed")
-
-        storage_path = (
-            f"/backups/{hostname}/"
-            f"{device_result['timestamp']}.cfg"
-        )
-        
-
- 
-        backup_directory = os.path.dirname(storage_path)
-
-        os.makedirs(
-                   backup_directory,
-                  mode=0o750,
-                  exist_ok=True,
-                              )
-
-        with open(storage_path, "w", encoding="utf-8") as backup_file:
-             backup_file.write(device_result["config"])
-
-        os.chmod(storage_path, 0o600)
-
-        create_backup_record(
-            job_id=job_id,
-            device_id=device_id,
-            storage_path=storage_path,
-            checksum=device_result["checksum"],
-        )
-
-        create_audit_event(
-            job_id=job_id,
-            device_id=device_id,
-            event_type="backup_completed",
-            message=f"Running-config backup completed for {hostname}",
-        )
-
-        mark_job_success(job_id)
-
-        return {
-            "job_id": job_id,
-            "status": "success",
-            "hostname": hostname,
-            "storage_path": storage_path,
-            "checksum": device_result["checksum"],
-        }
-
-    except Exception as exc:
-        mark_job_failed(job_id, str(exc))
-
-        create_audit_event(
-            job_id=job_id,
-            device_id=device_id,
-            event_type="backup_failed",
-            message=str(exc),
-        )
-
-        raise
 
 @app.task(name="network_worker.db_health_check")
 def db_health_check():
@@ -252,3 +180,115 @@ def os10_show_spanning_tree(target_host):
 @app.task(name="network_worker.os10_show_running_config")
 def os10_show_running_config(target_host):
     return get_os10_running_config(target_host)
+
+
+
+
+
+
+@app.task(name="network_worker.backup_running_config")
+def backup_running_config_task(target_host):
+    device = get_device_by_hostname(target_host)
+
+    device_id = device["id"]
+    platform = device["platform"]
+
+    job_id = create_job(
+        device_id=device_id,
+        job_type="config_backup",
+        requested_by="celery",
+    )
+
+    try:
+        create_audit_event(
+            job_id=job_id,
+            device_id=device_id,
+            event_type="backup_started",
+            message=f"Running-config backup started for {target_host}",
+        )
+
+        if platform == "dell_os6":
+            result = backup_os6_running_config(target_host)
+
+        elif platform == "dell_os10":
+            result = backup_os10_running_config(target_host)
+
+        else:
+            raise ValueError(
+                f"Unsupported platform for backup: {platform}"
+            )
+
+        device_result = result[target_host]
+
+        if device_result["failed"]:
+            raise RuntimeError(
+                device_result.get(
+                    "result",
+                    "Device backup failed",
+                )
+            )
+
+        timestamp = device_result["timestamp"]
+        checksum = device_result["checksum"]
+        config = device_result["config"]
+
+        backup_dir = f"/backups/{target_host}"
+        backup_path = f"{backup_dir}/{timestamp}.cfg"
+
+        import os
+
+        os.makedirs(
+            backup_dir,
+            mode=0o700,
+            exist_ok=True,
+        )
+
+        with open(backup_path, "w") as backup_file:
+            backup_file.write(config)
+
+        os.chmod(
+            backup_path,
+            0o600,
+        )
+
+        create_backup_record(
+            job_id=job_id,
+            device_id=device_id,
+            backup_type="running-config",
+            storage_path=backup_path,
+            checksum=checksum,
+        )
+
+        create_audit_event(
+            job_id=job_id,
+            device_id=device_id,
+            event_type="backup_completed",
+            message=f"Backup completed: {backup_path}",
+        )
+
+        mark_job_success(job_id)
+
+        return {
+            "job_id": str(job_id),
+            "status": "success",
+            "hostname": target_host,
+            "platform": platform,
+            "storage_path": backup_path,
+            "checksum": checksum,
+        }
+
+    except Exception as exc:
+
+        mark_job_failed(
+            job_id,
+            str(exc),
+        )
+
+        create_audit_event(
+            job_id=job_id,
+            device_id=device_id,
+            event_type="backup_failed",
+            message=str(exc),
+        )
+
+        raise
