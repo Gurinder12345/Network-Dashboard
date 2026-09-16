@@ -2,7 +2,7 @@ import os
 from celery import Celery
 from tasks.dell_os6 import run_show_command, backup_running_config
 from tasks.dell_os6 import run_show_command
-from vault.client import get_os6_credentials
+from vault.client import get_device_credentials
 from db.client import get_connection
 from tasks.dell_os6 import backup_running_config
 
@@ -41,15 +41,16 @@ def health_check():
 
 @app.task(name="network_worker.vault_test")
 def vault_test():
-    credentials = get_os6_credentials()
+    credentials = get_device_credentials(
+        "network/devices/Kenda-HARO-IDF-A"
+    )
 
     return {
         "status": "ok",
         "vault_authenticated": True,
-        "secret_path": "kv/network/dell-os6",
+        "secret_path": "kv/network/devices/Kenda-HARO-IDF-A",
         "available_fields": list(credentials.keys()),
     }
-
 
 @app.task(name="network_worker.os6_show_version")
 def os6_show_version(target_host):
