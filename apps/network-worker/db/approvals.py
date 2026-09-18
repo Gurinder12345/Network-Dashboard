@@ -88,7 +88,8 @@ def create_change_approval(
                     backup_job_id,
                     requested_by,
                     status,
-                    config_lines
+                    config_lines,
+                    config_parents
                 )
                 VALUES (%s, %s, %s, %s, %s, %s)
                 """,
