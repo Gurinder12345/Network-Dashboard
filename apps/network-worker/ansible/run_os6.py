@@ -146,11 +146,25 @@ def run_os6_config_check(target_host, config_lines):
         **comparison,
     }
 
+def normalize_config_line(line):
+    normalized = line.strip()
+
+    if normalized.startswith("description "):
+        value = normalized[len("description "):].strip()
+
+        if len(value) >= 2 and value.startswith('"') and value.endswith('"'):
+            value = value[1:-1]
+
+        normalized = f"description {value}"
+
+    return normalized
+
+
 
 
 def compare_config_lines(running_config, config_lines):
     existing_lines = {
-        line.strip()
+        normalize_config_line(line)
         for line in running_config.splitlines()
         if line.strip()
     }
@@ -159,7 +173,7 @@ def compare_config_lines(running_config, config_lines):
     proposed_changes = []
 
     for line in config_lines:
-        normalized = line.strip()
+        normalized = normalize_config_line(line)
 
         if normalized in existing_lines:
             already_present.append(normalized)
@@ -171,6 +185,7 @@ def compare_config_lines(running_config, config_lines):
         "proposed_changes": proposed_changes,
         "would_change": bool(proposed_changes),
     }
+
 
 
 def run_os6_config_apply(
