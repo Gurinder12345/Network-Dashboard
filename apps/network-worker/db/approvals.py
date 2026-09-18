@@ -91,7 +91,7 @@ def create_change_approval(
                     config_lines,
                     config_parents
                 )
-                VALUES (%s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
                     approval_id,
