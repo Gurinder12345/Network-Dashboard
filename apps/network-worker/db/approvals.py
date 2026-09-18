@@ -225,3 +225,83 @@ def get_change_approval(approval_id):
 
     finally:
         conn.close()
+
+
+def mark_approval_applying(approval_id):
+    conn = get_connection()
+
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE change_approvals
+                SET status = 'applying'
+                WHERE id = %s
+                  AND status = 'approved'
+                RETURNING id
+                """,
+                (approval_id,),
+            )
+
+            row = cur.fetchone()
+
+            if row is None:
+                raise ValueError(
+                    "Approval is not in approved state"
+                )
+
+        conn.commit()
+
+    finally:
+        conn.close()
+
+
+def mark_approval_applied(approval_id):
+    conn = get_connection()
+
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE change_approvals
+                SET status = 'applied'
+                WHERE id = %s
+                  AND status = 'applying'
+                RETURNING id
+                """,
+                (approval_id,),
+            )
+
+            row = cur.fetchone()
+
+            if row is None:
+                raise ValueError(
+                    "Approval is not in applying state"
+                )
+
+        conn.commit()
+
+    finally:
+        conn.close()
+
+
+
+def mark_approval_failed(approval_id):
+    conn = get_connection()
+
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE change_approvals
+                SET status = 'failed'
+                WHERE id = %s
+                  AND status = 'applying'
+                """,
+                (approval_id,),
+            )
+
+        conn.commit()
+
+    finally:
+        conn.close()

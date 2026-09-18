@@ -1,8 +1,17 @@
 import os
-
+from db.approvals import (
+    get_change_approval,
+    verify_backup_for_device,
+    mark_approval_applying,
+    mark_approval_applied,
+    mark_approval_failed,
+)
 
 from db.approvals import create_change_approval
 
+from db.devices import get_device_by_id
+
+from ansible.run_os6 import run_os6_config_apply
 
 from celery import Celery
 from tasks.dell_os6 import run_show_command, backup_running_config
@@ -95,6 +104,126 @@ def os6_change_precheck(target_host, config_lines):
         "approval": approval,
         "ready_for_approval": True,
     }
+
+
+
+@app.task(name="network_worker.os6_apply_approved_change")
+def os6_apply_approved_change(approval_id):
+    approval = get_change_approval(approval_id)
+
+    if approval["status"] != "approved":
+        raise ValueError(
+            f"Approval {approval_id} is not approved"
+        )
+
+    device = get_device_by_id(
+        approval["device_id"]
+    )
+
+    if device["platform"] != "dell_os6":
+        raise ValueError(
+            f"{device['hostname']} is not a dell_os6 device"
+        )
+
+    backup_check = verify_backup_for_device(
+        device["id"],
+        approval["backup_job_id"],
+    )
+
+    if not backup_check["valid"]:
+        raise ValueError(
+            f"Backup verification failed: "
+            f"{backup_check['reason']}"
+        )
+
+    config_lines = approval["config_lines"]
+
+    if not config_lines:
+        raise ValueError(
+            "Approved configuration is empty"
+        )
+
+    # approved -> applying
+    mark_approval_applying(approval_id)
+
+    create_audit_event(
+        job_id=approval["backup_job_id"],
+        device_id=device["id"],
+        event_type="apply_started",
+        message=(
+            f"Approved configuration apply started for "
+            f"{device['hostname']} "
+            f"(approval_id={approval_id})"
+        ),
+    )
+
+    try:
+        result = run_os6_config_apply(
+            device["hostname"],
+            config_lines,
+        )
+
+        if result["returncode"] != 0:
+            raise RuntimeError(
+                f"Ansible apply failed for "
+                f"{device['hostname']}: "
+                f"{result['stderr']}"
+            )
+
+        # Post-check: verify approved config is now present
+        post_check = run_os6_config_check(
+            device["hostname"],
+            config_lines,
+        )
+
+        if post_check["would_change"]:
+            raise RuntimeError(
+                f"Post-check failed for "
+                f"{device['hostname']}: "
+                f"configuration is not present after apply"
+            )
+
+        # applying -> applied
+        mark_approval_applied(approval_id)
+
+        create_audit_event(
+            job_id=approval["backup_job_id"],
+            device_id=device["id"],
+            event_type="apply_completed",
+            message=(
+                f"Approved configuration apply completed for "
+                f"{device['hostname']} "
+                f"(approval_id={approval_id})"
+            ),
+        )
+
+        return {
+            "approval_id": approval_id,
+            "status": "applied",
+            "target_host": device["hostname"],
+            "approved_by": approval["approved_by"],
+            "backup_job_id": approval["backup_job_id"],
+            "config_lines": config_lines,
+            "ansible_result": result,
+            "post_check": post_check,
+        }
+
+    except Exception as exc:
+        # applying -> failed
+        mark_approval_failed(approval_id)
+
+        create_audit_event(
+            job_id=approval["backup_job_id"],
+            device_id=device["id"],
+            event_type="apply_failed",
+            message=(
+                f"Approved configuration apply failed for "
+                f"{device['hostname']} "
+                f"(approval_id={approval_id}): {exc}"
+            ),
+        )
+
+        raise
 
 
 
