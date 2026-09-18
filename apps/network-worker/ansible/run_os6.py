@@ -193,13 +193,29 @@ def run_os6_config_apply(
     config_lines,
     config_parents=None,
 ):
-    device, credential_path = load_device(target_host)
+    
+
+
+    config_parents = config_parents or []
+
+    if not isinstance(config_parents, list):
+        raise ValueError("config_parents must be a list")
 
     if not isinstance(config_lines, list):
         raise ValueError("config_lines must be a list")
 
     if not config_lines:
         raise ValueError("config_lines cannot be empty")
+
+
+
+
+
+
+
+    device, credential_path = load_device(target_host)
+
+    
 
     credentials = get_device_credentials(
         credential_path

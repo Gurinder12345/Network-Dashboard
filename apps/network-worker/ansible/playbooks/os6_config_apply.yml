@@ -8,26 +8,39 @@
     ansible_password: "{{ lookup('env', 'ANSIBLE_PASSWORD') }}"
     ansible_become_password: "{{ lookup('env', 'ANSIBLE_BECOME_PASSWORD') }}"
 
+    effective_parents: "{{ config_parents | default([], true) }}"
+    effective_lines: "{{ config_lines | default([], true) }}"
+
   tasks:
+    - name: Validate approved configuration payload
+      ansible.builtin.assert:
+        that:
+          - effective_parents is sequence
+          - effective_parents is not string
+          - effective_lines is sequence
+          - effective_lines is not string
+          - effective_lines | length > 0
+        fail_msg: "Invalid approved configuration payload"
+
     - name: Debug approved configuration context
       ansible.builtin.debug:
         msg:
-          - "config_parents={{ config_parents }}"
-          - "config_lines={{ config_lines }}"
+          - "config_parents={{ effective_parents }}"
+          - "config_lines={{ effective_lines }}"
 
     - name: Enter configuration mode
       ansible.netcommon.cli_command:
         command: configure
 
-    - name: Enter configuration parent
+    - name: Enter configuration context
       ansible.netcommon.cli_command:
         command: "{{ item }}"
-      loop: "{{ config_parents }}"
+      loop: "{{ effective_parents }}"
 
-    - name: Apply approved configuration lines
+    - name: Apply approved configuration commands
       ansible.netcommon.cli_command:
         command: "{{ item }}"
-      loop: "{{ config_lines }}"
+      loop: "{{ effective_lines }}"
       register: config_apply
 
     - name: Exit configuration mode
