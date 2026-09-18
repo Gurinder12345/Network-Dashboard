@@ -7,7 +7,12 @@ from db.client import get_connection
 from tasks.dell_os6 import backup_running_config
 from db.devices import get_device_by_hostname
 from nornir import InitNornir
-from ansible.run_os6 import run_os6_show_version
+from ansible.run_os6 import (
+    run_os6_show_version,
+    run_os6_config_check,
+)
+
+
 
 from db.jobs import (
     create_job,
@@ -40,9 +45,59 @@ app = Celery(
     backend=REDIS_URL,
 )
 
+
+
+@app.task(name="network_worker.os6_change_precheck")
+def os6_change_precheck(target_host, config_lines):
+    dry_run = run_os6_config_check(
+        target_host,
+        config_lines,
+    )
+
+    if not dry_run["would_change"]:
+        return {
+            "target_host": target_host,
+            "status": "no_change_required",
+            "dry_run": dry_run,
+            "backup_required": False,
+            "ready_for_approval": False,
+        }
+
+    backup_result = backup_running_config_task(
+        target_host
+    )
+
+    if backup_result.get("status") != "success":
+        raise RuntimeError(
+            f"Backup failed for {target_host}"
+        )
+
+    return {
+        "target_host": target_host,
+        "status": "precheck_complete",
+        "dry_run": dry_run,
+        "backup_required": True,
+        "backup": backup_result,
+        "ready_for_approval": True,
+    }
+
+
+
+
+
 @app.task(name="network_worker.ansible_os6_show_version")
 def ansible_os6_show_version(target_host):
     return run_os6_show_version(target_host)
+
+
+
+
+@app.task(name="network_worker.ansible_os6_config_check")
+def ansible_os6_config_check(target_host, config_lines):
+    return run_os6_config_check(
+        target_host,
+        config_lines,
+    )
 
 
 
