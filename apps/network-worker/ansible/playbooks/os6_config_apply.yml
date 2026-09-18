@@ -14,10 +14,25 @@
         msg:
           - "config_parents={{ config_parents }}"
           - "config_lines={{ config_lines }}"
-    - name: Apply approved configuration
-      ansible.netcommon.cli_config:
-        config: "{{ (config_parents + config_lines) | join('\n') }}"
+
+    - name: Enter configuration mode
+      ansible.netcommon.cli_command:
+        command: configure
+
+    - name: Enter configuration parent
+      ansible.netcommon.cli_command:
+        command: "{{ item }}"
+      loop: "{{ config_parents }}"
+
+    - name: Apply approved configuration lines
+      ansible.netcommon.cli_command:
+        command: "{{ item }}"
+      loop: "{{ config_lines }}"
       register: config_apply
+
+    - name: Exit configuration mode
+      ansible.netcommon.cli_command:
+        command: end
 
     - name: Display apply result
       ansible.builtin.debug:
