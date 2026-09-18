@@ -15,9 +15,8 @@
           - "config_parents={{ config_parents }}"
           - "config_lines={{ config_lines }}"
     - name: Apply approved configuration
-      dellemc.os6.os6_config:
-        parents: "{{ config_parents }}"
-        lines: "{{ config_lines }}"
+      ansible.netcommon.cli_config:
+        config: "{{ (config_parents + config_lines) | join('\n') }}"
       register: config_apply
 
     - name: Display apply result
