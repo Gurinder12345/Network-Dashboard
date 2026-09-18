@@ -9,8 +9,14 @@
     ansible_become_password: "{{ lookup('env', 'ANSIBLE_BECOME_PASSWORD') }}"
 
   tasks:
+    - name: Debug approved configuration context
+      ansible.builtin.debug:
+        msg:
+          - "config_parents={{ config_parents }}"
+          - "config_lines={{ config_lines }}"
     - name: Apply approved configuration
       dellemc.os6.os6_config:
+        parents: "{{ config_parents }}"
         lines: "{{ config_lines }}"
       register: config_apply
 
