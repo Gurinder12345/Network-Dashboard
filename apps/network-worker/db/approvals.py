@@ -71,6 +71,7 @@ def create_change_approval(
     device_id,
     backup_job_id,
     config_lines,
+    config_parents=None,
     requested_by="system",
 ):
     approval_id = uuid.uuid4()
@@ -98,6 +99,7 @@ def create_change_approval(
                     requested_by,
                     "pending",
                     json.dumps(config_lines),
+                    json.dumps(config_parents) if config_parents else None,
                 ),
             )
 
@@ -108,6 +110,8 @@ def create_change_approval(
             "device_id": device_id,
             "backup_job_id": str(backup_job_id),
             "status": "pending",
+            "config_lines": config_lines,
+            "config_parents": config_parents,
         }
 
     finally:
@@ -188,6 +192,7 @@ def get_change_approval(approval_id):
                     approved_by,
                     status,
                     config_lines,
+                    config_parents,
                     created_at,
                     approved_at
                 FROM change_approvals
@@ -211,14 +216,15 @@ def get_change_approval(approval_id):
                 "approved_by": row[4],
                 "status": row[5],
                 "config_lines": row[6],
+                "config_parents": row[7],
                 "created_at": (
-                    row[7].isoformat()
-                    if row[7]
+                    row[8].isoformat()
+                    if row[8]
                     else None
                 ),
                 "approved_at": (
-                    row[8].isoformat()
-                    if row[8]
+                    row[9].isoformat()
+                    if row[9]
                     else None
                 ),
             }

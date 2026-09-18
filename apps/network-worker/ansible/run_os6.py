@@ -176,6 +176,7 @@ def compare_config_lines(running_config, config_lines):
 def run_os6_config_apply(
     target_host,
     config_lines,
+    config_parents=None,
 ):
     device, credential_path = load_device(target_host)
 
@@ -231,7 +232,8 @@ def run_os6_config_apply(
             "/app/ansible/playbooks/os6_config_apply.yml",
             "--extra-vars",
             json.dumps({
-                "config_lines": config_lines
+                "config_lines": config_lines,
+                "config_parents": config_parents,
             }),
         ]
 

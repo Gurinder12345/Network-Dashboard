@@ -62,7 +62,11 @@ app = Celery(
 
 
 @app.task(name="network_worker.os6_change_precheck")
-def os6_change_precheck(target_host, config_lines):
+def os6_change_precheck(
+    target_host,
+    config_lines,
+    config_parents=None,
+):
     dry_run = run_os6_config_check(
         target_host,
         config_lines,
@@ -92,6 +96,7 @@ def os6_change_precheck(target_host, config_lines):
         device_id=device["id"],
         backup_job_id=backup_result["job_id"],
         config_lines=config_lines,
+        config_parents=config_parents,
         requested_by="system",
     )
 
@@ -102,6 +107,7 @@ def os6_change_precheck(target_host, config_lines):
         "backup_required": True,
         "backup": backup_result,
         "approval": approval,
+        "config_parents": config_parents,
         "ready_for_approval": True,
     }
 
@@ -137,6 +143,7 @@ def os6_apply_approved_change(approval_id):
         )
 
     config_lines = approval["config_lines"]
+    config_parents = approval.get("config_parents")
 
     if not config_lines:
         raise ValueError(
@@ -161,6 +168,7 @@ def os6_apply_approved_change(approval_id):
         result = run_os6_config_apply(
             device["hostname"],
             config_lines,
+            config_parents,
         )
 
         if result["returncode"] != 0:
@@ -205,6 +213,7 @@ def os6_apply_approved_change(approval_id):
             "backup_job_id": approval["backup_job_id"],
             "config_lines": config_lines,
             "ansible_result": result,
+            "config_parents": config_parents,
             "post_check": post_check,
         }
 
