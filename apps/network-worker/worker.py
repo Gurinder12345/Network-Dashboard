@@ -1,4 +1,9 @@
 import os
+
+
+from db.approvals import create_change_approval
+
+
 from celery import Celery
 from tasks.dell_os6 import run_show_command, backup_running_config
 from tasks.dell_os6 import run_show_command
@@ -63,6 +68,8 @@ def os6_change_precheck(target_host, config_lines):
             "ready_for_approval": False,
         }
 
+    device = get_device_by_hostname(target_host)
+
     backup_result = backup_running_config_task(
         target_host
     )
@@ -72,12 +79,20 @@ def os6_change_precheck(target_host, config_lines):
             f"Backup failed for {target_host}"
         )
 
+    approval = create_change_approval(
+        device_id=device["id"],
+        backup_job_id=backup_result["job_id"],
+        config_lines=config_lines,
+        requested_by="system",
+    )
+
     return {
         "target_host": target_host,
-        "status": "precheck_complete",
+        "status": "pending_approval",
         "dry_run": dry_run,
         "backup_required": True,
         "backup": backup_result,
+        "approval": approval,
         "ready_for_approval": True,
     }
 
