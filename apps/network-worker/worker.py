@@ -174,8 +174,8 @@ def os6_apply_approved_change(approval_id):
         if result["returncode"] != 0:
             raise RuntimeError(
                 f"Ansible apply failed for "
-                f"{device['hostname']}: "
-                f"{result['stderr']}"
+                f"STDOUT:\n{result['stdout']}\n"
+                f"STDERR:\n{result['stderr']}"
             )
 
         # Post-check: verify approved config is now present
