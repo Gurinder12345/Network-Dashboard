@@ -111,18 +111,28 @@ def run_os6_show_version(target_host):
 
 
 
-def run_os6_config_check(target_host, config_lines):
-    device, credential_path = load_device(target_host)
+def normalize_config_line(line):
+    normalized = line.strip()
 
-    if not isinstance(config_lines, list):
-        raise ValueError("config_lines must be a list")
+    if normalized.startswith("description "):
+        value = normalized[len("description "):].strip()
 
-    if not config_lines:
-        raise ValueError("config_lines cannot be empty")
+        if (
+            len(value) >= 2
+            and value.startswith('"')
+            and value.endswith('"')
+        ):
+            value = value[1:-1]
 
+        normalized = f"description {value}"
+
+    return normalized
+
+
+def get_show_output(target_host, command):
     result = run_show_command(
         target_host,
-        "show running-config",
+        command,
     )
 
     device_result = result[target_host]
@@ -132,11 +142,262 @@ def run_os6_config_check(target_host, config_lines):
             device_result["result"]
         )
 
-    running_config = device_result["result"]
+    return device_result["result"]
 
-    comparison = compare_config_lines(
-        running_config,
+
+def extract_parent_config(
+    running_config,
+    config_parents=None,
+):
+    config_parents = config_parents or []
+
+    if not config_parents:
+        return running_config
+
+    scoped_config = running_config
+
+    for parent in config_parents:
+        parent = parent.strip()
+        lines = scoped_config.splitlines()
+
+        start_index = None
+
+        for index, line in enumerate(lines):
+            if line.strip() == parent:
+                start_index = index + 1
+                break
+
+        if start_index is None:
+            return ""
+
+        block = []
+
+        for line in lines[start_index:]:
+            if line.strip() == "exit":
+                break
+
+            block.append(line)
+
+        scoped_config = "\n".join(block)
+
+    return scoped_config
+
+
+def classify_config_command(command):
+    normalized = command.strip().lower()
+    parts = normalized.split()
+
+    # no vlan 500
+    if (
+        len(parts) == 3
+        and parts[0] == "no"
+        and parts[1] == "vlan"
+        and parts[2].isdigit()
+    ):
+        return "vlan_negative"
+
+    # vlan 500
+    if (
+        len(parts) == 2
+        and parts[0] == "vlan"
+        and parts[1].isdigit()
+    ):
+        return "vlan"
+
+    # no description, no shutdown, no ip address, etc.
+    if normalized.startswith("no "):
+        return "negative"
+
+    # default
+    return "running_config"
+
+
+def parse_vlan_ids(vlan_output):
+    vlan_ids = set()
+
+    for line in vlan_output.splitlines():
+        stripped = line.strip()
+
+        if not stripped:
+            continue
+
+        fields = stripped.split()
+
+        if fields and fields[0].isdigit():
+            vlan_ids.add(int(fields[0]))
+
+    return vlan_ids
+
+
+def verify_config_commands(
+    target_host,
+    config_lines,
+    config_parents=None,
+):
+    command_types = [
+        classify_config_command(command)
+        for command in config_lines
+    ]
+
+    needs_vlan = any(
+        command_type in ("vlan", "vlan_negative")
+        for command_type in command_types
+    )
+
+    needs_running_config = any(
+        command_type in ("running_config", "negative")
+        for command_type in command_types
+    )
+
+    vlan_ids = set()
+    existing_lines = set()
+
+    if needs_vlan:
+        vlan_output = get_show_output(
+            target_host,
+            "show vlan",
+        )
+
+        vlan_ids = parse_vlan_ids(
+            vlan_output
+        )
+
+    if needs_running_config:
+        running_config = get_show_output(
+            target_host,
+            "show running-config",
+        )
+
+        scoped_config = extract_parent_config(
+            running_config,
+            config_parents,
+        )
+
+        existing_lines = {
+            normalize_config_line(line)
+            for line in scoped_config.splitlines()
+            if line.strip()
+        }
+
+    already_present = []
+    proposed_changes = []
+    command_results = []
+    verification_methods = set()
+
+    for command in config_lines:
+        normalized = normalize_config_line(command)
+
+        command_type = classify_config_command(
+            normalized
+        )
+
+        if command_type == "vlan":
+            vlan_id = int(
+                normalized.split()[1]
+            )
+
+            desired_state_present = (
+                vlan_id in vlan_ids
+            )
+
+            verification_method = "show vlan"
+
+        elif command_type == "vlan_negative":
+            vlan_id = int(
+                normalized.split()[2]
+            )
+
+            desired_state_present = (
+                vlan_id not in vlan_ids
+            )
+
+            verification_method = "show vlan"
+
+        elif command_type == "negative":
+            positive_form = normalized[3:].strip()
+
+            positive_exists = any(
+                existing == positive_form
+                or existing.startswith(
+                    f"{positive_form} "
+                )
+                for existing in existing_lines
+            )
+
+            desired_state_present = (
+                not positive_exists
+            )
+
+            verification_method = "running-config"
+
+        else:
+            desired_state_present = (
+                normalized in existing_lines
+            )
+
+            verification_method = "running-config"
+
+        verification_methods.add(
+            verification_method
+        )
+
+        if desired_state_present:
+            already_present.append(normalized)
+        else:
+            proposed_changes.append(normalized)
+
+        command_results.append({
+            "command": normalized,
+            "type": command_type,
+            "verification_method": verification_method,
+            "desired_state_present": desired_state_present,
+            "config_parents": config_parents or [],
+        })
+
+    if len(verification_methods) == 1:
+        overall_method = next(
+            iter(verification_methods)
+        )
+    else:
+        overall_method = "mixed"
+
+    return {
+        "already_present": already_present,
+        "proposed_changes": proposed_changes,
+        "would_change": bool(proposed_changes),
+        "verification_method": overall_method,
+        "command_results": command_results,
+    }
+
+
+def run_os6_config_check(
+    target_host,
+    config_lines,
+    config_parents=None,
+):
+    load_device(target_host)
+
+    if not isinstance(config_lines, list):
+        raise ValueError(
+            "config_lines must be a list"
+        )
+
+    if not config_lines:
+        raise ValueError(
+            "config_lines cannot be empty"
+        )
+
+    config_parents = config_parents or []
+
+    if not isinstance(config_parents, list):
+        raise ValueError(
+            "config_parents must be a list"
+        )
+
+    comparison = verify_config_commands(
+        target_host,
         config_lines,
+        config_parents,
     )
 
     return {
@@ -145,48 +406,6 @@ def run_os6_config_check(target_host, config_lines):
         "dry_run": True,
         **comparison,
     }
-
-def normalize_config_line(line):
-    normalized = line.strip()
-
-    if normalized.startswith("description "):
-        value = normalized[len("description "):].strip()
-
-        if len(value) >= 2 and value.startswith('"') and value.endswith('"'):
-            value = value[1:-1]
-
-        normalized = f"description {value}"
-
-    return normalized
-
-
-
-
-def compare_config_lines(running_config, config_lines):
-    existing_lines = {
-        normalize_config_line(line)
-        for line in running_config.splitlines()
-        if line.strip()
-    }
-
-    already_present = []
-    proposed_changes = []
-
-    for line in config_lines:
-        normalized = normalize_config_line(line)
-
-        if normalized in existing_lines:
-            already_present.append(normalized)
-        else:
-            proposed_changes.append(normalized)
-
-    return {
-        "already_present": already_present,
-        "proposed_changes": proposed_changes,
-        "would_change": bool(proposed_changes),
-    }
-
-
 
 def run_os6_config_apply(
     target_host,

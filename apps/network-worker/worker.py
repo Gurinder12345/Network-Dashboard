@@ -70,6 +70,7 @@ def os6_change_precheck(
     dry_run = run_os6_config_check(
         target_host,
         config_lines,
+        config_parents,
     )
 
     if not dry_run["would_change"]:
@@ -182,6 +183,7 @@ def os6_apply_approved_change(approval_id):
         post_check = run_os6_config_check(
             device["hostname"],
             config_lines,
+            config_parents,
         )
 
         if post_check["would_change"]:
