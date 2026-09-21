@@ -39,35 +39,72 @@ def get_nornir(target_host):
         host.connection_options["netmiko"] = ConnectionOptions(
             extras={
                 "secret": credentials["secret"],
+                "conn_timeout": 20,
+                "auth_timeout": 30,
+                "banner_timeout": 30,
+                "read_timeout_override": 60,
             }
         )
 
     return nr
 
 
-def run_show_command(target_host, command):
-    nr = get_nornir(target_host)
+import time
 
-    result = nr.run(
-        task=netmiko_send_command,
-        command_string=command,
-        enable=True,
-    )
 
-    output = {}
+def run_show_command(
+    target_host,
+    command,
+    max_attempts=3,
+    retry_delay=3,
+):
+    last_error = None
 
-    for hostname, multi_result in result.items():
-        task_result = multi_result[0]
+    for attempt in range(1, max_attempts + 1):
+        nr = get_nornir(target_host)
 
-        output[hostname] = {
-            "failed": task_result.failed,
-            "result": str(task_result.result),
+        try:
+            result = nr.run(
+                task=netmiko_send_command,
+                command_string=command,
+                enable=True,
+                read_timeout=120,
+            )
+
+            output = {}
+
+            for hostname, multi_result in result.items():
+                task_result = multi_result[0]
+
+                output[hostname] = {
+                    "failed": task_result.failed,
+                    "result": str(task_result.result),
+                }
+
+                if task_result.failed:
+                    last_error = str(task_result.result)
+
+            if all(
+                not item["failed"]
+                for item in output.values()
+            ):
+                return output
+
+        except Exception as exc:
+            last_error = str(exc)
+
+        if attempt < max_attempts:
+            time.sleep(retry_delay)
+
+    return {
+        target_host: {
+            "failed": True,
+            "result": (
+                f"Command failed after {max_attempts} attempts. "
+                f"Last error: {last_error}"
+            ),
         }
-
-    return output
-
-
-
+    }
 
 
 def backup_running_config(target_host):
