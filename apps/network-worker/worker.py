@@ -248,12 +248,16 @@ def ansible_os6_show_version(target_host):
 
 
 @app.task(name="network_worker.ansible_os6_config_check")
-def ansible_os6_config_check(target_host, config_lines):
+def ansible_os6_config_check(
+    target_host,
+    config_lines,
+    config_parents=None,
+):
     return run_os6_config_check(
         target_host,
         config_lines,
+        config_parents,
     )
-
 
 
 @app.task(name="network_worker.os10_show_version")
