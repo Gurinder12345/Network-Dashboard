@@ -7,6 +7,35 @@ from nornir_netmiko.tasks import netmiko_send_command
 from vault.client import get_device_credentials
 
 
+
+
+
+
+
+
+def _dell_os6_session_preparation(self):
+    """
+    Dell OS6 can be slow to present the initial CLI prompt.
+    Netmiko's default Dell driver waits only 20 seconds.
+    """
+    self.ansi_escape_codes = True
+
+    self.read_until_pattern(
+        pattern=r"[>#]",
+        read_timeout=60,
+    )
+
+    self.set_base_prompt()
+    self.enable()
+    self.set_terminal_width()
+    self.disable_paging(command="terminal length 0")
+
+
+DellDNOS6SSH.session_preparation = _dell_os6_session_preparation
+
+
+
+
 def get_nornir(target_host):
     nr = InitNornir(
         inventory={
