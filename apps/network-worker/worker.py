@@ -24,6 +24,7 @@ from nornir import InitNornir
 from ansible.run_os6 import (
     run_os6_show_version,
     run_os6_config_check,
+    get_show_output,
 )
 
 
@@ -67,10 +68,18 @@ def os6_change_precheck(
     config_lines,
     config_parents=None,
 ):
+
+
+    running_config_snapshot = get_show_output(
+        target_host,
+        "show running-config",)
+
+
     dry_run = run_os6_config_check(
         target_host,
         config_lines,
         config_parents,
+        running_config_snapshot=running_config_snapshot,
     )
 
     if not dry_run["would_change"]:
@@ -85,7 +94,7 @@ def os6_change_precheck(
     device = get_device_by_hostname(target_host)
 
     backup_result = backup_running_config_task(
-        target_host
+        target_host,config_snapshot=running_config_snapshot,
     )
 
     if backup_result.get("status") != "success":
@@ -407,7 +416,10 @@ def os10_show_running_config(target_host):
 
 
 @app.task(name="network_worker.backup_running_config")
-def backup_running_config_task(target_host):
+def backup_running_config_task(
+    target_host,
+    config_snapshot=None,
+):
     device = get_device_by_hostname(target_host)
 
     device_id = device["id"]
@@ -427,18 +439,42 @@ def backup_running_config_task(target_host):
             message=f"Running-config backup started for {target_host}",
         )
 
-        if platform == "dell_os6":
-            result = backup_os6_running_config(target_host)
+        if config_snapshot is not None:
+            from datetime import datetime, timezone
+            import hashlib
 
-        elif platform == "dell_os10":
-            result = backup_os10_running_config(target_host)
+            timestamp = datetime.now(
+                timezone.utc
+            ).strftime("%Y%m%dT%H%M%SZ")
+
+            checksum = hashlib.sha256(
+                config_snapshot.encode("utf-8")
+            ).hexdigest()
+
+            device_result = {
+                "failed": False,
+                "timestamp": timestamp,
+                "checksum": checksum,
+                "config": config_snapshot,
+            }
 
         else:
-            raise ValueError(
-                f"Unsupported platform for backup: {platform}"
-            )
+            if platform == "dell_os6":
+                result = backup_os6_running_config(
+                    target_host
+                )
 
-        device_result = result[target_host]
+            elif platform == "dell_os10":
+                result = backup_os10_running_config(
+                    target_host
+                )
+
+            else:
+                raise ValueError(
+                    f"Unsupported platform for backup: {platform}"
+                )
+
+            device_result = result[target_host]
 
         if device_result["failed"]:
             raise RuntimeError(
@@ -463,7 +499,10 @@ def backup_running_config_task(target_host):
             exist_ok=True,
         )
 
-        with open(backup_path, "w") as backup_file:
+        with open(
+            backup_path,
+            "w",
+        ) as backup_file:
             backup_file.write(config)
 
         os.chmod(
@@ -472,10 +511,10 @@ def backup_running_config_task(target_host):
         )
 
         create_backup_record(
-        job_id=job_id,
-        device_id=device_id,
-        storage_path=backup_path,
-        checksum=checksum,
+            job_id=job_id,
+            device_id=device_id,
+            storage_path=backup_path,
+            checksum=checksum,
         )
 
         create_audit_event(
@@ -497,7 +536,6 @@ def backup_running_config_task(target_host):
         }
 
     except Exception as exc:
-
         mark_job_failed(
             job_id,
             str(exc),

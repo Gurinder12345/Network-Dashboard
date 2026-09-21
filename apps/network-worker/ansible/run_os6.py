@@ -1,3 +1,4 @@
+
 import os
 import subprocess
 import tempfile
@@ -233,6 +234,7 @@ def verify_config_commands(
     target_host,
     config_lines,
     config_parents=None,
+    running_config_snapshot=None,
 ):
     command_types = [
         classify_config_command(command)
@@ -262,11 +264,15 @@ def verify_config_commands(
             vlan_output
         )
 
+    
     if needs_running_config:
-        running_config = get_show_output(
-            target_host,
-            "show running-config",
-        )
+        if running_config_snapshot is not None:
+           running_config = running_config_snapshot
+        else:
+            running_config = get_show_output(
+                target_host,
+                "show running-config",
+            )
 
         scoped_config = extract_parent_config(
             running_config,
@@ -374,6 +380,7 @@ def run_os6_config_check(
     target_host,
     config_lines,
     config_parents=None,
+    running_config_snapshot=None,
 ):
     load_device(target_host)
 
@@ -398,6 +405,7 @@ def run_os6_config_check(
         target_host,
         config_lines,
         config_parents,
+        running_config_snapshot=running_config_snapshot,
     )
 
     return {
