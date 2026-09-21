@@ -7,7 +7,7 @@ from nornir_netmiko.tasks import netmiko_send_command
 from vault.client import get_device_credentials
 
 
-
+from netmiko.dell.dell_dnos6 import DellDNOS6SSH
 
 
 
