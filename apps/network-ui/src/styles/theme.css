@@ -193,6 +193,43 @@ table {
   cursor: default;
 }
 
+.filters-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.search-input,
+.filter-select {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  border-radius: 4px;
+  padding: 7px 10px;
+  font-size: 12.5px;
+  font-family: var(--font-sans);
+}
+
+.search-input {
+  flex: 1 1 260px;
+  max-width: 320px;
+}
+
+.search-input::placeholder {
+  color: var(--text-muted);
+}
+
+.search-input:focus,
+.filter-select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.filter-select {
+  min-width: 160px;
+}
+
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -344,6 +381,104 @@ table {
 
 .mono {
   font-family: var(--font-mono);
+}
+
+.config-block {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.6;
+  max-width: 320px;
+}
+
+.config-parent {
+  color: var(--text-muted);
+}
+
+.config-line {
+  color: var(--text-secondary);
+  padding-left: 12px;
+}
+
+.error-details {
+  max-width: 360px;
+}
+
+.error-summary {
+  color: var(--status-failed);
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+
+.error-summary::-webkit-details-marker {
+  color: var(--text-muted);
+}
+
+.error-full {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  background: var(--bg-panel-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.copy-button {
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  color: var(--text-muted);
+  border-radius: 3px;
+  padding: 2px 7px;
+  font-size: 10.5px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.copy-button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.path-cell,
+.checksum-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.path-cell {
+  max-width: 340px;
+}
+
+.path-inner {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.path-dir {
+  color: var(--text-muted);
+  font-size: 10.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.path-file {
+  color: var(--text-primary);
+  font-size: 11.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .badge {

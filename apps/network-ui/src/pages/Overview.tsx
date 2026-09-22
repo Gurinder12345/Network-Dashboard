@@ -1,21 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getApprovals, getDevices, getJobs } from "../api/client";
+import { OS6_PLATFORM } from "../api/constants";
 import type { Approval, Device, Job } from "../api/types";
 import { KpiCard } from "../components/KpiCard";
 import { StatusBadge } from "../components/StatusBadge";
-
-const OS6_PLATFORM = "dell_os6";
-
-function formatTimestamp(value: string | null): string {
-  if (!value) return "—";
-
-  return new Date(value).toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
+import { formatTimestamp } from "../utils/format";
 
 function summarizeConfig(approval: Approval): string {
   const parents = approval.config_parents ?? [];

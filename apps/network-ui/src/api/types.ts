@@ -17,6 +17,16 @@ export interface Job {
   error_message: string | null;
 }
 
+export interface Backup {
+  id: number;
+  job_id: string | null;
+  device_id: number;
+  backup_type: string;
+  storage_path: string;
+  checksum: string;
+  created_at: string | null;
+}
+
 export interface Approval {
   id: string;
   device_id: number;

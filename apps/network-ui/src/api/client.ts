@@ -1,4 +1,4 @@
-import type { Approval, Device, Job } from "./types";
+import type { Approval, Backup, Device, Job } from "./types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -22,4 +22,8 @@ export function getJobs(): Promise<Job[]> {
 
 export function getApprovals(): Promise<Approval[]> {
   return getJson<Approval[]>("/api/v1/approvals");
+}
+
+export function getBackups(): Promise<Backup[]> {
+  return getJson<Backup[]>("/api/v1/backups");
 }
