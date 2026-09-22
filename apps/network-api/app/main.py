@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.db.devices import list_devices
 from app.db.jobs import list_jobs
@@ -7,6 +8,16 @@ from app.db.backups import list_backups
 from app.db.audit import list_audit_events
 
 app = FastAPI(title="Network Management API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://192.168.137.148:5173",
+    ],
+    allow_methods=["GET"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/health")
