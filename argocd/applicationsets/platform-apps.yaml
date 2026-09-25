@@ -17,6 +17,9 @@ spec:
           - name: network-worker
             path: kubernetes/network-platform/network-worker
             namespace: network-platform
+          - name: network-api
+            path: kubernetes/network-platform/network-api
+            namespace: network-platform
 
   template:
     metadata:
