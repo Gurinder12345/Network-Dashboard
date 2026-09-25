@@ -31,3 +31,25 @@ def list_audit_events():
                 }
                 for row in rows
             ]
+
+
+def create_audit_event(job_id, device_id, event_type, message):
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO audit_events (
+                    job_id,
+                    device_id,
+                    event_type,
+                    message
+                )
+                VALUES (%s, %s, %s, %s)
+                """,
+                (
+                    job_id,
+                    device_id,
+                    event_type,
+                    message,
+                ),
+            )

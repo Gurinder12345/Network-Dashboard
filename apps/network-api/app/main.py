@@ -6,6 +6,8 @@ from app.db.jobs import list_jobs
 from app.db.approvals import list_approvals
 from app.db.backups import list_backups
 from app.db.audit import list_audit_events
+from app.changes import router as changes_router
+from app.backup_download import router as backup_download_router
 
 app = FastAPI(title="Network Management API")
 
@@ -15,9 +17,13 @@ app.add_middleware(
         "http://localhost:5173",
         "http://192.168.137.148:5173",
     ],
-    allow_methods=["GET"],
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"],
 )
+
+app.include_router(changes_router)
+app.include_router(backup_download_router)
 
 
 @app.get("/health")
