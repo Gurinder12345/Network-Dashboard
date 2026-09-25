@@ -1,10 +1,58 @@
 import { useEffect, useMemo, useState } from "react";
-import { getBackups, getDevices } from "../api/client";
+import { downloadBackup, getBackups, getDevices } from "../api/client";
 import type { Backup, Device } from "../api/types";
 import { CopyButton } from "../components/CopyButton";
 import { formatTimestamp, truncateId } from "../utils/format";
 
 const ALL_DEVICES = "all";
+
+function saveFile(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function DownloadCell({ backupId }: { backupId: number }) {
+  const [downloading, setDownloading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleDownload() {
+    setDownloading(true);
+    setError(null);
+
+    try {
+      const { blob, filename } = await downloadBackup(backupId);
+      saveFile(blob, filename);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Download failed");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  return (
+    <div className="download-cell">
+      <button
+        type="button"
+        className="copy-button"
+        disabled={downloading}
+        onClick={handleDownload}
+      >
+        {downloading ? "Downloading…" : "Download"}
+      </button>
+      {error && (
+        <span className="form-error" title={error}>
+          {error}
+        </span>
+      )}
+    </div>
+  );
+}
 
 function StoragePathCell({ path }: { path: string }) {
   const lastSlash = path.lastIndexOf("/");
@@ -164,6 +212,7 @@ export function Backups() {
                   <th>Storage Path</th>
                   <th>Checksum</th>
                   <th>Job ID</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -184,11 +233,14 @@ export function Backups() {
                     <td className="mono" title={backup.job_id ?? undefined}>
                       {truncateId(backup.job_id)}
                     </td>
+                    <td>
+                      <DownloadCell backupId={backup.id} />
+                    </td>
                   </tr>
                 ))}
                 {filteredBackups.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="empty-state">
+                    <td colSpan={7} className="empty-state">
                       {backups.length === 0
                         ? "No backups recorded yet."
                         : "No backups match your search or filter."}

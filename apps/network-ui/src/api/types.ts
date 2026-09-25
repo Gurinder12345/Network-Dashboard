@@ -39,3 +39,57 @@ export interface Approval {
   created_at: string | null;
   approved_at: string | null;
 }
+
+export interface AuditEvent {
+  id: number;
+  job_id: string | null;
+  device_id: number | null;
+  event_type: string;
+  message: string | null;
+  created_at: string | null;
+}
+
+export interface Os6PrecheckRequest {
+  device_id: number;
+  config_parents: string[];
+  config_lines: string[];
+}
+
+export interface Os6PrecheckSubmitted {
+  request_id: string;
+  state: "queued";
+  device_id: number;
+  hostname: string;
+}
+
+export type PrecheckState = "queued" | "running" | "completed" | "failed";
+
+export interface PrecheckCommandResult {
+  command: string;
+  type: string;
+  verification_method: string;
+  desired_state_present: boolean;
+}
+
+export interface Os6PrecheckResult {
+  status: "no_change_required" | "pending_approval" | string;
+  target_host: string | null;
+  ready_for_approval: boolean;
+  backup_required: boolean;
+  dry_run: {
+    would_change: boolean | null;
+    verification_method: string | null;
+    already_present: string[];
+    proposed_changes: string[];
+    command_results: PrecheckCommandResult[];
+  };
+  backup: { job_id: string | null; status: string | null; checksum: string | null; storage_path: string | null } | null;
+  approval: { approval_id: string | null; status: string | null } | null;
+}
+
+export interface Os6PrecheckStatus {
+  request_id: string;
+  state: PrecheckState;
+  result: Os6PrecheckResult | null;
+  error: string | null;
+}
