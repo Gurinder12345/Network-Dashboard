@@ -8,6 +8,7 @@ from app.db.backups import list_backups
 from app.db.audit import list_audit_events
 from app.changes import router as changes_router
 from app.backup_download import router as backup_download_router
+from app.approval_actions import router as approval_actions_router
 
 app = FastAPI(title="Network Management API")
 
@@ -24,6 +25,7 @@ app.add_middleware(
 
 app.include_router(changes_router)
 app.include_router(backup_download_router)
+app.include_router(approval_actions_router)
 
 
 @app.get("/health")

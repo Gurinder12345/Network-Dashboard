@@ -111,3 +111,11 @@ export async function downloadBackup(backupId: number): Promise<DownloadedFile> 
     filename: match?.[1] ?? `backup-${backupId}.cfg`,
   };
 }
+
+// Only the approver identity is sent; the API approves the configuration already stored
+// on the approval record and never applies it.
+export function approveApproval(approvalId: string, approvedBy: string): Promise<Approval> {
+  return postJson<Approval>(`/api/v1/approvals/${encodeURIComponent(approvalId)}/approve`, {
+    approved_by: approvedBy,
+  });
+}
