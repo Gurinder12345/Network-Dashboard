@@ -1,4 +1,6 @@
 import type {
+  ApplyStatus,
+  ApplySubmitted,
   Approval,
   AuditEvent,
   Backup,
@@ -118,4 +120,15 @@ export function approveApproval(approvalId: string, approvedBy: string): Promise
   return postJson<Approval>(`/api/v1/approvals/${encodeURIComponent(approvalId)}/approve`, {
     approved_by: approvedBy,
   });
+}
+
+// No configuration is sent: the API applies the stored approved record only.
+export function applyApproval(approvalId: string): Promise<ApplySubmitted> {
+  return postJson<ApplySubmitted>(`/api/v1/approvals/${encodeURIComponent(approvalId)}/apply`, {});
+}
+
+export function getApplyStatus(approvalId: string, requestId: string): Promise<ApplyStatus> {
+  return getJson<ApplyStatus>(
+    `/api/v1/approvals/${encodeURIComponent(approvalId)}/apply/${encodeURIComponent(requestId)}`,
+  );
 }

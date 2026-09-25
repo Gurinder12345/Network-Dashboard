@@ -1,5 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { approveApproval, getApprovals, getDevices } from "../api/client";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  applyApproval,
+  approveApproval,
+  getApplyStatus,
+  getApprovals,
+  getDevices,
+} from "../api/client";
+import { OS6_PLATFORM } from "../api/constants";
 import type { Approval, Device } from "../api/types";
 import { StatusBadge } from "../components/StatusBadge";
 import { formatTimestamp, truncateId } from "../utils/format";
@@ -7,6 +14,18 @@ import { formatTimestamp, truncateId } from "../utils/format";
 const ALL_STATUSES = "all";
 const APPROVER_STORAGE_KEY = "network-ui.approver";
 const APPROVER_PATTERN = /^[A-Za-z0-9._@-]{2,64}$/;
+const APPLY_POLL_INTERVAL_MS = 3000;
+const APPLY_POLL_TIMEOUT_MS = 15 * 60 * 1000;
+const MAX_POLL_ERRORS = 5;
+
+interface ActiveApply {
+  approvalId: string;
+  requestId: string;
+  hostname: string;
+  startedAt: number;
+  phase: "applying" | "applied" | "failed" | "unknown";
+  error: string | null;
+}
 
 function readStoredApprover(): string {
   try {
@@ -160,6 +179,196 @@ function ConfigDetail({ approval }: { approval: Approval }) {
   );
 }
 
+interface ApplyDialogProps {
+  approval: Approval;
+  hostname: string;
+  submitting: boolean;
+  error: string | null;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+function ApplyDialog({ approval, hostname, submitting, error, onConfirm, onCancel }: ApplyDialogProps) {
+  const [typedHostname, setTypedHostname] = useState("");
+  const confirmed = typedHostname.trim() === hostname;
+
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape" && !submitting) onCancel();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onCancel, submitting]);
+
+  return (
+    <div className="modal-backdrop" onClick={() => !submitting && onCancel()}>
+      <div
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="apply-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="panel-header">
+          <h2 id="apply-title">Apply approved change</h2>
+          <StatusBadge status={approval.status} />
+        </div>
+
+        <div className="modal-body">
+          <div className="danger-banner">
+            <strong>This WILL modify the running configuration of {hostname}.</strong>
+            <span>
+              The commands below are sent to the switch now, followed by a post-check. There is no
+              automatic rollback. Do not apply changes to management or uplink interfaces.
+            </span>
+          </div>
+
+          <dl className="detail-list">
+            <dt>Device</dt>
+            <dd>{hostname}</dd>
+            <dt>Approval ID</dt>
+            <dd className="mono">{approval.id}</dd>
+            <dt>Approved by</dt>
+            <dd>{approval.approved_by ?? "—"}</dd>
+            <dt>Approved at</dt>
+            <dd className="mono">
+              {approval.approved_at ? new Date(approval.approved_at).toLocaleString() : "—"}
+            </dd>
+            <dt>Backup job</dt>
+            <dd className="mono">{approval.backup_job_id ?? "—"}</dd>
+          </dl>
+
+          <div className="form-field">
+            <span className="form-label">Parent / context</span>
+            <pre className="config-preview">
+              {(approval.config_parents ?? []).length > 0
+                ? (approval.config_parents ?? []).join("\n")
+                : "(global configuration)"}
+            </pre>
+          </div>
+
+          <div className="form-field">
+            <span className="form-label">Configuration lines</span>
+            <pre className="config-preview">{(approval.config_lines ?? []).join("\n")}</pre>
+          </div>
+
+          <label className="form-field">
+            <span className="form-label">Type the hostname to confirm</span>
+            <input
+              type="text"
+              className="search-input mono"
+              style={{ maxWidth: "none" }}
+              placeholder={hostname}
+              value={typedHostname}
+              disabled={submitting}
+              autoFocus
+              autoComplete="off"
+              onChange={(event) => setTypedHostname(event.target.value)}
+            />
+          </label>
+
+          {error && <div className="error-banner" style={{ marginBottom: 0 }}>{error}</div>}
+        </div>
+
+        <div className="modal-actions">
+          <button type="button" className="copy-button" disabled={submitting} onClick={onCancel}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="danger-button"
+            disabled={!confirmed || submitting}
+            onClick={onConfirm}
+          >
+            {submitting ? "Submitting…" : "Apply to switch"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface ApprovalActionProps {
+  approval: Approval;
+  platform: string | undefined;
+  busy: boolean;
+  onApprove: () => void;
+  onApply: () => void;
+}
+
+function ApprovalAction({ approval, platform, busy, onApprove, onApply }: ApprovalActionProps) {
+  if (platform !== undefined && platform !== OS6_PLATFORM) {
+    return <span className="view-only-tag">View only</span>;
+  }
+
+  switch (approval.status) {
+    case "pending":
+      return (
+        <button type="button" className="primary-button small-button" disabled={busy} onClick={onApprove}>
+          Approve
+        </button>
+      );
+    case "approved":
+      return (
+        <button type="button" className="danger-button small-button" disabled={busy} onClick={onApply}>
+          Apply
+        </button>
+      );
+    case "applying":
+      return (
+        <button type="button" className="primary-button small-button" disabled>
+          Applying&hellip;
+        </button>
+      );
+    default:
+      return <span className="view-only-tag">—</span>;
+  }
+}
+
+function ApplyStatusBanner({ apply, onDismiss }: { apply: ActiveApply; onDismiss: () => void }) {
+  const tone =
+    apply.phase === "applied" ? "applied" : apply.phase === "failed" ? "failed" : "applying";
+  const label =
+    apply.phase === "applied"
+      ? "Applied"
+      : apply.phase === "failed"
+        ? "Failed"
+        : apply.phase === "unknown"
+          ? "Status unknown"
+          : "Applying";
+
+  return (
+    <div className={`apply-banner apply-banner-${tone}`}>
+      <div className="apply-banner-head">
+        <span className={`badge badge-${tone}`}>
+          <span className="badge-dot" />
+          {label}
+        </span>
+        <span>{apply.hostname}</span>
+        <span className="mono muted" title={apply.requestId}>
+          req {truncateId(apply.requestId)}
+        </span>
+        {apply.phase === "applying" ? (
+          <span className="muted">Applying and running post-check&hellip;</span>
+        ) : (
+          <button type="button" className="copy-button" onClick={onDismiss}>
+            Dismiss
+          </button>
+        )}
+      </div>
+      {apply.phase === "applied" && (
+        <div className="muted">Post-check confirmed the configuration is present on the device.</div>
+      )}
+      {apply.error && (
+        <details className="error-details" style={{ maxWidth: "none" }} open={apply.error.length < 300}>
+          <summary className="error-summary mono">{apply.error.split("\n")[0]}</summary>
+          <pre className="error-full">{apply.error}</pre>
+        </details>
+      )}
+    </div>
+  );
+}
+
 export function Approvals() {
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [devices, setDevices] = useState<Device[]>([]);
@@ -171,6 +380,20 @@ export function Approvals() {
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [applyTarget, setApplyTarget] = useState<Approval | null>(null);
+  const [applySubmitting, setApplySubmitting] = useState(false);
+  const [applyError, setApplyError] = useState<string | null>(null);
+  const [activeApply, setActiveApply] = useState<ActiveApply | null>(null);
+  const pollTimer = useRef<number | null>(null);
+  const mounted = useRef(true);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      if (pollTimer.current !== null) window.clearTimeout(pollTimer.current);
+    };
+  }, []);
 
   const load = useCallback(async (isCancelled: () => boolean = () => false) => {
     try {
@@ -207,6 +430,93 @@ export function Approvals() {
     setActionError(null);
   }, []);
 
+  const closeApplyDialog = useCallback(() => {
+    setApplyTarget(null);
+    setApplyError(null);
+  }, []);
+
+  const updateApply = useCallback((patch: Partial<ActiveApply>) => {
+    if (!mounted.current) return;
+    setActiveApply((current) => (current ? { ...current, ...patch } : current));
+  }, []);
+
+  function pollApply(approvalId: string, requestId: string, startedAt: number, errors: number) {
+    pollTimer.current = window.setTimeout(async () => {
+      if (!mounted.current) return;
+
+      if (Date.now() - startedAt > APPLY_POLL_TIMEOUT_MS) {
+        updateApply({
+          phase: "unknown",
+          error: "Still applying after 15 minutes. Check Jobs and Audit before taking any action.",
+        });
+        await load();
+        return;
+      }
+
+      try {
+        const status = await getApplyStatus(approvalId, requestId);
+
+        // PostgreSQL approval status is the source of truth for the outcome.
+        if (status.approval_status === "applied") {
+          updateApply({ phase: "applied", error: null });
+          await load();
+        } else if (status.approval_status === "failed") {
+          updateApply({ phase: "failed", error: status.error ?? "Apply failed. See Audit for details." });
+          await load();
+        } else if (status.task_state === "failed") {
+          updateApply({
+            phase: "unknown",
+            error: `Worker task failed but approval is still ${status.approval_status}: ${status.error ?? "no detail"}`,
+          });
+          await load();
+        } else {
+          pollApply(approvalId, requestId, startedAt, 0);
+        }
+      } catch (err) {
+        if (errors + 1 >= MAX_POLL_ERRORS) {
+          updateApply({
+            phase: "unknown",
+            error: `Lost contact with the API while applying: ${
+              err instanceof Error ? err.message : "unknown error"
+            }. Check Jobs and Audit.`,
+          });
+        } else {
+          pollApply(approvalId, requestId, startedAt, errors + 1);
+        }
+      }
+    }, APPLY_POLL_INTERVAL_MS);
+  }
+
+  async function handleApply() {
+    if (!applyTarget || applySubmitting) return;
+
+    setApplySubmitting(true);
+    setApplyError(null);
+
+    try {
+      const submitted = await applyApproval(applyTarget.id);
+      const startedAt = Date.now();
+
+      setApplyTarget(null);
+      setNotice(null);
+      setActiveApply({
+        approvalId: submitted.approval_id,
+        requestId: submitted.request_id,
+        hostname: submitted.hostname,
+        startedAt,
+        phase: "applying",
+        error: null,
+      });
+      await load();
+      pollApply(submitted.approval_id, submitted.request_id, startedAt, 0);
+    } catch (err) {
+      setApplyError(err instanceof Error ? err.message : "Apply request failed");
+      await load();
+    } finally {
+      setApplySubmitting(false);
+    }
+  }
+
   async function handleApprove(approvedBy: string) {
     if (!confirmTarget || submitting) return;
 
@@ -231,6 +541,12 @@ export function Approvals() {
   const deviceHostnameById = useMemo(() => {
     const map = new Map<number, string>();
     devices.forEach((device) => map.set(device.id, device.hostname));
+    return map;
+  }, [devices]);
+
+  const devicePlatformById = useMemo(() => {
+    const map = new Map<number, string>();
+    devices.forEach((device) => map.set(device.id, device.platform));
     return map;
   }, [devices]);
 
@@ -275,6 +591,9 @@ export function Approvals() {
       <p className="page-subtitle">Change approval history and pending requests.</p>
 
       {error && <div className="error-banner">Failed to load approvals: {error}</div>}
+      {activeApply && (
+        <ApplyStatusBanner apply={activeApply} onDismiss={() => setActiveApply(null)} />
+      )}
       {notice && (
         <div className="notice-banner">
           <span>{notice}</span>
@@ -350,22 +669,20 @@ export function Approvals() {
                       {truncateId(approval.backup_job_id)}
                     </td>
                     <td>
-                      {approval.status === "pending" ? (
-                        <button
-                          type="button"
-                          className="primary-button small-button"
-                          disabled={submitting}
-                          onClick={() => {
-                            setNotice(null);
-                            setActionError(null);
-                            setConfirmTarget(approval);
-                          }}
-                        >
-                          Approve
-                        </button>
-                      ) : (
-                        <span className="view-only-tag">—</span>
-                      )}
+                      <ApprovalAction
+                        approval={approval}
+                        platform={devicePlatformById.get(approval.device_id)}
+                        busy={submitting || applySubmitting || activeApply?.phase === "applying"}
+                        onApprove={() => {
+                          setNotice(null);
+                          setActionError(null);
+                          setConfirmTarget(approval);
+                        }}
+                        onApply={() => {
+                          setApplyError(null);
+                          setApplyTarget(approval);
+                        }}
+                      />
                     </td>
                   </tr>
                 ))}
@@ -383,6 +700,17 @@ export function Approvals() {
           )}
         </div>
       </div>
+
+      {applyTarget && (
+        <ApplyDialog
+          approval={applyTarget}
+          hostname={deviceHostnameById.get(applyTarget.device_id) ?? `Device #${applyTarget.device_id}`}
+          submitting={applySubmitting}
+          error={applyError}
+          onConfirm={handleApply}
+          onCancel={closeApplyDialog}
+        />
+      )}
 
       {confirmTarget && (
         <ApproveDialog

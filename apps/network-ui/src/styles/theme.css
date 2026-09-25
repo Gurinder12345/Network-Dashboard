@@ -957,3 +957,70 @@ table {
   margin: 0;
   word-break: break-all;
 }
+
+.danger-button {
+  background: var(--status-failed);
+  border: 1px solid var(--status-failed);
+  color: #fff;
+  font-weight: 600;
+  font-size: 12.5px;
+  border-radius: 4px;
+  padding: 7px 16px;
+  cursor: pointer;
+}
+
+.danger-button:hover:not(:disabled) {
+  background: #f05a52;
+}
+
+.danger-button:disabled {
+  background: var(--bg-panel-raised);
+  border-color: var(--border-strong);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.danger-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: rgba(224, 71, 63, 0.12);
+  border: 1px solid var(--status-failed);
+  border-left-width: 4px;
+  color: var(--text-primary);
+  padding: 10px 12px;
+  border-radius: 4px;
+  font-size: 12.5px;
+}
+
+.danger-banner strong {
+  color: var(--status-failed);
+}
+
+.apply-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  border-left: 4px solid var(--accent);
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  margin-bottom: 16px;
+}
+
+.apply-banner-applied {
+  border-left-color: var(--status-applied);
+}
+
+.apply-banner-failed {
+  border-left-color: var(--status-failed);
+}
+
+.apply-banner-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}

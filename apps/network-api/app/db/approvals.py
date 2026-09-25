@@ -90,3 +90,41 @@ def approve_pending_approval(approval_id, approved_by):
             row = cur.fetchone()
 
             return _row_to_approval(row) if row else None
+
+
+def claim_approval_for_apply(approval_id):
+    """Atomically move approved -> applying. Returns None if another request already claimed it."""
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"""
+                UPDATE change_approvals
+                SET status = 'applying'
+                WHERE id = %s
+                  AND status = 'approved'
+                RETURNING {APPROVAL_COLUMNS}
+                """,
+                (approval_id,),
+            )
+
+            row = cur.fetchone()
+
+            return _row_to_approval(row) if row else None
+
+
+def release_apply_claim(approval_id):
+    """Undo a claim (applying -> approved) when the apply task could not be enqueued."""
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE change_approvals
+                SET status = 'approved'
+                WHERE id = %s
+                  AND status = 'applying'
+                RETURNING id
+                """,
+                (approval_id,),
+            )
+
+            return cur.fetchone() is not None

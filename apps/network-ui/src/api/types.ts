@@ -93,3 +93,19 @@ export interface Os6PrecheckStatus {
   result: Os6PrecheckResult | null;
   error: string | null;
 }
+
+export interface ApplySubmitted {
+  approval_id: string;
+  request_id: string;
+  status: "applying";
+  device_id: number;
+  hostname: string;
+}
+
+export interface ApplyStatus {
+  approval_id: string;
+  request_id: string;
+  approval_status: string;
+  task_state: "queued" | "running" | "succeeded" | "failed";
+  error: string | null;
+}
