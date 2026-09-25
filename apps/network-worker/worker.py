@@ -124,44 +124,70 @@ def os6_change_precheck(
 
 
 @app.task(name="network_worker.os6_apply_approved_change")
-def os6_apply_approved_change(approval_id):
+def os6_apply_approved_change(approval_id, claimed_by_api=False):
     approval = get_change_approval(approval_id)
 
-    if approval["status"] != "approved":
+    # The API claims approved -> applying atomically before enqueueing, so its
+    # tasks expect "applying". Direct callers still pass an "approved" record
+    # and are claimed below, as before.
+    expected_status = "applying" if claimed_by_api else "approved"
+
+    if approval["status"] != expected_status:
         raise ValueError(
-            f"Approval {approval_id} is not approved"
+            f"Approval {approval_id} is {approval['status']}, "
+            f"expected {expected_status}"
         )
 
-    device = get_device_by_id(
-        approval["device_id"]
-    )
-
-    if device["platform"] != "dell_os6":
-        raise ValueError(
-            f"{device['hostname']} is not a dell_os6 device"
+    try:
+        device = get_device_by_id(
+            approval["device_id"]
         )
 
-    backup_check = verify_backup_for_device(
-        device["id"],
-        approval["backup_job_id"],
-    )
+        if device["platform"] != "dell_os6":
+            raise ValueError(
+                f"{device['hostname']} is not a dell_os6 device"
+            )
 
-    if not backup_check["valid"]:
-        raise ValueError(
-            f"Backup verification failed: "
-            f"{backup_check['reason']}"
+        backup_check = verify_backup_for_device(
+            device["id"],
+            approval["backup_job_id"],
         )
 
-    config_lines = approval["config_lines"]
-    config_parents = approval.get("config_parents")
+        if not backup_check["valid"]:
+            raise ValueError(
+                f"Backup verification failed: "
+                f"{backup_check['reason']}"
+            )
 
-    if not config_lines:
-        raise ValueError(
-            "Approved configuration is empty"
-        )
+        config_lines = approval["config_lines"]
+        config_parents = approval.get("config_parents")
 
-    # approved -> applying
-    mark_approval_applying(approval_id)
+        if not config_lines:
+            raise ValueError(
+                "Approved configuration is empty"
+            )
+
+    except Exception as exc:
+        # An API-claimed approval is already "applying"; fail it instead of
+        # leaving it stuck. Nothing has been sent to the device at this point.
+        if claimed_by_api:
+            mark_approval_failed(approval_id)
+
+            create_audit_event(
+                job_id=approval["backup_job_id"],
+                device_id=approval["device_id"],
+                event_type="apply_failed",
+                message=(
+                    f"Approved configuration apply rejected before "
+                    f"device changes (approval_id={approval_id}): {exc}"
+                ),
+            )
+
+        raise
+
+    if not claimed_by_api:
+        # approved -> applying
+        mark_approval_applying(approval_id)
 
     create_audit_event(
         job_id=approval["backup_job_id"],
