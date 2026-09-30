@@ -1,0 +1,86 @@
+# Celery Beat: the only scheduler. It enqueues network_worker.health_check_all_devices
+# every 60 s (schedule defined in worker.py); network-worker executes it.
+# Exactly one replica, and Recreate so a rollout never runs two schedulers at once.
+# Beat never talks to switches, Vault or PostgreSQL -- it only needs the broker.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: network-beat
+  namespace: network-platform
+  labels:
+    app: network-beat
+
+spec:
+  replicas: 1
+
+  strategy:
+    type: Recreate
+
+  selector:
+    matchLabels:
+      app: network-beat
+
+  template:
+    metadata:
+      labels:
+        app: network-beat
+
+    spec:
+      imagePullSecrets:
+        - name: ghcr-secret
+
+      automountServiceAccountToken: false
+
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+
+      containers:
+        - name: network-beat
+          # Same image as network-worker, so the schedule always matches the deployed tasks.
+          image: ghcr.io/gurinder12345/network-worker:v0.15.9
+
+          imagePullPolicy: IfNotPresent
+
+          command:
+            - celery
+            - -A
+            - worker.app
+            - beat
+            - --loglevel=INFO
+            - --schedule=/tmp/celerybeat-schedule
+
+          env:
+            - name: CELERY_BROKER_URL
+              value: redis://redis-master.network-platform.svc.cluster.local:6379/0
+
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+
+          resources:
+            requests:
+              cpu: 10m
+              memory: 96Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            privileged: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 16Mi

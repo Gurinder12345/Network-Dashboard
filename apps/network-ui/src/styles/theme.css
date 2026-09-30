@@ -1024,3 +1024,90 @@ table {
   flex-wrap: wrap;
   gap: 10px;
 }
+
+.fleet-panel {
+  margin-bottom: 24px;
+}
+
+.fleet-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.fleet-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+}
+
+.fleet-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+@media (max-width: 900px) {
+  .fleet-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.fleet-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  background: var(--bg-panel-raised);
+  border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--border-strong);
+  border-radius: 4px;
+}
+
+.fleet-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.fleet-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.fleet-value {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.fleet-healthy { border-left-color: var(--status-healthy); }
+.fleet-healthy .fleet-dot, .fleet-healthy .fleet-value { color: var(--status-healthy); }
+.fleet-degraded { border-left-color: var(--status-degraded); }
+.fleet-degraded .fleet-dot, .fleet-degraded .fleet-value { color: var(--status-degraded); }
+.fleet-down { border-left-color: var(--status-down); }
+.fleet-down .fleet-dot, .fleet-down .fleet-value { color: var(--status-down); }
+.fleet-unknown { border-left-color: var(--status-unknown); }
+.fleet-unknown .fleet-dot, .fleet-unknown .fleet-value { color: var(--status-unknown); }
+
+.fleet-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  color: var(--text-muted);
+  font-size: 11.5px;
+  font-family: var(--font-mono);
+}
+
+.fleet-message {
+  color: var(--accent);
+}

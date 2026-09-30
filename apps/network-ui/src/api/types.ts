@@ -1,9 +1,54 @@
+export type HealthStatus = "healthy" | "degraded" | "down" | "unknown";
+
 export interface Device {
   id: number;
   hostname: string;
   management_ip: string;
   platform: string;
   enabled: boolean;
+  // Current health (Redis cache, PostgreSQL fallback). "unknown" until the first check.
+  health_status: HealthStatus;
+  last_check_at: string | null;
+  last_success_at: string | null;
+  response_time_ms: number | null;
+  tcp_reachable: boolean | null;
+  ssh_reachable: boolean | null;
+  cli_reachable: boolean | null;
+  last_error: string | null;
+}
+
+export interface DeviceHealthEntry {
+  device_id: number;
+  hostname: string;
+  management_ip: string;
+  platform: string;
+  enabled: boolean;
+  status: HealthStatus;
+  last_check_at: string | null;
+  last_success_at: string | null;
+  response_time_ms: number | null;
+  tcp_reachable: boolean | null;
+  ssh_reachable: boolean | null;
+  cli_reachable: boolean | null;
+  last_error: string | null;
+  consecutive_failures: number;
+  last_status_change_at: string | null;
+}
+
+export interface FleetHealth {
+  total: number;
+  healthy: number;
+  degraded: number;
+  down: number;
+  unknown: number;
+  last_updated: string | null;
+  check_running: boolean;
+  devices: DeviceHealthEntry[];
+}
+
+export interface HealthCheckRequested {
+  status: "queued";
+  request_id: string;
 }
 
 export interface Job {

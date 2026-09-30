@@ -5,6 +5,8 @@ import type {
   AuditEvent,
   Backup,
   Device,
+  FleetHealth,
+  HealthCheckRequested,
   Job,
   Os6PrecheckRequest,
   Os6PrecheckStatus,
@@ -134,4 +136,14 @@ export function getApplyStatus(approvalId: string, requestId: string): Promise<A
   return getJson<ApplyStatus>(
     `/api/v1/approvals/${encodeURIComponent(approvalId)}/apply/${encodeURIComponent(requestId)}`,
   );
+}
+
+// Reads cached/stored health only; never triggers switch checks.
+export function getFleetHealth(): Promise<FleetHealth> {
+  return getJson<FleetHealth>("/api/v1/health/devices");
+}
+
+// Queues one read-only fleet sweep. 409 = already running, 429 = cooldown (message in the error).
+export function requestHealthCheck(): Promise<HealthCheckRequested> {
+  return postJson<HealthCheckRequested>("/api/v1/health/check", {});
 }

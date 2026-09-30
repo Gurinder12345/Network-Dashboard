@@ -36,7 +36,7 @@ spec:
 
       containers:
         - name: network-api
-          image: ghcr.io/gurinder12345/network-api:v0.1.2
+          image: ghcr.io/gurinder12345/network-api:v0.1.3
 
           imagePullPolicy: IfNotPresent
 
@@ -65,6 +65,10 @@ spec:
 
             - name: CELERY_BROKER_URL
               value: redis://redis-master.network-platform.svc.cluster.local:6379/0
+
+            # Read cache only (logical DB 1); every read falls back to PostgreSQL.
+            - name: REDIS_CACHE_URL
+              value: redis://redis-master.network-platform.svc.cluster.local:6379/1
 
             - name: BACKUP_ROOT
               value: /backups

@@ -27,13 +27,17 @@ spec:
 
       containers:
         - name: network-worker
-          image: ghcr.io/gurinder12345/network-worker:v0.15.8
+          image: ghcr.io/gurinder12345/network-worker:v0.15.9
 
           imagePullPolicy: IfNotPresent
 
           env:
             - name: CELERY_BROKER_URL
               value: redis://redis-master.network-platform.svc.cluster.local:6379/0
+
+            # Health cache/lock only (logical DB 1); PostgreSQL remains the source of truth.
+            - name: REDIS_CACHE_URL
+              value: redis://redis-master.network-platform.svc.cluster.local:6379/1
 
             - name: VAULT_ADDR
               value: http://vault.security.svc:8200

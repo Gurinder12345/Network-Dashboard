@@ -1,10 +1,87 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { getApprovals, getDevices, getJobs } from "../api/client";
+import {
+  getApprovals,
+  getDevices,
+  getFleetHealth,
+  getJobs,
+  requestHealthCheck,
+} from "../api/client";
 import { OS6_PLATFORM } from "../api/constants";
-import type { Approval, Device, Job } from "../api/types";
+import type { Approval, Device, FleetHealth, Job } from "../api/types";
 import { KpiCard } from "../components/KpiCard";
 import { StatusBadge } from "../components/StatusBadge";
-import { formatTimestamp } from "../utils/format";
+import { usePolling } from "../hooks/usePolling";
+import { formatResponseTime, formatTime, formatTimestamp } from "../utils/format";
+
+const HEALTH_POLL_MS = 20000;
+const CHECK_NOW_COOLDOWN_MS = 20000;
+
+const FLEET_ROWS = [
+  { key: "healthy", label: "Healthy" },
+  { key: "degraded", label: "Degraded" },
+  { key: "down", label: "Down" },
+  { key: "unknown", label: "Unknown" },
+] as const;
+
+function FleetHealthPanel({
+  fleet,
+  error,
+  onCheckNow,
+  checkBusy,
+  checkMessage,
+}: {
+  fleet: FleetHealth | null;
+  error: string | null;
+  onCheckNow: () => void;
+  checkBusy: boolean;
+  checkMessage: string | null;
+}) {
+  return (
+    <div className="panel fleet-panel">
+      <div className="panel-header">
+        <h2>Fleet Health</h2>
+        <div className="fleet-panel-actions">
+          {fleet?.check_running && <span className="muted">Check running&hellip;</span>}
+          <button
+            type="button"
+            className="refresh-button"
+            onClick={onCheckNow}
+            disabled={checkBusy || fleet?.check_running}
+            title="Queue one read-only health sweep of all enabled switches"
+          >
+            Check Now
+          </button>
+        </div>
+      </div>
+
+      <div className="fleet-body">
+        {error && <div className="error-banner" style={{ marginBottom: 0 }}>Health unavailable: {error}</div>}
+
+        <div className="fleet-grid">
+          <div className="fleet-cell">
+            <span className="fleet-label">Total</span>
+            <span className="fleet-value">{fleet ? fleet.total : "—"}</span>
+          </div>
+          {FLEET_ROWS.map((row) => (
+            <div className={`fleet-cell fleet-${row.key}`} key={row.key}>
+              <span className="fleet-label">
+                <span className="fleet-dot" />
+                {row.label}
+              </span>
+              <span className="fleet-value">{fleet ? fleet[row.key] : "—"}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="fleet-footer">
+          <span>Last health update: {fleet ? formatTime(fleet.last_updated) : "—"}</span>
+          {fleet && !fleet.last_updated && <span>No health checks have completed yet.</span>}
+          {checkMessage && <span className="fleet-message">{checkMessage}</span>}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function summarizeConfig(approval: Approval): string {
   const parents = approval.config_parents ?? [];
@@ -23,6 +100,20 @@ export function Overview() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
+  const [fleet, setFleet] = useState<FleetHealth | null>(null);
+  const [fleetError, setFleetError] = useState<string | null>(null);
+  const [checkBusy, setCheckBusy] = useState(false);
+  const [checkMessage, setCheckMessage] = useState<string | null>(null);
+
+  // Reads stored health only (Redis/PostgreSQL); never starts a switch check.
+  const loadHealth = useCallback(async () => {
+    try {
+      setFleet(await getFleetHealth());
+      setFleetError(null);
+    } catch (err) {
+      setFleetError(err instanceof Error ? err.message : "Failed to load health");
+    }
+  }, []);
 
   const load = useCallback(async () => {
     setRefreshing(true);
@@ -32,6 +123,7 @@ export function Overview() {
         getDevices(),
         getJobs(),
         getApprovals(),
+        loadHealth(),
       ]);
 
       setDevices(devicesData);
@@ -45,11 +137,34 @@ export function Overview() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [loadHealth]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  usePolling(loadHealth, HEALTH_POLL_MS);
+
+  async function handleCheckNow() {
+    setCheckBusy(true);
+
+    try {
+      await requestHealthCheck();
+      setCheckMessage("Health check requested. Results appear within about a minute.");
+    } catch (err) {
+      setCheckMessage(err instanceof Error ? err.message : "Health check request failed");
+    }
+
+    // Keep the button disabled briefly so repeated clicks don't queue more sweeps.
+    window.setTimeout(() => setCheckBusy(false), CHECK_NOW_COOLDOWN_MS);
+    await loadHealth();
+  }
+
+  const healthByDevice = useMemo(() => {
+    const map = new Map<number, FleetHealth["devices"][number]>();
+    fleet?.devices.forEach((entry) => map.set(entry.device_id, entry));
+    return map;
+  }, [fleet]);
 
   const deviceHostnameById = useMemo(() => {
     const map = new Map<number, string>();
@@ -98,9 +213,9 @@ export function Overview() {
         <KpiCard label="Total Devices" value={loading ? "—" : devices.length} />
         <KpiCard
           label="Healthy Devices"
-          value="—"
-          dim
-          hint="Health monitoring not implemented yet"
+          value={fleet ? `${fleet.healthy} / ${fleet.total}` : "—"}
+          dim={!fleet || !fleet.last_updated}
+          hint={fleet && !fleet.last_updated ? "Awaiting first health check" : undefined}
         />
         <KpiCard
           label="Pending Approvals"
@@ -108,6 +223,14 @@ export function Overview() {
         />
         <KpiCard label="Failed Jobs" value={loading ? "—" : failedJobs.length} />
       </div>
+
+      <FleetHealthPanel
+        fleet={fleet}
+        error={fleetError}
+        onCheckNow={handleCheckNow}
+        checkBusy={checkBusy}
+        checkMessage={checkMessage}
+      />
 
       <div className="panel-grid">
         <div className="panel">
@@ -187,10 +310,13 @@ export function Overview() {
                 <th>Platform</th>
                 <th>Access</th>
                 <th>Health</th>
+                <th>Response</th>
               </tr>
             </thead>
             <tbody>
-              {devices.map((device) => (
+              {devices.map((device) => {
+                const health = healthByDevice.get(device.id);
+                return (
                 <tr key={device.id}>
                   <td>{device.hostname}</td>
                   <td className="mono">{device.management_ip}</td>
@@ -204,14 +330,18 @@ export function Overview() {
                       <span className="view-only-tag">View only</span>
                     )}
                   </td>
-                  <td>
-                    <StatusBadge status="unknown" />
+                  <td title={health?.last_error ?? undefined}>
+                    <StatusBadge status={health?.status ?? device.health_status ?? "unknown"} />
+                  </td>
+                  <td className="mono">
+                    {formatResponseTime(health?.response_time_ms ?? device.response_time_ms ?? null)}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
               {devices.length === 0 && !loading && (
                 <tr>
-                  <td colSpan={5} className="empty-state">
+                  <td colSpan={6} className="empty-state">
                     No devices found.
                   </td>
                 </tr>

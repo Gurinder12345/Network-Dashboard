@@ -11,6 +11,7 @@ COPY inventory ./inventory
 COPY tasks ./tasks
 COPY vault ./vault
 COPY db ./db
+COPY health ./health
 COPY ansible ./ansible
 COPY collections-requirements.yml .
 

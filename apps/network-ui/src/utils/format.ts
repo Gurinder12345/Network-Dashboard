@@ -9,6 +9,18 @@ export function formatTimestamp(value: string | null): string {
   });
 }
 
+export function formatTime(value: string | null): string {
+  if (!value) return "—";
+
+  return new Date(value).toLocaleTimeString();
+}
+
+export function formatResponseTime(ms: number | null): string {
+  if (ms === null || ms === undefined) return "—";
+
+  return ms >= 1000 ? `${(ms / 1000).toFixed(1)} s` : `${ms} ms`;
+}
+
 export function truncateId(value: string | null, length = 8): string {
   if (!value) return "—";
   return value.length > length ? `${value.slice(0, length)}…` : value;

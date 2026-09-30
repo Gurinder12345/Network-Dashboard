@@ -1,7 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.db.devices import list_devices
 from app.db.jobs import list_jobs
 from app.db.approvals import list_approvals
 from app.db.backups import list_backups
@@ -9,6 +8,7 @@ from app.db.audit import list_audit_events
 from app.changes import router as changes_router
 from app.backup_download import router as backup_download_router
 from app.approval_actions import router as approval_actions_router
+from app.health import devices_with_health, router as health_router
 
 app = FastAPI(title="Network Management API")
 
@@ -26,6 +26,7 @@ app.add_middleware(
 app.include_router(changes_router)
 app.include_router(backup_download_router)
 app.include_router(approval_actions_router)
+app.include_router(health_router)
 
 
 @app.get("/health")
@@ -36,7 +37,7 @@ def health():
 @app.get("/api/v1/devices")
 def get_devices():
     try:
-        return list_devices()
+        return devices_with_health()
     except RuntimeError as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 

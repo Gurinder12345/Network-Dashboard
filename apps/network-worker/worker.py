@@ -10,6 +10,8 @@ from db.approvals import (
 from db.approvals import create_change_approval
 
 from db.devices import get_device_by_id
+from db.health import list_enabled_devices
+from health.checks import check_and_record, run_fleet_health_check
 
 from ansible.run_os6 import run_os6_config_apply
 
@@ -59,6 +61,17 @@ app = Celery(
     broker=REDIS_URL,
     backend=REDIS_URL,
 )
+
+# Read by the single celery-beat Deployment only. "expires" drops a sweep that could not
+# start within one interval, so a busy worker never builds up a backlog of health runs.
+app.conf.beat_schedule = {
+    "fleet-health-every-60s": {
+        "task": "network_worker.health_check_all_devices",
+        "schedule": 60.0,
+        "kwargs": {"trigger": "schedule"},
+        "options": {"expires": 55},
+    },
+}
 
 
 
@@ -309,6 +322,29 @@ def health_check():
         "status": "ok",
         "worker": "network-automation-worker",
     }
+
+
+@app.task(name="network_worker.device_health_check")
+def device_health_check(device_id):
+    # Read-only: TCP/22, SSH login and "show version". Never changes configuration.
+    device = next(
+        (d for d in list_enabled_devices() if d["id"] == int(device_id)),
+        None,
+    )
+
+    if device is None:
+        return {
+            "device_id": device_id,
+            "skipped": True,
+            "reason": "Device not found or disabled",
+        }
+
+    return check_and_record(device)
+
+
+@app.task(name="network_worker.health_check_all_devices")
+def health_check_all_devices(trigger="schedule"):
+    return run_fleet_health_check(trigger=trigger)
 
 
 @app.task(name="network_worker.vault_test")
