@@ -11,8 +11,6 @@ metadata:
     app: network-ui
   annotations:
     traefik.ingress.kubernetes.io/router.entrypoints: web
-    # <namespace>-<middleware name>@kubernetescrd; applies to both the / and /api paths.
-    traefik.ingress.kubernetes.io/router.middlewares: network-platform-network-dashboard-allowlist@kubernetescrd
 
 spec:
   ingressClassName: traefik
