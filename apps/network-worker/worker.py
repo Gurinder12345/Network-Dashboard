@@ -12,7 +12,7 @@ from db.approvals import create_change_approval
 from db.devices import get_device_by_id
 from db.health import list_enabled_devices
 from health.checks import check_and_record, run_fleet_health_check
-from db.topology import list_inventory
+from db.topology import list_inventory, list_lldp_identities
 from topology.discovery import discover_device, run_fleet_topology_discovery
 
 from ansible.run_os6 import run_os6_config_apply
@@ -379,7 +379,7 @@ def discover_topology_device(device_id):
             "reason": "Device not found or disabled",
         }
 
-    return discover_device(device, list_inventory())
+    return discover_device(device, list_inventory(), list_lldp_identities())
 
 
 @app.task(name="network_worker.discover_topology_all_devices")

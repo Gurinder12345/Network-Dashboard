@@ -1,4 +1,14 @@
+import logging
+
+import psycopg
+
 from db.client import get_connection
+from topology.identity import normalize_chassis_id, normalize_system_name
+
+
+logger = logging.getLogger("network_worker.topology")
+
+_IDENTITY_COLUMNS = "id, device_id, lldp_system_name, chassis_id, created_at, updated_at"
 
 
 def _cut(value, length):
@@ -144,3 +154,54 @@ def record_discovery_failure(device_id, error, attempted_at):
 
     finally:
         conn.close()
+
+
+# ---- LLDP identities (read-only; rows are written by an operator) -------------------
+
+def _identity_row(row):
+    return {
+        "id": str(row[0]),
+        "device_id": row[1],
+        "lldp_system_name": row[2],
+        "chassis_id": row[3],
+        "created_at": row[4].isoformat() if row[4] else None,
+        "updated_at": row[5].isoformat() if row[5] else None,
+    }
+
+
+def _query_identities(where="", params=()):
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(f"SELECT {_IDENTITY_COLUMNS} FROM device_lldp_identity {where} ORDER BY device_id", params)
+            return [_identity_row(row) for row in cur.fetchall()]
+    except psycopg.errors.UndefinedTable:
+        # Migration 004 not applied yet: behave as "no explicit identities".
+        logger.warning("device_lldp_identity table missing; explicit LLDP identities disabled (run migration 004)")
+        return []
+    finally:
+        conn.close()
+
+
+def list_lldp_identities():
+    return _query_identities()
+
+
+def get_lldp_identities_for_device(device_id):
+    return _query_identities("WHERE device_id = %s", (device_id,))
+
+
+def get_lldp_identity_by_system_name(name):
+    normalized = normalize_system_name(name)
+    if not normalized:
+        return None
+    rows = _query_identities("WHERE lower(lldp_system_name) = %s", (normalized,))
+    return rows[0] if rows else None
+
+
+def get_lldp_identity_by_chassis_id(chassis_id):
+    normalized = normalize_chassis_id(chassis_id)
+    if not normalized:
+        return None
+    rows = _query_identities("WHERE chassis_id = %s", (normalized,))
+    return rows[0] if rows else None

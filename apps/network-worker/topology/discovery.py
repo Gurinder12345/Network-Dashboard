@@ -20,6 +20,7 @@ from db.jobs import create_audit_event
 from db.topology import (
     get_discovery_state,
     list_inventory,
+    list_lldp_identities,
     record_discovery_failure,
     record_discovery_success,
 )
@@ -69,7 +70,7 @@ def _audit(device_id, event_type, message):
         logger.warning("topology audit event %s not recorded", event_type)
 
 
-def discover_device(device, inventory):
+def discover_device(device, inventory, identities=None):
     """Discover one device. Never raises: returns a result dict with success/failure."""
     started = time.monotonic()
     attempted_at = _now()
@@ -78,7 +79,7 @@ def discover_device(device, inventory):
     try:
         command, output = collect_lldp_output(device)
         neighbors, warnings = parse_lldp_output(device["platform"], output)
-        correlated = correlate(neighbors, inventory, device["id"])
+        correlated = correlate(neighbors, inventory, device["id"], identities)
         counts = record_discovery_success(device["id"], correlated, command, attempted_at)
     except Exception as exc:
         error = _safe_error(f"{type(exc).__name__}: {exc}")
@@ -98,9 +99,21 @@ def discover_device(device, inventory):
         return {**result, "error": error, "elapsed_ms": int((time.monotonic() - started) * 1000)}
 
     managed = sum(1 for n in correlated if n.get("remote_device_id"))
+    match_types = {}
+    for n in correlated:
+        match_types[n["match_type"]] = match_types.get(n["match_type"], 0) + 1
+
+    # Identity conflicts never pick a device; surface them instead of hiding them.
+    conflicts = [
+        f"{n['local_interface']}: {n['correlation_note']}" for n in correlated if n.get("match_type") == "conflict"
+    ]
+    for conflict in conflicts:
+        logger.warning("topology_identity_conflict device_id=%s host=%s %s", device["id"], device["hostname"], conflict)
+
     logger.info(
-        "topology_discovery_device device_id=%s host=%s neighbors=%s managed=%s new=%s deactivated=%s warnings=%s",
+        "topology_discovery_device device_id=%s host=%s neighbors=%s managed=%s new=%s deactivated=%s warnings=%s match_types=%s",
         device["id"], device["hostname"], len(correlated), managed, counts["new"], counts["deactivated"], len(warnings),
+        match_types,
     )
 
     return {
@@ -109,6 +122,8 @@ def discover_device(device, inventory):
         "neighbors_seen": len(correlated),
         "managed_links": managed,
         "unmanaged_neighbors": len(correlated) - managed,
+        "match_types": match_types,
+        "identity_conflicts": conflicts,
         "new_links": counts["new"],
         "deactivated_links": counts["deactivated"],
         "parser_warnings": warnings,
@@ -129,11 +144,12 @@ def run_fleet_topology_discovery(trigger="schedule"):
 
         devices = list_enabled_devices()
         inventory = list_inventory()
+        identities = list_lldp_identities()
         results = []
 
         # At most TOPOLOGY_CONCURRENCY SSH sessions at once; one device never fails the fleet.
         with ThreadPoolExecutor(max_workers=max(1, TOPOLOGY_CONCURRENCY)) as pool:
-            futures = {pool.submit(discover_device, device, inventory): device for device in devices}
+            futures = {pool.submit(discover_device, device, inventory, identities): device for device in devices}
             for future in as_completed(futures):
                 try:
                     results.append(future.result())
@@ -152,6 +168,7 @@ def run_fleet_topology_discovery(trigger="schedule"):
         "neighbors_seen": sum(r["neighbors_seen"] for r in ok),
         "managed_links": sum(r["managed_links"] for r in ok),
         "unmanaged_neighbors": sum(r["unmanaged_neighbors"] for r in ok),
+        "identity_conflicts": [f"{r['hostname']} {c}" for r in ok for c in r.get("identity_conflicts", [])],
         "new_links": sum(r["new_links"] for r in ok),
         "deactivated_links": sum(r["deactivated_links"] for r in ok),
         "failed_devices": [{"device_id": r["device_id"], "hostname": r["hostname"], "error": r.get("error")}
