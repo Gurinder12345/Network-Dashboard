@@ -231,6 +231,78 @@ class RealOutputTests(unittest.TestCase):
         self._check("dell_os6", "os6_real_show_lldp_remote_device_all.txt")
 
 
+class RealOs10CoreTests(unittest.TestCase):
+    """Kenda-Core-1 `show lldp neighbors`, captured live (authoritative)."""
+
+    NAME = "os10_real_show_lldp_neighbors.txt"
+
+    def setUp(self):
+        if not os.path.exists(os.path.join(FIXTURES, self.NAME)):
+            self.skipTest("real OS10 capture not present")
+        self.output = fixture(self.NAME)
+        self.neighbors, self.warnings = parse_os10_lldp_neighbors(self.output)
+        self.by_port = {n["local_interface"]: n for n in self.neighbors}
+
+    def test_all_rows_parsed_once_without_warnings(self):
+        self.assertEqual(self.warnings, [])
+        self.assertEqual(len(self.neighbors), 22)
+        self.assertEqual(count_table_rows(self.output), 22)
+        self.assertEqual(len(self.by_port), 22, "duplicate local interfaces parsed")
+
+    def test_every_row_has_local_interface_and_identity(self):
+        for n in self.neighbors:
+            self.assertTrue(n["local_interface"])
+            self.assertTrue(n["remote_system_name"] or n["remote_chassis_id"] or n["remote_port_id"])
+            self.assertIsNone(n["remote_management_ip"])
+
+    def test_truncated_broadcom_name_kept_verbatim(self):
+        n = self.by_port["ethernet1/1/37"]
+        self.assertEqual(n["remote_system_name"], "Broadcom Adv. Dua...")
+        self.assertEqual(n["remote_chassis_id"], "04:32:01:c5:9f:c1")
+        self.assertEqual(n["remote_port_id"], "04:32:01:c5:9f:c1")
+        self.assertIsNone(n["remote_interface"])
+        broadcom = [p for p, n in self.by_port.items() if n["remote_system_name"] == "Broadcom Adv. Dua..."]
+        self.assertEqual(sorted(broadcom), ["ethernet1/1/37", "ethernet1/1/45", "ethernet1/1/53", "ethernet1/1/54"])
+
+    def test_previously_working_rows_unchanged(self):
+        self.assertEqual((self.by_port["ethernet1/1/25"]["remote_system_name"], self.by_port["ethernet1/1/25"]["remote_port_id"]),
+                         ("kenda-core-02", "ethernet1/1/25"))
+        self.assertEqual((self.by_port["ethernet1/1/26:1"]["remote_system_name"], self.by_port["ethernet1/1/26:1"]["remote_port_id"]),
+                         ("HQ-KENDA-2", "Te1/0/3"))
+        self.assertEqual((self.by_port["ethernet1/1/26:2"]["remote_system_name"], self.by_port["ethernet1/1/26:2"]["remote_port_id"]),
+                         ("KENDA-HQ-1", "Te1/0/2"))
+        array = self.by_port["ethernet1/1/20"]
+        self.assertEqual((array["remote_system_name"], array["remote_port_id"]), ("Kenda-HQ-Array01-A", "a4:bf:01:40:6f:42"))
+        self.assertIsNone(array["remote_interface"])
+
+    def test_not_advertised_and_numeric_port_id(self):
+        self.assertIsNone(self.by_port["ethernet1/1/31"]["remote_system_name"])
+        numeric = self.by_port["ethernet1/1/51"]
+        self.assertEqual(numeric["remote_port_id"], "1")
+        self.assertIsNone(numeric["remote_interface"])
+
+
+class Os10GutterSnapTests(unittest.TestCase):
+    HEADER = "Loc PortID          Rem Host Name        Rem Port Id                    Rem Chassis Id\n" + "-" * 86 + "\n"
+
+    def test_column_left_of_label_is_parsed(self):
+        out = self.HEADER + "ethernet1/1/37      Broadcom Adv. Dua... 04:32:01:c5:9f:c1             04:32:01:c5:9f:c1\n"
+        neighbors, warnings = parse_os10_lldp_neighbors(out)
+        self.assertEqual(warnings, [])
+        self.assertEqual(neighbors[0]["remote_system_name"], "Broadcom Adv. Dua...")
+
+    def test_genuine_overflow_still_warns(self):
+        # Name runs into the Port ID column with no gutter shared by all rows: not guessable.
+        out = self.HEADER + (
+            "ethernet1/1/2       Kenda-HQ             ethernet1/8                   7c:c0:25:00:0d:99\n"
+            "ethernet1/1/9       A very long name here x ethernet1/9               7c:c0:25:00:0d:98\n"
+        )
+        neighbors, warnings = parse_os10_lldp_neighbors(out)
+        self.assertEqual(len(neighbors), 1)
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("ethernet1/1/9", warnings[0])
+
+
 class RowCounterTests(unittest.TestCase):
     def test_counts_match_synthetic_parses(self):
         for platform, name in (("dell_os10", "os10_multiple.txt"), ("dell_os6", "os6_multiple.txt")):

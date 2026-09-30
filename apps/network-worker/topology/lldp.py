@@ -95,8 +95,21 @@ def _crosses_boundary(line, start):
     return 0 < start < len(line) and line[start - 1] != " " and line[start] != " "
 
 
-def _parse_rows(lines, columns, warnings):
-    """columns: list of (field_name, start, end|None). Returns list of dicts."""
+def _misaligned(line, start, end):
+    """In a left-aligned column, content that does not begin at the column start means a
+    neighbouring value overflowed into it (e.g. a long name pushing into the Port ID)."""
+    if start >= len(line):
+        return False
+    segment = line[start:end] if end else line[start:]
+    return bool(segment.strip()) and line[start] == " "
+
+
+def _parse_rows(lines, columns, warnings, left_aligned=False):
+    """
+    columns: list of (field_name, start, end|None). Returns list of dicts.
+    left_aligned=True (OS10): every value must start exactly at its column start;
+    otherwise the row is treated like a boundary crossing (fallback, then warning).
+    """
     rows = []
     names = [name for name, _, _ in columns]
 
@@ -108,7 +121,11 @@ def _parse_rows(lines, columns, warnings):
             continue
 
         values = None
-        if not any(_crosses_boundary(line, start) for _, start, _ in columns[1:]):
+        suspect = any(_crosses_boundary(line, start) for _, start, _ in columns[1:])
+        if left_aligned:
+            suspect = suspect or any(_misaligned(line, start, end) for _, start, end in columns[1:])
+
+        if not suspect:
             values = [line[start:end].strip() if end else line[start:].strip() for _, start, end in columns]
         else:
             tokens = re.split(r"\s{2,}", line.strip())
@@ -228,8 +245,52 @@ def parse_os10_lldp_neighbors(output):
     while body_start < len(lines) and _DASH_ROW.match(lines[body_start]):
         body_start += 1
 
-    rows = _parse_rows(lines[body_start:], columns, warnings)
+    columns = _snap_to_data_gutters(columns, _table_body(lines[body_start:]))
+    rows = _parse_rows(lines[body_start:], columns, warnings, left_aligned=True)
     return _to_neighbors(rows), warnings
+
+
+OS10_MAX_BOUNDARY_SHIFT = 3
+
+
+def _table_body(lines):
+    body = []
+    for line in lines:
+        if not line.strip():
+            break
+        if _DASH_ROW.match(line) or line.strip().endswith(("#", ">")):
+            continue
+        body.append(line.rstrip("\n"))
+    return body
+
+
+def _snap_to_data_gutters(columns, body):
+    """
+    OS10 left-aligns some columns up to a few characters before their header label
+    (real Kenda-Core-1 output: "Rem Chassis Id" label at column 72, values at 71).
+    Move each column start left -- at most OS10_MAX_BOUNDARY_SHIFT characters -- to the
+    right-most position where EVERY data row has whitespace immediately before it, so the
+    boundary sits in a gutter shared by all rows. If no such position exists within the
+    window, the header position is kept and the row-level checks decide (warnings).
+    """
+    if not body:
+        return columns
+
+    def is_gutter(position):
+        return all(position <= len(row) and (position == 0 or row[position - 1] == " ") for row in body)
+
+    snapped = [columns[0]]
+    for index, (name, start, end) in enumerate(columns[1:], start=1):
+        previous_start = snapped[index - 1][1]
+        new_start = start
+        for candidate in range(start, max(previous_start + 1, start - OS10_MAX_BOUNDARY_SHIFT) - 1, -1):
+            if is_gutter(candidate):
+                new_start = candidate
+                break
+        snapped[index - 1] = (snapped[index - 1][0], snapped[index - 1][1], new_start)
+        snapped.append((name, new_start, end))
+
+    return snapped
 
 
 def count_table_rows(output):

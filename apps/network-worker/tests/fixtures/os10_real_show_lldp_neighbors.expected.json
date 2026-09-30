@@ -1,0 +1,8 @@
+[
+  {"local_interface": "ethernet1/1/25", "remote_system_name": "kenda-core-02", "remote_port_id": "ethernet1/1/25", "remote_interface": "ethernet1/1/25", "remote_chassis_id": "e8:b5:d0:7a:5c:a3"},
+  {"local_interface": "ethernet1/1/26:1", "remote_system_name": "HQ-KENDA-2", "remote_port_id": "Te1/0/3", "remote_interface": "Te1/0/3"},
+  {"local_interface": "ethernet1/1/26:2", "remote_system_name": "KENDA-HQ-1", "remote_port_id": "Te1/0/2", "remote_interface": "Te1/0/2"},
+  {"local_interface": "ethernet1/1/37", "remote_system_name": "Broadcom Adv. Dua...", "remote_port_id": "04:32:01:c5:9f:c1", "remote_chassis_id": "04:32:01:c5:9f:c1", "remote_interface": null},
+  {"local_interface": "ethernet1/1/20", "remote_system_name": "Kenda-HQ-Array01-A", "remote_port_id": "a4:bf:01:40:6f:42", "remote_interface": null},
+  {"local_interface": "ethernet1/1/31", "remote_system_name": null, "remote_port_id": "50:7c:6f:4a:53:03", "remote_chassis_id": "50:7c:6f:4a:53:03"}
+]
