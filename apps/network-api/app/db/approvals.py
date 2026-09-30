@@ -11,7 +11,10 @@ APPROVAL_COLUMNS = """
     config_lines,
     config_parents,
     created_at,
-    approved_at
+    approved_at,
+    cancelled_by,
+    cancelled_at,
+    cancellation_reason
 """
 
 
@@ -27,6 +30,9 @@ def _row_to_approval(row):
         "config_parents": row[7],
         "created_at": row[8].isoformat() if row[8] else None,
         "approved_at": row[9].isoformat() if row[9] else None,
+        "cancelled_by": row[10],
+        "cancelled_at": row[11].isoformat() if row[11] else None,
+        "cancellation_reason": row[12],
     }
 
 
@@ -34,18 +40,8 @@ def list_approvals():
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                """
-                SELECT
-                    id,
-                    device_id,
-                    backup_job_id,
-                    requested_by,
-                    approved_by,
-                    status,
-                    config_lines,
-                    config_parents,
-                    created_at,
-                    approved_at
+                f"""
+                SELECT {APPROVAL_COLUMNS}
                 FROM change_approvals
                 ORDER BY created_at DESC
                 """
@@ -128,3 +124,30 @@ def release_apply_claim(approval_id):
             )
 
             return cur.fetchone() is not None
+
+
+def cancel_open_approval(approval_id, cancelled_by, reason):
+    """
+    Atomically move pending/approved -> cancelled. Returns None if the row is no longer in
+    one of those states (another cancel won, or Apply already claimed it as applying).
+    """
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"""
+                UPDATE change_approvals
+                SET
+                    status = 'cancelled',
+                    cancelled_by = %s,
+                    cancelled_at = NOW(),
+                    cancellation_reason = %s
+                WHERE id = %s
+                  AND status IN ('pending', 'approved')
+                RETURNING {APPROVAL_COLUMNS}
+                """,
+                (cancelled_by, reason, approval_id),
+            )
+
+            row = cur.fetchone()
+
+            return _row_to_approval(row) if row else None

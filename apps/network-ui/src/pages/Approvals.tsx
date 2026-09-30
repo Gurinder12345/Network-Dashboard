@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   applyApproval,
   approveApproval,
+  cancelApproval,
   getApplyStatus,
   getApprovals,
   getDevices,
@@ -288,31 +289,187 @@ function ApplyDialog({ approval, hostname, submitting, error, onConfirm, onCance
   );
 }
 
+interface CancelDialogProps {
+  approval: Approval;
+  hostname: string;
+  submitting: boolean;
+  error: string | null;
+  onConfirm: (cancelledBy: string, reason: string | null) => void;
+  onCancel: () => void;
+}
+
+function CancelDialog({ approval, hostname, submitting, error, onConfirm, onCancel }: CancelDialogProps) {
+  const [cancelledBy, setCancelledBy] = useState(readStoredApprover);
+  const [reason, setReason] = useState("");
+  const [confirmed, setConfirmed] = useState(false);
+  const trimmed = cancelledBy.trim();
+  const nameValid = APPROVER_PATTERN.test(trimmed);
+  const reasonTooLong = reason.trim().length > 500;
+  const canConfirm = nameValid && !reasonTooLong && confirmed && !submitting;
+
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape" && !submitting) onCancel();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onCancel, submitting]);
+
+  return (
+    <div className="modal-backdrop" onClick={() => !submitting && onCancel()}>
+      <div
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="cancel-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="panel-header">
+          <h2 id="cancel-title">Cancel change</h2>
+          <StatusBadge status={approval.status} />
+        </div>
+
+        <div className="modal-body">
+          <dl className="detail-list">
+            <dt>Device</dt>
+            <dd>{hostname}</dd>
+            <dt>Approval ID</dt>
+            <dd className="mono">{approval.id}</dd>
+            <dt>Current status</dt>
+            <dd>{approval.status}</dd>
+            <dt>Requested by</dt>
+            <dd>{approval.requested_by}</dd>
+            {approval.approved_by && (
+              <>
+                <dt>Approved by</dt>
+                <dd>{approval.approved_by}</dd>
+              </>
+            )}
+            <dt>Backup job</dt>
+            <dd className="mono">{approval.backup_job_id ?? "—"}</dd>
+          </dl>
+
+          <div className="form-field">
+            <span className="form-label">Parent / context</span>
+            <pre className="config-preview">
+              {(approval.config_parents ?? []).length > 0
+                ? (approval.config_parents ?? []).join("\n")
+                : "(global configuration)"}
+            </pre>
+          </div>
+
+          <div className="form-field">
+            <span className="form-label">Configuration lines</span>
+            <pre className="config-preview">{(approval.config_lines ?? []).join("\n")}</pre>
+          </div>
+
+          <label className="form-field">
+            <span className="form-label">Cancelled by</span>
+            <input
+              type="text"
+              className="search-input mono"
+              style={{ maxWidth: "none" }}
+              placeholder="your name"
+              value={cancelledBy}
+              disabled={submitting}
+              autoFocus
+              onChange={(event) => setCancelledBy(event.target.value)}
+            />
+            {trimmed.length > 0 && !nameValid && (
+              <span className="form-error">2–64 characters: letters, digits, . _ @ -</span>
+            )}
+          </label>
+
+          <label className="form-field">
+            <span className="form-label">Reason (optional)</span>
+            <textarea
+              className="config-input"
+              rows={2}
+              maxLength={500}
+              value={reason}
+              disabled={submitting}
+              onChange={(event) => setReason(event.target.value)}
+            />
+            {reasonTooLong && <span className="form-error">At most 500 characters.</span>}
+          </label>
+
+          <label className="form-field form-field-inline">
+            <input
+              type="checkbox"
+              checked={confirmed}
+              disabled={submitting}
+              onChange={(event) => setConfirmed(event.target.checked)}
+            />
+            <span>Cancel this change permanently. It can never be approved or applied.</span>
+          </label>
+
+          <div className="precheck-note">
+            Cancelling only records a decision. Nothing is sent to the switch, and the approval
+            record is kept for audit.
+          </div>
+
+          {error && <div className="error-banner" style={{ marginBottom: 0 }}>{error}</div>}
+        </div>
+
+        <div className="modal-actions">
+          <button type="button" className="copy-button" disabled={submitting} onClick={onCancel}>
+            Keep change
+          </button>
+          <button
+            type="button"
+            className="danger-button"
+            disabled={!canConfirm}
+            onClick={() => {
+              storeApprover(trimmed);
+              onConfirm(trimmed, reason.trim() || null);
+            }}
+          >
+            {submitting ? "Cancelling…" : "Cancel change"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 interface ApprovalActionProps {
   approval: Approval;
   platform: string | undefined;
   busy: boolean;
   onApprove: () => void;
   onApply: () => void;
+  onCancelChange: () => void;
 }
 
-function ApprovalAction({ approval, platform, busy, onApprove, onApply }: ApprovalActionProps) {
+function ApprovalAction({ approval, platform, busy, onApprove, onApply, onCancelChange }: ApprovalActionProps) {
   if (platform !== undefined && platform !== OS6_PLATFORM) {
     return <span className="view-only-tag">View only</span>;
   }
 
+  const cancelButton = (
+    <button type="button" className="copy-button" disabled={busy} onClick={onCancelChange}>
+      Cancel
+    </button>
+  );
+
   switch (approval.status) {
     case "pending":
       return (
-        <button type="button" className="primary-button small-button" disabled={busy} onClick={onApprove}>
-          Approve
-        </button>
+        <div className="action-group">
+          <button type="button" className="primary-button small-button" disabled={busy} onClick={onApprove}>
+            Approve
+          </button>
+          {cancelButton}
+        </div>
       );
     case "approved":
       return (
-        <button type="button" className="danger-button small-button" disabled={busy} onClick={onApply}>
-          Apply
-        </button>
+        <div className="action-group">
+          <button type="button" className="danger-button small-button" disabled={busy} onClick={onApply}>
+            Apply
+          </button>
+          {cancelButton}
+        </div>
       );
     case "applying":
       return (
@@ -384,6 +541,9 @@ export function Approvals() {
   const [applySubmitting, setApplySubmitting] = useState(false);
   const [applyError, setApplyError] = useState<string | null>(null);
   const [activeApply, setActiveApply] = useState<ActiveApply | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<Approval | null>(null);
+  const [cancelSubmitting, setCancelSubmitting] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
   const pollTimer = useRef<number | null>(null);
   const mounted = useRef(true);
 
@@ -514,6 +674,32 @@ export function Approvals() {
       await load();
     } finally {
       setApplySubmitting(false);
+    }
+  }
+
+  const closeCancelDialog = useCallback(() => {
+    setCancelTarget(null);
+    setCancelError(null);
+  }, []);
+
+  async function handleCancelChange(cancelledBy: string, reason: string | null) {
+    if (!cancelTarget || cancelSubmitting) return;
+
+    setCancelSubmitting(true);
+    setCancelError(null);
+
+    try {
+      const updated = await cancelApproval(cancelTarget.id, cancelledBy, reason);
+      const hostname = deviceHostnameById.get(updated.device_id) ?? `Device #${updated.device_id}`;
+      setCancelTarget(null);
+      setNotice(`Cancelled change for ${hostname} as ${updated.cancelled_by}. Nothing was sent to the switch.`);
+      await load();
+    } catch (err) {
+      setCancelError(err instanceof Error ? err.message : "Cancel failed");
+      // The status may have moved on (e.g. Apply started); show the current state.
+      await load();
+    } finally {
+      setCancelSubmitting(false);
     }
   }
 
@@ -651,7 +837,14 @@ export function Approvals() {
               <tbody>
                 {filteredApprovals.map((approval) => (
                   <tr key={approval.id}>
-                    <td>
+                    <td
+                      title={
+                        approval.status === "cancelled"
+                          ? `Cancelled by ${approval.cancelled_by ?? "unknown"} at ${formatTimestamp(approval.cancelled_at)}` +
+                            (approval.cancellation_reason ? `\nReason: ${approval.cancellation_reason}` : "")
+                          : undefined
+                      }
+                    >
                       <StatusBadge status={approval.status} />
                     </td>
                     <td>
@@ -672,7 +865,12 @@ export function Approvals() {
                       <ApprovalAction
                         approval={approval}
                         platform={devicePlatformById.get(approval.device_id)}
-                        busy={submitting || applySubmitting || activeApply?.phase === "applying"}
+                        busy={
+                          submitting ||
+                          applySubmitting ||
+                          cancelSubmitting ||
+                          activeApply?.phase === "applying"
+                        }
                         onApprove={() => {
                           setNotice(null);
                           setActionError(null);
@@ -681,6 +879,11 @@ export function Approvals() {
                         onApply={() => {
                           setApplyError(null);
                           setApplyTarget(approval);
+                        }}
+                        onCancelChange={() => {
+                          setNotice(null);
+                          setCancelError(null);
+                          setCancelTarget(approval);
                         }}
                       />
                     </td>
@@ -709,6 +912,17 @@ export function Approvals() {
           error={applyError}
           onConfirm={handleApply}
           onCancel={closeApplyDialog}
+        />
+      )}
+
+      {cancelTarget && (
+        <CancelDialog
+          approval={cancelTarget}
+          hostname={deviceHostnameById.get(cancelTarget.device_id) ?? `Device #${cancelTarget.device_id}`}
+          submitting={cancelSubmitting}
+          error={cancelError}
+          onConfirm={handleCancelChange}
+          onCancel={closeCancelDialog}
         />
       )}
 

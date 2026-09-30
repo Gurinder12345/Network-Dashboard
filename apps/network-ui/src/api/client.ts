@@ -147,3 +147,16 @@ export function getFleetHealth(): Promise<FleetHealth> {
 export function requestHealthCheck(): Promise<HealthCheckRequested> {
   return postJson<HealthCheckRequested>("/api/v1/health/check", {});
 }
+
+// Status change only (pending/approved -> cancelled). Sends identity and an optional reason,
+// never configuration; nothing is sent to a switch.
+export function cancelApproval(
+  approvalId: string,
+  cancelledBy: string,
+  reason: string | null,
+): Promise<Approval> {
+  return postJson<Approval>(`/api/v1/approvals/${encodeURIComponent(approvalId)}/cancel`, {
+    cancelled_by: cancelledBy,
+    reason,
+  });
+}

@@ -1111,3 +1111,16 @@ table {
 .fleet-message {
   color: var(--accent);
 }
+
+.badge-cancelled {
+  color: var(--text-muted);
+  background: rgba(107, 118, 144, 0.12);
+  text-decoration: line-through;
+  text-decoration-color: rgba(107, 118, 144, 0.6);
+}
+
+.action-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}

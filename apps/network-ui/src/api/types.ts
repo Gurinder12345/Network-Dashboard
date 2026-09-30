@@ -83,6 +83,9 @@ export interface Approval {
   config_parents: string[] | null;
   created_at: string | null;
   approved_at: string | null;
+  cancelled_by: string | null;
+  cancelled_at: string | null;
+  cancellation_reason: string | null;
 }
 
 export interface AuditEvent {

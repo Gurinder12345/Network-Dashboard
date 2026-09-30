@@ -3,11 +3,12 @@ import uuid
 
 from celery.result import AsyncResult
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.celery_client import PUBLISH_RETRY_POLICY, celery_app
 from app.db.approvals import (
     approve_pending_approval,
+    cancel_open_approval,
     claim_approval_for_apply,
     get_approval,
     release_apply_claim,
@@ -204,3 +205,67 @@ def apply_status(approval_id: uuid.UUID, request_id: uuid.UUID):
         "task_state": task_state,
         "error": error,
     }
+
+
+CANCELLABLE_STATUSES = ("pending", "approved")
+
+
+class CancelRequest(BaseModel):
+    # Identity is self-asserted until authentication exists (same rule as approved_by).
+    cancelled_by: str = Field(pattern=r"^[A-Za-z0-9._@-]{2,64}$")
+    reason: str | None = Field(default=None, max_length=500)
+
+    @field_validator("reason")
+    @classmethod
+    def clean_reason(cls, value):
+        if value is None:
+            return None
+        value = value.strip()
+        if any(ord(ch) < 32 and ch not in "\n\t" for ch in value):
+            raise ValueError("reason contains control characters")
+        return value or None
+
+
+@router.post("/{approval_id}/cancel")
+def cancel(approval_id: uuid.UUID, request: CancelRequest):
+    # Status change only: never enqueues a task and never touches a switch.
+    approval_key = str(approval_id)
+
+    try:
+        approval = get_approval(approval_key)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    if approval is None:
+        raise HTTPException(status_code=404, detail=f"Approval {approval_key} not found")
+
+    if approval["status"] not in CANCELLABLE_STATUSES:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Approval is {approval['status']}; only pending or approved changes can be cancelled",
+        )
+
+    # Only one of cancel / cancel / apply-claim can win this row (status IN pending, approved).
+    updated = cancel_open_approval(approval_key, request.cancelled_by, request.reason)
+
+    if updated is None:
+        current = get_approval(approval_key)
+        status = current["status"] if current else "unknown"
+        raise HTTPException(
+            status_code=409,
+            detail=f"Approval is {status}; only pending or approved changes can be cancelled",
+        )
+
+    device = get_device_by_id(updated["device_id"])
+    hostname = device["hostname"] if device else f"device {updated['device_id']}"
+
+    _audit(
+        updated,
+        "approval_cancelled",
+        f"Change approval {approval_key} for {hostname} cancelled by {request.cancelled_by} "
+        f"(was {approval['status']})"
+        + (f": {request.reason}" if request.reason else "")
+        + "; no configuration was applied",
+    )
+
+    return updated
