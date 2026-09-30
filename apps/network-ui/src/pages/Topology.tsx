@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { getTopology, requestTopologyDiscovery } from "../api/client";
-import type { HealthStatus, TopologyGraph as TopologyData, TopologyLink, TopologyNode } from "../api/types";
+import type { HealthStatus, TopologyGraph as TopologyData, TopologyLink } from "../api/types";
 import { Banner, EmptyState, StaleDataWarning } from "../components/Feedback";
 import { FilterChips } from "../components/FilterChips";
 import { KpiCard } from "../components/KpiCard";
@@ -11,6 +11,17 @@ import { StatusBadge } from "../components/StatusBadge";
 import { TopologyGraph, type GraphSelection, type LayoutName } from "../components/TopologyGraph";
 import { useFleetHealth } from "../hooks/FleetHealthContext";
 import { usePolling } from "../hooks/usePolling";
+import {
+  buildDisplayModel,
+  computeVisibility,
+  groupIdFor,
+  type DisplayModel,
+  type DisplayNode,
+  type Filters,
+  type NodeCategory,
+  type TypeFilter,
+  type ViewMode,
+} from "../topology/viewModel";
 import { formatRelative, formatResponseTime } from "../utils/format";
 
 const TOPOLOGY_POLL_MS = 60000;
@@ -18,12 +29,14 @@ const DISCOVER_COOLDOWN_MS = 45000;
 // Beat discovers every 5 min; three missed runs means topology is not being refreshed.
 const TOPOLOGY_STALE_AFTER_MS = 15 * 60 * 1000;
 const ALL = "all";
+const DEFAULT_LAYOUT: Record<ViewMode, LayoutName> = { infrastructure: "breadthfirst", all: "cose" };
 
-type Node = TopologyNode & { effective_health: HealthStatus };
-
-function platformLabel(platform: string | null): string {
-  return platform ? platform.replace("dell_", "").toUpperCase() : "—";
-}
+const CATEGORY_LABEL: Record<NodeCategory, string> = {
+  managed_network: "Managed network",
+  unmanaged_network: "Unmanaged network",
+  endpoint: "Endpoints",
+  unknown: "Unclassified",
+};
 
 function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -34,35 +47,39 @@ function DetailRow({ label, children }: { label: string; children: React.ReactNo
   );
 }
 
-function NodeDetails({ node, graph, nodesById }: { node: Node; graph: TopologyData; nodesById: Map<string, Node> }) {
-  const links = graph.links.filter((l) => l.source === node.id || l.target === node.id);
+function neighborsOf(node: DisplayNode, model: DisplayModel) {
+  return model.edges
+    .filter((e) => !e.isGroupEdge && (e.source === node.id || e.target === node.id))
+    .map((link) => {
+      const local = link.source === node.id;
+      const other = model.byId.get(local ? link.target : link.source)!;
+      return {
+        link,
+        other,
+        localIf: local ? link.source_interface : link.target_interface,
+        remoteIf: local ? link.target_interface ?? link.target_port_id : link.source_interface,
+      };
+    });
+}
 
-  if (!node.managed) {
-    return (
-      <>
-        <div className="target-card">
-          <div>
-            <div className="target-host">{node.hostname}</div>
-            <div className="target-sub">Seen via LLDP · not in the managed inventory</div>
-          </div>
-          <span className="tag tag-plain">Unmanaged</span>
-        </div>
-        <dl className="detail-list">
-          <DetailRow label="Advertised name">{node.advertised_system_name ?? <span className="muted">not advertised</span>}</DetailRow>
-          <DetailRow label="Management IP">{node.management_ip ? <span className="mono">{node.management_ip}</span> : <span className="muted">not advertised</span>}</DetailRow>
-          <DetailRow label="Chassis ID">{node.chassis_id ? <span className="mono">{node.chassis_id}</span> : <span className="muted">—</span>}</DetailRow>
-          <DetailRow label="Remote ports">
-            {node.remote_port_ids?.length ? <span className="mono">{node.remote_port_ids.join(", ")}</span> : <span className="muted">—</span>}
-          </DetailRow>
-          <DetailRow label="Attached to">
-            {(node.attached_device_ids ?? []).map((id) => nodesById.get(`device:${id}`)?.hostname ?? `Device #${id}`).join(", ") || "—"}
-          </DetailRow>
-          <DetailRow label="Last seen"><RelativeTime value={node.topology_last_seen_at} /></DetailRow>
-        </dl>
-        <p className="form-hint">Health is not monitored for unmanaged neighbors.</p>
-      </>
-    );
-  }
+function ManagedDetails({
+  node,
+  model,
+  expanded,
+  onToggleGroup,
+}: {
+  node: DisplayNode;
+  model: DisplayModel;
+  expanded: boolean;
+  onToggleGroup: () => void;
+}) {
+  const neighbors = neighborsOf(node, model);
+  const grouped = (["managed_network", "unmanaged_network", "endpoint", "unknown"] as NodeCategory[]).map((category) => ({
+    category,
+    items: neighbors.filter((n) => n.other.category === category),
+  }));
+  const count = (c: NodeCategory) => grouped.find((g) => g.category === c)!.items.length;
+  const collapsible = model.collapsible.get(node.id)?.length ?? 0;
 
   return (
     <>
@@ -73,12 +90,15 @@ function NodeDetails({ node, graph, nodesById }: { node: Node; graph: TopologyDa
         </div>
         <StatusBadge status={node.effective_health} />
       </div>
+
       <dl className="detail-list">
         <DetailRow label="Platform"><span className="platform-tag">{node.platform}</span></DetailRow>
         <DetailRow label="Response time"><span className="mono">{formatResponseTime(node.response_time_ms)}</span></DetailRow>
         <DetailRow label="Last health check"><RelativeTime value={node.last_check_at ?? null} /></DetailRow>
         <DetailRow label="Last discovery"><RelativeTime value={node.topology_last_success_at ?? null} /></DetailRow>
-        <DetailRow label="Active neighbors">{links.filter((l) => l.active).length}</DetailRow>
+        <DetailRow label="Managed neighbors">{count("managed_network")}</DetailRow>
+        <DetailRow label="Unmanaged network">{count("unmanaged_network")}</DetailRow>
+        <DetailRow label="Endpoints">{count("endpoint")}{count("unknown") ? ` (+${count("unknown")} unclassified)` : ""}</DetailRow>
       </dl>
 
       {node.topology_last_error && (
@@ -86,29 +106,37 @@ function NodeDetails({ node, graph, nodesById }: { node: Node; graph: TopologyDa
           <span className="mono">{node.topology_last_error}</span> Links shown are from the last successful discovery.
         </Banner>
       )}
-
-      {links.length > 0 && (
-        <div className="form-field">
-          <span className="form-label">LLDP neighbors</span>
-          <ul className="neighbor-list">
-            {links.map((link) => {
-              const local = link.source === node.id;
-              const other = nodesById.get(local ? link.target : link.source);
-              return (
-                <li key={link.id}>
-                  <span className="mono">{(local ? link.source_interface : link.target_interface) ?? "—"}</span>
-                  <span className="muted"> → </span>
-                  <strong>{other?.hostname ?? "?"}</strong>{" "}
-                  <span className="mono secondary">
-                    {(local ? link.target_interface ?? link.target_port_id : link.source_interface) ?? ""}
-                  </span>
-                  {!other?.managed && <span className="tag tag-plain">Unmanaged</span>}
-                </li>
-              );
-            })}
-          </ul>
-        </div>
+      {node.effective_health === "down" && (
+        <Banner tone="danger" title="Device is down.">
+          Topology for this device may be stale.
+        </Banner>
       )}
+
+      {collapsible > 0 && (
+        <button type="button" className="secondary-button small-button" onClick={onToggleGroup} aria-pressed={expanded}>
+          {expanded ? "Collapse" : "Show"} {collapsible} LLDP neighbors on map
+        </button>
+      )}
+
+      {grouped
+        .filter((g) => g.items.length > 0)
+        .map((g) => (
+          <div className="form-field" key={g.category}>
+            <span className="form-label">
+              {CATEGORY_LABEL[g.category]} ({g.items.length})
+            </span>
+            <ul className="neighbor-list">
+              {g.items.map(({ link, other, localIf, remoteIf }) => (
+                <li key={link.id} title={other.chassis_id ?? undefined}>
+                  <span className="mono">{localIf ?? "—"}</span>
+                  <span className="muted"> → </span>
+                  <strong>{other.hostname}</strong> <span className="mono secondary">{remoteIf ?? ""}</span>
+                  {!link.observed_bidirectionally && other.managed && <span className="tag tag-plain">one side</span>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
 
       <div className="detail-links">
         <Link to="/devices">Devices</Link>
@@ -120,37 +148,75 @@ function NodeDetails({ node, graph, nodesById }: { node: Node; graph: TopologyDa
   );
 }
 
-function EdgeDetails({ link, nodesById }: { link: TopologyLink; nodesById: Map<string, Node> }) {
-  const source = nodesById.get(link.source);
-  const target = nodesById.get(link.target);
-
+function UnmanagedDetails({ node, model }: { node: DisplayNode; model: DisplayModel }) {
+  const neighbors = neighborsOf(node, model);
   return (
     <>
+      <div className="target-card">
+        <div>
+          <div className="target-host">{node.hostname}</div>
+          <div className="target-sub">Seen via LLDP · not in the managed inventory</div>
+        </div>
+        <span className="tag tag-plain">Unmanaged</span>
+      </div>
       <dl className="detail-list">
-        <DetailRow label="Source"><strong>{source?.hostname ?? link.source}</strong></DetailRow>
-        <DetailRow label="Source port"><span className="mono">{link.source_interface ?? "—"}</span></DetailRow>
-        <DetailRow label="Target">
-          <strong>{target?.hostname ?? link.target}</strong>
-          {!target?.managed && <span className="cell-sub">Advertised identity (unmanaged)</span>}
+        <DetailRow label="Display type">
+          {CATEGORY_LABEL[node.category]} <span className="muted">(presentation only)</span>
         </DetailRow>
-        <DetailRow label="Target port">
-          <span className="mono">{link.target_interface ?? link.target_port_id ?? "—"}</span>
-          {!link.target_interface && link.target_port_id && <span className="cell-sub">LLDP Port ID (not an interface name)</span>}
+        <DetailRow label="Advertised name">{node.advertised_system_name ?? <span className="muted">not advertised</span>}</DetailRow>
+        <DetailRow label="Management IP">{node.management_ip ? <span className="mono">{node.management_ip}</span> : <span className="muted">not advertised</span>}</DetailRow>
+        <DetailRow label="Chassis ID">{node.chassis_id ? <span className="mono">{node.chassis_id}</span> : <span className="muted">—</span>}</DetailRow>
+        <DetailRow label="Remote ports">
+          {node.remote_port_ids?.length ? <span className="mono">{node.remote_port_ids.join(", ")}</span> : <span className="muted">—</span>}
         </DetailRow>
-        <DetailRow label="Protocol">LLDP</DetailRow>
-        <DetailRow label="Relationship">{link.relationship === "managed" ? "Managed ↔ managed" : "Managed → unmanaged"}</DetailRow>
-        <DetailRow label="Observation">
-          {link.observed_bidirectionally ? (
-            <StatusBadge status="confirmed" label="Confirmed from both ends" tone="success" />
-          ) : (
-            <StatusBadge status="one-side" label="Observed from one side" tone="warning" />
-          )}
-        </DetailRow>
-        <DetailRow label="Active">{link.active ? "Yes" : "No (not seen in latest discovery)"}</DetailRow>
-        <DetailRow label="Last seen"><RelativeTime value={link.last_seen_at} /></DetailRow>
-        <DetailRow label="First seen"><RelativeTime value={link.first_seen_at} /></DetailRow>
+        <DetailRow label="Last seen"><RelativeTime value={node.topology_last_seen_at} /></DetailRow>
       </dl>
+      <div className="form-field">
+        <span className="form-label">Attached to</span>
+        <ul className="neighbor-list">
+          {neighbors.map(({ link, other, localIf, remoteIf }) => (
+            <li key={link.id}>
+              <strong>{other.hostname}</strong> <span className="mono">{remoteIf ?? "—"}</span>
+              <span className="muted"> → </span>
+              <span className="mono secondary">{localIf ?? node.remote_port_ids?.join(", ") ?? ""}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <p className="form-hint">Health is not monitored for unmanaged neighbors.</p>
     </>
+  );
+}
+
+function EdgeDetails({ link, model }: { link: TopologyLink; model: DisplayModel }) {
+  const source = model.byId.get(link.source);
+  const target = model.byId.get(link.target);
+
+  return (
+    <dl className="detail-list">
+      <DetailRow label="Source"><strong>{source?.hostname ?? link.source}</strong></DetailRow>
+      <DetailRow label="Source port"><span className="mono">{link.source_interface ?? "—"}</span></DetailRow>
+      <DetailRow label="Target">
+        <strong>{target?.hostname ?? link.target}</strong>
+        {!target?.managed && <span className="cell-sub">Advertised identity (unmanaged)</span>}
+      </DetailRow>
+      <DetailRow label="Target port">
+        <span className="mono">{link.target_interface ?? link.target_port_id ?? "—"}</span>
+        {!link.target_interface && link.target_port_id && <span className="cell-sub">LLDP Port ID (not an interface name)</span>}
+      </DetailRow>
+      <DetailRow label="Protocol">LLDP</DetailRow>
+      <DetailRow label="Relationship">{link.relationship === "managed" ? "Managed ↔ managed" : "Managed → unmanaged"}</DetailRow>
+      <DetailRow label="Observation">
+        {link.observed_bidirectionally ? (
+          <StatusBadge status="confirmed" label="Confirmed from both ends" tone="success" />
+        ) : (
+          <StatusBadge status="one-side" label="Observed from one side" tone="warning" />
+        )}
+      </DetailRow>
+      <DetailRow label="Active">{link.active ? "Yes" : "No (not seen in latest discovery)"}</DetailRow>
+      <DetailRow label="Last seen"><RelativeTime value={link.last_seen_at} /></DetailRow>
+      <DetailRow label="First seen"><RelativeTime value={link.first_seen_at} /></DetailRow>
+    </dl>
   );
 }
 
@@ -160,13 +226,12 @@ export function Topology() {
   const [error, setError] = useState<string | null>(null);
   const [lastLoadedAt, setLastLoadedAt] = useState<Date | null>(null);
   const [selection, setSelection] = useState<GraphSelection>(null);
-  const [layout, setLayout] = useState<LayoutName>("breadthfirst");
+  const [viewMode, setViewMode] = useState<ViewMode>("infrastructure");
+  const [layout, setLayout] = useState<LayoutName>(DEFAULT_LAYOUT.infrastructure);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [fitSignal, setFitSignal] = useState(0);
-  const [resetSignal, setResetSignal] = useState(0);
-  const [search, setSearch] = useState("");
-  const [healthFilter, setHealthFilter] = useState(ALL);
-  const [managedFilter, setManagedFilter] = useState(ALL);
-  const [platformFilter, setPlatformFilter] = useState(ALL);
+  const [resetCount, setResetCount] = useState(0);
+  const [filters, setFilters] = useState<Filters>({ search: "", health: ALL, management: ALL, type: ALL, platform: ALL });
   const [discoverBusy, setDiscoverBusy] = useState(false);
   const [discoverMessage, setDiscoverMessage] = useState<string | null>(null);
 
@@ -187,42 +252,76 @@ export function Topology() {
 
   usePolling(load, TOPOLOGY_POLL_MS);
 
-  // Health comes from the shared 20 s fleet poll when available (fresher, no extra request).
+  // Health from the shared 20 s fleet poll when available (fresher, no extra request).
   const fleetHealth = useMemo(() => {
     const map = new Map<number, HealthStatus>();
     fleet?.devices.forEach((d) => map.set(d.device_id, d.status));
     return map;
   }, [fleet]);
 
-  const nodes: Node[] = useMemo(
+  const model = useMemo(
     () =>
-      (graph?.nodes ?? []).map((node) => ({
-        ...node,
-        effective_health: node.managed
-          ? (node.device_id !== null && fleetHealth.get(node.device_id)) || node.health_status
-          : "unknown",
-      })),
+      buildDisplayModel(
+        (graph?.nodes ?? []).map((node) => ({
+          ...node,
+          effective_health: node.managed
+            ? (node.device_id !== null && fleetHealth.get(node.device_id)) || node.health_status
+            : "unknown",
+        })),
+        graph?.links ?? [],
+      ),
     [graph, fleetHealth],
   );
-  const links = useMemo(() => graph?.links ?? [], [graph]);
-  const nodesById = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
 
-  const visibleNodeIds = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    return new Set(
-      nodes
-        .filter((n) => {
-          // Health applies to managed devices only; unmanaged neighbors have no health state.
-          if (healthFilter !== ALL && (!n.managed || n.effective_health !== healthFilter)) return false;
-          if (managedFilter === "managed" && !n.managed) return false;
-          if (managedFilter === "unmanaged" && n.managed) return false;
-          if (platformFilter !== ALL && n.platform !== platformFilter) return false;
-          if (query && !`${n.hostname} ${n.management_ip ?? ""}`.toLowerCase().includes(query)) return false;
-          return true;
-        })
-        .map((n) => n.id),
-    );
-  }, [nodes, search, healthFilter, managedFilter, platformFilter]);
+  const visibility = useMemo(() => computeVisibility(model, viewMode, expanded, filters), [model, viewMode, expanded, filters]);
+
+  const toggleGroup = useCallback((groupId: string) => {
+    setExpanded((current) => {
+      const next = new Set(current);
+      if (next.has(groupId)) next.delete(groupId);
+      else next.add(groupId);
+      return next;
+    });
+  }, []);
+
+  const setFilter = (key: keyof Filters) => (value: string) => setFilters((f) => ({ ...f, [key]: value }));
+
+  const tooltipFor = useCallback(
+    (kind: "node" | "edge", id: string): string[] => {
+      if (kind === "edge") {
+        const e = model.edges.find((x) => x.id === id);
+        if (!e || e.isGroupEdge) return [];
+        return [
+          `${model.byId.get(e.source)?.hostname} ${e.source_interface ?? ""} ↔ ${model.byId.get(e.target)?.hostname} ${e.target_interface ?? e.target_port_id ?? ""}`,
+          e.observed_bidirectionally ? "Confirmed from both ends" : "Observed from one side",
+          `Last seen ${formatRelative(e.last_seen_at)}`,
+        ];
+      }
+      const n = model.byId.get(id);
+      if (!n) return [];
+      if (n.isGroup) {
+        const owner = model.byId.get(n.groupOwner!)!;
+        const open = expanded.has(n.id);
+        return [`${visibility.groupCounts.get(n.id) ?? 0} LLDP neighbors on ${owner.hostname}`, open ? "Click to collapse" : "Click to expand"];
+      }
+      if (n.managed) {
+        return [
+          n.hostname,
+          `${n.management_ip ?? ""} · ${n.platform ?? ""}`,
+          `Health: ${n.effective_health}`,
+          `${n.neighbor_count} LLDP neighbors (${model.collapsible.get(n.id)?.length ?? 0} endpoint/unclassified)`,
+        ];
+      }
+      const attached = (n.attached_device_ids ?? []).map((d) => model.byId.get(`device:${d}`)?.hostname).filter(Boolean).join(", ");
+      return [
+        n.advertised_system_name ?? n.hostname,
+        `${CATEGORY_LABEL[n.category]} · unmanaged`,
+        `Chassis ${n.chassis_id ?? "—"}`,
+        `On ${attached || "—"} · port ${n.remote_port_ids?.join(", ") || "—"}`,
+      ];
+    },
+    [model, expanded, visibility],
+  );
 
   async function handleDiscover() {
     setDiscoverBusy(true);
@@ -236,17 +335,35 @@ export function Topology() {
     window.setTimeout(() => setDiscoverBusy(false), DISCOVER_COOLDOWN_MS);
   }
 
-  const selectedNode = selection?.kind === "node" ? nodesById.get(selection.id) : undefined;
-  const selectedLink = selection?.kind === "edge" ? links.find((l) => l.id === selection.id) : undefined;
+  function changeView(mode: ViewMode) {
+    setViewMode(mode);
+    setLayout(DEFAULT_LAYOUT[mode]);
+    setSelection(null);
+  }
+
+  const selectedNode = selection?.kind === "node" ? model.byId.get(selection.id) : undefined;
+  const selectedLink = selection?.kind === "edge" ? model.edges.find((l) => l.id === selection.id) : undefined;
+
+  const real = model.nodes.filter((n) => !n.isGroup);
+  const managedNodes = real.filter((n) => n.managed);
+  const downNodes = managedNodes.filter((n) => n.effective_health === "down");
+  const failingNodes = managedNodes.filter((n) => n.topology_last_error);
+  const visibleReal = real.filter((n) => visibility.visible.has(n.id));
+  const visibleLinks = model.edges.filter(
+    (e) => !e.isGroupEdge && visibility.visible.has(e.source) && visibility.visible.has(e.target),
+  ).length;
+  const count = (predicate: (n: DisplayNode) => boolean) => real.filter(predicate).length;
 
   const neverDiscovered = graph !== null && !graph.last_discovery_at;
   const stale =
-    graph?.last_discovery_at !== undefined &&
-    graph?.last_discovery_at !== null &&
-    Date.now() - new Date(graph.last_discovery_at).getTime() > TOPOLOGY_STALE_AFTER_MS;
-  const failingNodes = nodes.filter((n) => n.managed && n.topology_last_error);
-  const downNodes = nodes.filter((n) => n.managed && n.effective_health === "down");
-  const counts = (predicate: (n: Node) => boolean) => nodes.filter(predicate).length;
+    !!graph?.last_discovery_at && Date.now() - new Date(graph.last_discovery_at).getTime() > TOPOLOGY_STALE_AFTER_MS;
+  const allGroupIds = [...model.collapsible.keys()].map(groupIdFor);
+  const allExpanded = allGroupIds.length > 0 && allGroupIds.every((id) => expanded.has(id));
+
+  const summary =
+    viewMode === "infrastructure"
+      ? `${visibleReal.filter((n) => n.managed).length} managed · ${visibleReal.filter((n) => n.category === "unmanaged_network").length} unmanaged network · ${visibility.hiddenEndpoints} endpoints collapsed · ${visibleLinks} links`
+      : `${visibleReal.length}/${real.length} nodes · ${visibleLinks} links`;
 
   return (
     <>
@@ -260,10 +377,7 @@ export function Topology() {
               className="filter-select"
               aria-label="Layout"
               value={layout}
-              onChange={(event) => {
-                setLayout(event.target.value as LayoutName);
-                setResetSignal((n) => n + 1);
-              }}
+              onChange={(event) => setLayout(event.target.value as LayoutName)}
               style={{ minWidth: 130 }}
             >
               <option value="breadthfirst">Hierarchical</option>
@@ -272,7 +386,7 @@ export function Topology() {
             <button type="button" className="secondary-button" onClick={() => setFitSignal((n) => n + 1)}>
               Fit
             </button>
-            <button type="button" className="secondary-button" onClick={() => setResetSignal((n) => n + 1)}>
+            <button type="button" className="secondary-button" onClick={() => setResetCount((n) => n + 1)}>
               Reset view
             </button>
             <button
@@ -291,9 +405,14 @@ export function Topology() {
       {error && lastLoadedAt && <StaleDataWarning since={lastLoadedAt} error={error} />}
       {error && !lastLoadedAt && <Banner tone="danger" title="Failed to load topology.">{error}</Banner>}
       {discoverMessage && <Banner tone="info" onDismiss={() => setDiscoverMessage(null)}>{discoverMessage}</Banner>}
-      {neverDiscovered && (
+      {graph?.discovery_running && graph.links.length === 0 && (
+        <Banner tone="info" title="Topology discovery is running.">
+          Managed inventory is shown while LLDP relationships are collected.
+        </Banner>
+      )}
+      {neverDiscovered && !graph?.discovery_running && (
         <Banner tone="info" title="No topology discovered yet.">
-          Discovery runs every 5 minutes, or use Discover now. Only LLDP-reported links are shown.
+          Managed inventory is shown. Discovery runs every 5 minutes, or use Discover now.
         </Banner>
       )}
       {stale && graph?.last_discovery_at && (
@@ -306,16 +425,16 @@ export function Topology() {
           {failingNodes.map((n) => n.hostname).join(", ")} — their last known links are kept.
         </Banner>
       )}
-      {downNodes.length > 0 && (
-        <Banner tone="danger" title="Topology may be stale for down devices.">
-          {downNodes.map((n) => n.hostname).join(", ")} {downNodes.length === 1 ? "is" : "are"} down; links shown are from the last discovery.
-        </Banner>
-      )}
 
       <div className="kpi-grid">
-        <KpiCard label="Managed Devices" value={graph ? graph.managed_devices : "—"} tone="info" />
+        <KpiCard label="Managed Devices" value={graph ? managedNodes.length : "—"} tone="info" />
         <KpiCard label="Active Links" value={graph ? graph.active_links : "—"} tone="success" />
-        <KpiCard label="Unmanaged Neighbors" value={graph ? graph.unmanaged_neighbors : "—"} tone="neutral" />
+        <KpiCard
+          label="Unmanaged Neighbors"
+          value={graph ? graph.unmanaged_neighbors : "—"}
+          tone="neutral"
+          hint={graph ? `${count((n) => n.category === "unmanaged_network")} network · ${count((n) => n.category === "endpoint")} endpoints` : undefined}
+        />
         <KpiCard label="Down Devices" value={graph ? downNodes.length : "—"} tone="danger" emphasize={downNodes.length > 0} />
         <KpiCard
           label="Last Discovery"
@@ -326,46 +445,78 @@ export function Topology() {
       </div>
 
       <div className="filters-bar">
+        <FilterChips
+          label="View"
+          value={viewMode}
+          onChange={(v) => changeView(v as ViewMode)}
+          options={[
+            { value: "infrastructure", label: "Infrastructure" },
+            { value: "all", label: "All LLDP", count: real.length },
+          ]}
+        />
         <input
           type="search"
           className="search-input"
-          placeholder="Search hostname or IP…"
+          placeholder="Search hostname, advertised name or IP…"
           aria-label="Search topology"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
+          value={filters.search}
+          onChange={(event) => setFilter("search")(event.target.value)}
         />
+        {viewMode === "infrastructure" && allGroupIds.length > 0 && (
+          <button
+            type="button"
+            className="secondary-button small-button"
+            aria-pressed={allExpanded}
+            onClick={() => setExpanded(allExpanded ? new Set() : new Set(allGroupIds))}
+          >
+            {allExpanded ? "Collapse all neighbors" : "Expand all neighbors"}
+          </button>
+        )}
+      </div>
+      <div className="filters-bar">
         <FilterChips
           label="Health"
-          value={healthFilter}
-          onChange={setHealthFilter}
+          value={filters.health}
+          onChange={setFilter("health")}
           options={[
-            { value: ALL, label: "All", count: nodes.length },
+            { value: ALL, label: "All" },
             ...(["healthy", "degraded", "down", "unknown"] as HealthStatus[]).map((s) => ({
               value: s,
               label: s.charAt(0).toUpperCase() + s.slice(1),
-              count: counts((n) => n.managed && n.effective_health === s),
+              count: count((n) => n.managed && n.effective_health === s),
               status: s,
             })),
           ]}
         />
         <FilterChips
           label="Management"
-          value={managedFilter}
-          onChange={setManagedFilter}
+          value={filters.management}
+          onChange={setFilter("management")}
           options={[
             { value: ALL, label: "All" },
-            { value: "managed", label: "Managed", count: counts((n) => n.managed) },
-            { value: "unmanaged", label: "Unmanaged", count: counts((n) => !n.managed) },
+            { value: "managed", label: "Managed", count: managedNodes.length },
+            { value: "unmanaged", label: "Unmanaged", count: real.length - managedNodes.length },
+          ]}
+        />
+        <FilterChips
+          label="Type"
+          value={filters.type}
+          onChange={(v) => setFilter("type")(v as TypeFilter)}
+          options={[
+            { value: ALL, label: "All" },
+            { value: "network", label: "Network", count: count((n) => n.category === "managed_network" || n.category === "unmanaged_network") },
+            { value: "endpoint", label: "Endpoints", count: count((n) => n.category === "endpoint") },
+            { value: "unknown", label: "Unclassified", count: count((n) => n.category === "unknown") },
           ]}
         />
         <FilterChips
           label="Platform"
-          value={platformFilter}
-          onChange={setPlatformFilter}
+          value={filters.platform}
+          onChange={setFilter("platform")}
           options={[
             { value: ALL, label: "All" },
-            { value: "dell_os6", label: "OS6", count: counts((n) => n.platform === "dell_os6") },
-            { value: "dell_os10", label: "OS10", count: counts((n) => n.platform === "dell_os10") },
+            { value: "dell_os6", label: "OS6", count: count((n) => n.platform === "dell_os6") },
+            { value: "dell_os10", label: "OS10", count: count((n) => n.platform === "dell_os10") },
           ]}
         />
       </div>
@@ -374,22 +525,23 @@ export function Topology() {
         <div className="panel topology-panel">
           <div className="panel-header">
             <h2>Network Map</h2>
-            <span className="panel-header-meta">
-              {visibleNodeIds.size}/{nodes.length} nodes · {links.length} links
-            </span>
+            <span className="panel-header-meta">{summary}</span>
           </div>
-          {graph && nodes.length === 0 ? (
+          {graph && real.length === 0 ? (
             <EmptyState title="No devices to display." />
           ) : (
             <TopologyGraph
-              nodes={nodes}
-              links={links}
-              visibleNodeIds={visibleNodeIds}
+              nodes={model.nodes}
+              edges={model.edges}
+              visibleIds={visibility.visible}
+              groupCounts={visibility.groupCounts}
               selection={selection}
               onSelect={setSelection}
+              onToggleGroup={toggleGroup}
+              tooltipFor={tooltipFor}
               layout={layout}
+              layoutKey={`${viewMode}|${layout}|${resetCount}`}
               fitSignal={fitSignal}
-              resetSignal={resetSignal}
             />
           )}
           <div className="topology-legend" aria-label="Legend">
@@ -397,9 +549,10 @@ export function Topology() {
             <span><span className="tone-dot dot-degraded" /> Degraded</span>
             <span><span className="tone-dot dot-down" /> Down</span>
             <span><span className="tone-dot dot-unknown" /> Unknown</span>
-            <span><span className="legend-node dashed" /> Unmanaged neighbor</span>
-            <span><span className="legend-line" /> Confirmed both ends</span>
-            <span><span className="legend-line dashed" /> One side only</span>
+            <span><span className="legend-node dashed" /> Unmanaged</span>
+            <span><span className="legend-node group" /> Collapsed neighbors (click)</span>
+            <span><span className="legend-line" /> Both ends</span>
+            <span><span className="legend-line dashed" /> One side</span>
             <span><span className="legend-line dotted" /> To unmanaged</span>
           </div>
         </div>
@@ -413,12 +566,20 @@ export function Topology() {
               </button>
             </div>
             <div className="modal-body">
-              {selectedNode && graph && <NodeDetails node={selectedNode} graph={graph} nodesById={nodesById} />}
-              {selectedLink && <EdgeDetails link={selectedLink} nodesById={nodesById} />}
+              {selectedNode?.managed && (
+                <ManagedDetails
+                  node={selectedNode}
+                  model={model}
+                  expanded={expanded.has(groupIdFor(selectedNode.id))}
+                  onToggleGroup={() => {
+                    if (viewMode !== "infrastructure") changeView("infrastructure");
+                    toggleGroup(groupIdFor(selectedNode.id));
+                  }}
+                />
+              )}
+              {selectedNode && !selectedNode.managed && <UnmanagedDetails node={selectedNode} model={model} />}
+              {selectedLink && <EdgeDetails link={selectedLink} model={model} />}
               {!selectedNode && !selectedLink && <EmptyState title="Selection no longer present." />}
-              <p className="form-hint">
-                Platform: {selectedNode ? platformLabel(selectedNode.platform) : "LLDP link"} · read-only view
-              </p>
             </div>
           </aside>
         )}

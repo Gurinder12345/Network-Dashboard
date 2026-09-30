@@ -2149,3 +2149,43 @@ summary:focus-visible {
     max-height: none;
   }
 }
+
+.topology-canvas-wrap {
+  position: relative;
+}
+
+.topology-tooltip {
+  position: absolute;
+  z-index: 5;
+  max-width: 320px;
+  padding: 7px 10px;
+  background: var(--bg-panel-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-pop);
+  font-size: var(--fs-xs);
+  color: var(--text-secondary);
+  pointer-events: none;
+  line-height: 1.5;
+}
+
+.topology-tooltip .tooltip-title {
+  color: var(--text-primary);
+  font-weight: 600;
+  font-size: var(--fs-sm);
+}
+
+.legend-node.group {
+  border-style: dotted;
+  border-radius: 999px;
+}
+
+.filters-bar + .filters-bar {
+  margin-top: -6px;
+}
+
+@media (max-width: 860px) {
+  .topology-canvas {
+    height: max(380px, 60vh);
+  }
+}
