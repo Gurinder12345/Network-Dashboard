@@ -96,19 +96,23 @@ class FleetLock:
     acquired=True  -> we own it and must release it
     acquired=False -> another sweep holds it; skip this run
     acquired=None  -> Redis unavailable; run without a lock (Beat's expiry and the
-                      60 s interval make overlap unlikely, and health checks are read-only)
+                      schedule interval make overlap unlikely, and sweeps are read-only)
+
+    Defaults are the health sweep's key/TTL; topology discovery passes its own.
     """
 
-    def __init__(self):
+    def __init__(self, key=FLEET_LOCK_KEY, ttl_seconds=FLEET_LOCK_TTL_SECONDS):
+        self.key = key
+        self.ttl_seconds = ttl_seconds
         self.token = uuid.uuid4().hex
         self.acquired = None
 
     def __enter__(self):
         try:
-            ok = _redis().set(FLEET_LOCK_KEY, self.token, nx=True, ex=FLEET_LOCK_TTL_SECONDS)
+            ok = _redis().set(self.key, self.token, nx=True, ex=self.ttl_seconds)
             self.acquired = bool(ok)
         except redis.RedisError as exc:
-            _warn("acquire_fleet_lock", exc)
+            _warn(f"acquire {self.key}", exc)
             self.acquired = None
 
         return self
@@ -116,9 +120,30 @@ class FleetLock:
     def __exit__(self, exc_type, exc, tb):
         if self.acquired:
             try:
-                _redis().eval(_RELEASE_LOCK_SCRIPT, 1, FLEET_LOCK_KEY, self.token)
+                _redis().eval(_RELEASE_LOCK_SCRIPT, 1, self.key, self.token)
             except redis.RedisError as release_exc:
                 # The TTL still expires the lock.
                 _warn("release_fleet_lock", release_exc)
 
         return False
+
+
+# ---- Topology (same Redis DB 1; PostgreSQL stays authoritative) -------------------
+TOPOLOGY_GRAPH_KEY = "topology:graph"
+TOPOLOGY_LAST_DISCOVERY_KEY = "topology:last_discovery"
+TOPOLOGY_LAST_DISCOVERY_TTL_SECONDS = 3600
+
+
+def invalidate_topology_graph():
+    """Drop the API's cached graph so the next read rebuilds it from PostgreSQL."""
+    try:
+        _redis().delete(TOPOLOGY_GRAPH_KEY)
+    except redis.RedisError as exc:
+        _warn("invalidate topology graph", exc)
+
+
+def cache_topology_last_discovery(summary):
+    try:
+        _redis().setex(TOPOLOGY_LAST_DISCOVERY_KEY, TOPOLOGY_LAST_DISCOVERY_TTL_SECONDS, json.dumps(summary))
+    except redis.RedisError as exc:
+        _warn("cache topology last discovery", exc)

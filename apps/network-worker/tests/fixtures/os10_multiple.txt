@@ -1,0 +1,7 @@
+Loc PortID          Rem Host Name          Rem Port Id                          Rem Chassis Id
+----------------------------------------------------------------------------------------------------
+ethernet1/1/1       Kenda-HARO-IDF-A       Te1/0/48                             f8:b1:56:aa:bb:01
+ethernet1/1/2       Kenda-HQ-IDF-A         Te1/0/48                             f8:b1:56:aa:bb:02
+ethernet1/1/10      Kenda-Core-2           ethernet1/1/10                       50:9a:4c:00:00:02
+ethernet1/1/20      unmanaged-ap-01        c0:ff:ee:00:00:20                    c0:ff:ee:00:00:20
+mgmt1/1/1                                  Gi1/0/5                              00:11:22:33:44:55

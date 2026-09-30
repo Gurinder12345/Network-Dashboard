@@ -1,0 +1,11 @@
+
+LLDP Remote Device Summary
+
+Local
+Interface RemID   Chassis ID          Port ID           System Name
+--------- ------- ------------------- ----------------- ------------------
+Te1/0/48  1       50:9A:4C:00:00:01   ethernet1/1/1     Kenda-Core-1
+Gi1/0/12  2       00:1B:21:AA:BB:CC   00:1B:21:AA:BB:CC
+Gi1/0/12  3       64:16:7F:01:02:03   port 1            SEP64167F010203
+Gi1/0/20  4       C0:FF:EE:00:00:20   Gi0/1             unmanaged-sw.lab.local
+

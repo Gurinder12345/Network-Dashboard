@@ -1,0 +1,4 @@
+Local
+Interface RemID   Chassis ID          Port ID           System Name
+--------- ------- ------------------- ----------------- ------------------
+Te1/0/47  5       50:9A:4C:00:00:09   TenGigabitEthernet1/0/1  core-x

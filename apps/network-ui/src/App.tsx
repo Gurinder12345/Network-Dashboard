@@ -1,4 +1,6 @@
+import { lazy, Suspense } from "react";
 import { Route, Routes } from "react-router-dom";
+import { TableSkeleton } from "./components/Feedback";
 import { AppShell } from "./layout/AppShell";
 import { Approvals } from "./pages/Approvals";
 import { Audit } from "./pages/Audit";
@@ -9,12 +11,23 @@ import { Jobs } from "./pages/Jobs";
 import { Overview } from "./pages/Overview";
 import { Scripts } from "./pages/Scripts";
 
+// Cytoscape is only downloaded when the Topology page is opened.
+const Topology = lazy(() => import("./pages/Topology"));
+
 export function App() {
   return (
     <AppShell>
       <Routes>
         <Route path="/" element={<Overview />} />
         <Route path="/devices" element={<Devices />} />
+        <Route
+          path="/topology"
+          element={
+            <Suspense fallback={<TableSkeleton rows={6} columns={4} />}>
+              <Topology />
+            </Suspense>
+          }
+        />
         <Route path="/changes" element={<Changes />} />
         <Route path="/approvals" element={<Approvals />} />
         <Route path="/jobs" element={<Jobs />} />

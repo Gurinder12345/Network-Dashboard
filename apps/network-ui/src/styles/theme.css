@@ -2032,3 +2032,120 @@ a.secondary:hover {
 summary:focus-visible {
   box-shadow: var(--focus-ring);
 }
+
+/* ---- Topology --------------------------------------------------------------------- */
+.topology-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.topology-layout.with-drawer {
+  grid-template-columns: minmax(0, 1fr) 340px;
+}
+
+.topology-layout .panel + .panel {
+  margin-top: 0;
+}
+
+.topology-canvas {
+  height: max(460px, calc(100vh - 420px));
+  background:
+    radial-gradient(circle at 1px 1px, rgba(125, 137, 158, 0.12) 1px, transparent 0) 0 0 / 22px 22px,
+    var(--bg-inset);
+}
+
+.topology-drawer {
+  position: sticky;
+  top: 0;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+}
+
+.topology-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  padding: 8px var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+  font-size: var(--fs-xs);
+  color: var(--text-secondary);
+}
+
+.topology-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend-node {
+  width: 14px;
+  height: 10px;
+  border-radius: 3px;
+  border: 1.5px solid var(--tone-neutral);
+}
+
+.legend-node.dashed {
+  border-style: dashed;
+}
+
+.legend-line {
+  width: 22px;
+  border-top: 2px solid var(--border-strong);
+}
+
+.legend-line.dashed {
+  border-top-style: dashed;
+}
+
+.legend-line.dotted {
+  border-top-style: dotted;
+}
+
+.neighbor-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--fs-sm);
+}
+
+.neighbor-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 8px;
+  background: var(--bg-inset);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.detail-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: var(--fs-sm);
+}
+
+.detail-links a {
+  color: var(--accent-hover);
+}
+
+.detail-links a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 1200px) {
+  .topology-layout.with-drawer {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .topology-drawer {
+    position: static;
+    max-height: none;
+  }
+}

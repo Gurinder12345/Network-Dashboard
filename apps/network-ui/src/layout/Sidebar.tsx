@@ -9,6 +9,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     items: [
       { to: "/", label: "Overview" },
       { to: "/devices", label: "Devices", badge: "attention" },
+      { to: "/topology", label: "Topology" },
     ],
   },
   {

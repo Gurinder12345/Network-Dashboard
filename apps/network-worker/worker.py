@@ -12,6 +12,8 @@ from db.approvals import create_change_approval
 from db.devices import get_device_by_id
 from db.health import list_enabled_devices
 from health.checks import check_and_record, run_fleet_health_check
+from db.topology import list_inventory
+from topology.discovery import discover_device, run_fleet_topology_discovery
 
 from ansible.run_os6 import run_os6_config_apply
 
@@ -72,6 +74,21 @@ app.conf.beat_schedule = {
         "options": {"expires": 55},
     },
 }
+
+# Automatic topology discovery is INTENTIONALLY DISABLED pending validation of the LLDP
+# parsers against real output from one OS10 (Kenda-Core-1) and one OS6
+# (Kenda-HARO-IDF-A) switch. The topology tasks remain registered and can be run
+# manually. Set to True only in the release that ships the validated real fixtures.
+TOPOLOGY_BEAT_ENABLED = False
+
+if TOPOLOGY_BEAT_ENABLED:
+    # Read-only LLDP collection; a run that cannot start within the interval is dropped.
+    app.conf.beat_schedule["topology-discovery-every-5m"] = {
+        "task": "network_worker.discover_topology_all_devices",
+        "schedule": 300.0,
+        "kwargs": {"trigger": "schedule"},
+        "options": {"expires": 280},
+    }
 
 
 
@@ -345,6 +362,29 @@ def device_health_check(device_id):
 @app.task(name="network_worker.health_check_all_devices")
 def health_check_all_devices(trigger="schedule"):
     return run_fleet_health_check(trigger=trigger)
+
+
+@app.task(name="network_worker.discover_topology_device")
+def discover_topology_device(device_id):
+    # Read-only: one LLDP show command. Never changes configuration.
+    device = next(
+        (d for d in list_enabled_devices() if d["id"] == int(device_id)),
+        None,
+    )
+
+    if device is None:
+        return {
+            "device_id": device_id,
+            "skipped": True,
+            "reason": "Device not found or disabled",
+        }
+
+    return discover_device(device, list_inventory())
+
+
+@app.task(name="network_worker.discover_topology_all_devices")
+def discover_topology_all_devices(trigger="schedule"):
+    return run_fleet_topology_discovery(trigger=trigger)
 
 
 @app.task(name="network_worker.vault_test")

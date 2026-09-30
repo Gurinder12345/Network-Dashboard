@@ -1,0 +1,7 @@
+
+LLDP Remote Device Summary
+
+Local
+Interface RemID   Chassis ID          Port ID           System Name
+--------- ------- ------------------- ----------------- ------------------
+

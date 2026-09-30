@@ -157,3 +157,64 @@ export interface ApplyStatus {
   task_state: "queued" | "running" | "succeeded" | "failed";
   error: string | null;
 }
+
+export interface TopologyNode {
+  id: string;
+  device_id: number | null;
+  hostname: string;
+  management_ip: string | null;
+  platform: string | null;
+  managed: boolean;
+  enabled?: boolean;
+  health_status: HealthStatus;
+  response_time_ms: number | null;
+  last_check_at?: string | null;
+  last_error?: string | null;
+  neighbor_count: number;
+  topology_last_seen_at: string | null;
+  topology_last_attempt_at?: string | null;
+  topology_last_success_at?: string | null;
+  topology_last_error?: string | null;
+  // Unmanaged-only fields (as advertised over LLDP)
+  advertised_system_name?: string | null;
+  chassis_id?: string | null;
+  remote_port_ids?: string[];
+  attached_device_ids?: number[];
+}
+
+export interface TopologyLink {
+  id: string;
+  source: string;
+  target: string;
+  source_interface: string | null;
+  target_interface: string | null;
+  target_port_id?: string | null;
+  protocol: string;
+  first_seen_at: string;
+  last_seen_at: string;
+  active: boolean;
+  observed_bidirectionally: boolean;
+  relationship: "managed" | "unmanaged";
+}
+
+export interface TopologyRunSummary {
+  checked: number;
+  successful: number;
+  failed: number;
+  finished_at: string;
+  failed_devices: { device_id: number; hostname: string; error: string | null }[];
+}
+
+export interface TopologyGraph {
+  last_discovery_at: string | null;
+  last_attempt_at: string | null;
+  managed_devices: number;
+  active_links: number;
+  unmanaged_neighbors: number;
+  failing_devices: number;
+  down_devices: number;
+  discovery_running: boolean;
+  last_run: TopologyRunSummary | null;
+  nodes: TopologyNode[];
+  links: TopologyLink[];
+}

@@ -12,6 +12,7 @@ COPY tasks ./tasks
 COPY vault ./vault
 COPY db ./db
 COPY health ./health
+COPY topology ./topology
 COPY ansible ./ansible
 COPY collections-requirements.yml .
 

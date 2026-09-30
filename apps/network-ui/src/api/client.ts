@@ -11,6 +11,7 @@ import type {
   Os6PrecheckRequest,
   Os6PrecheckStatus,
   Os6PrecheckSubmitted,
+  TopologyGraph,
 } from "./types";
 
 // Every path below already starts with /api/v1, so the default (empty) base keeps requests
@@ -159,4 +160,14 @@ export function cancelApproval(
     cancelled_by: cancelledBy,
     reason,
   });
+}
+
+// Reads stored topology only; never triggers LLDP collection.
+export function getTopology(includeInactive = false): Promise<TopologyGraph> {
+  return getJson<TopologyGraph>(`/api/v1/topology${includeInactive ? "?include_inactive=true" : ""}`);
+}
+
+// Queues one read-only fleet LLDP discovery. 409 = already running, 429 = cooldown.
+export function requestTopologyDiscovery(): Promise<HealthCheckRequested> {
+  return postJson<HealthCheckRequested>("/api/v1/topology/discover", {});
 }
