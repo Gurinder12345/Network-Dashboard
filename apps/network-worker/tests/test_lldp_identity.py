@@ -128,3 +128,90 @@ class ExistingBehaviourTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RealTopologyIdentityTests(unittest.TestCase):
+    """
+    All four live captures + the 4 CONFIRMED identities (db/seeds/lldp_identity_confirmed.sql).
+    Locks in: exactly the reciprocally-proven links become managed; nothing else does.
+    """
+
+    FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures")
+    INVENTORY = [
+        {"id": 12, "hostname": "Kenda-Core-1", "management_ip": "10.0.0.10"},
+        {"id": 13, "hostname": "Kenda-Core-2", "management_ip": "10.0.0.20"},
+        {"id": 1, "hostname": "Kenda-HARO-IDF-A", "management_ip": "10.0.0.31"},
+        {"id": 19, "hostname": "Kenda-HARO-SW-01", "management_ip": "10.0.0.4"},
+        {"id": 20, "hostname": "Kenda-HARO-SW-02", "management_ip": "10.0.0.25"},
+        {"id": 16, "hostname": "Kenda-HQ-IDF-A", "management_ip": "10.0.0.29"},
+        {"id": 17, "hostname": "Kenda-HQ-IDF-B", "management_ip": "10.0.0.30"},
+        {"id": 18, "hostname": "Kenda-HQ-SW-01", "management_ip": "10.0.0.3"},
+        {"id": 14, "hostname": "Kenda-Access-user-1", "management_ip": "10.0.0.250"},
+        {"id": 15, "hostname": "Kenda-Access-user-2", "management_ip": "10.0.0.251"},
+    ]
+    CONFIRMED = [
+        {"device_id": 12, "lldp_system_name": "kenda-core-01", "chassis_id": "e8:b5:d0:7a:61:a3"},
+        {"device_id": 13, "lldp_system_name": "kenda-core-02", "chassis_id": "e8:b5:d0:7a:5c:a3"},
+        {"device_id": 19, "lldp_system_name": "HARO_SW_01", "chassis_id": "f0:d4:e2:95:6b:1d"},
+        {"device_id": 1, "lldp_system_name": "HARO-IDF-A", "chassis_id": "e8:b2:65:4c:c2:68"},
+    ]
+    CAPTURES = [
+        (12, "dell_os10", "os10_real_show_lldp_neighbors.txt", 22),
+        (13, "dell_os10", "os10_real_Kenda-Core-2.txt", 15),
+        (1, "dell_os6", "os6_real_show_lldp_remote_device_all.txt", 11),
+        (19, "dell_os6", "os6_real_Kenda-HARO-SW-01.txt", 9),
+    ]
+
+    @classmethod
+    def setUpClass(cls):
+        from topology.lldp import count_table_rows, parse_lldp_output
+
+        cls.rows = {}
+        for device_id, platform, name, expected in cls.CAPTURES:
+            path = os.path.join(cls.FIXTURES, name)
+            if not os.path.exists(path):
+                raise unittest.SkipTest(f"{name} missing")
+            output = open(path).read()
+            neighbors, warnings = parse_lldp_output(platform, output)
+            assert warnings == [], (name, warnings)
+            assert len(neighbors) == expected == count_table_rows(output), (name, len(neighbors))
+            cls.rows[device_id] = correlate(neighbors, cls.INVENTORY, device_id, cls.CONFIRMED)
+
+    def managed(self):
+        return sorted((src, n["local_interface"], n["remote_device_id"], n["match_type"])
+                      for src, rows in self.rows.items() for n in rows if n["remote_device_id"])
+
+    def test_only_reciprocally_proven_links_are_managed(self):
+        self.assertEqual(self.managed(), [
+            (1, "Tw1/0/4", 19, "lldp_chassis"),
+            (12, "ethernet1/1/25", 13, "lldp_chassis"),
+            (13, "ethernet1/1/25", 12, "lldp_chassis"),
+            (19, "Te1/0/3", 1, "lldp_chassis"),
+        ])
+
+    def test_no_conflicts_or_self_links(self):
+        types = {n["match_type"] for rows in self.rows.values() for n in rows}
+        self.assertNotIn("conflict", types)
+        self.assertNotIn("self", types)
+
+    def test_unresolved_identities_stay_unmanaged(self):
+        for rows in self.rows.values():
+            for n in rows:
+                if n["remote_system_name"] in ("HQ-KENDA-2", "KENDA-HQ-1", "Kenda-HQ", "HARO_SW_02", "Haro-IDF-B",
+                                               "VN26KYG0X3", "Kenda-HQ-Array01-A", "Kenda-HQ-Array01-B",
+                                               "Broadcom Adv. Dua..."):
+                    self.assertIsNone(n["remote_device_id"], n["remote_system_name"])
+                    self.assertEqual(n["match_type"], "unmanaged")
+
+    def test_new_real_captures_parse_exact_rows(self):
+        core2 = {n["local_interface"]: n for n in self.rows[13]}
+        self.assertEqual(core2["ethernet1/1/25"]["remote_system_name"], "kenda-core-01")
+        self.assertEqual(core2["ethernet1/1/26:4"]["remote_port_id"], "Te1/0/3")
+        self.assertEqual(core2["ethernet1/1/49"]["remote_system_name"], "Broadcom Adv. Dua...")
+        sw01 = {n["local_interface"]: n for n in self.rows[19]}
+        self.assertEqual((sw01["Te1/0/3"]["remote_system_name"], sw01["Te1/0/3"]["remote_port_id"]), ("HARO-IDF-A", "Tw1/0/4"))
+        self.assertEqual((sw01["Gi1/0/1"]["remote_system_name"], sw01["Gi1/0/1"]["remote_port_id"]), ("HARO_SW_02", "Gi1/0/1"))
+        # Chassis ID advertised as a hostname-like string, MAC Port ID, no system name.
+        self.assertEqual((sw01["Gi1/0/6"]["remote_chassis_id"], sw01["Gi1/0/6"]["remote_port_id"]), ("KEN-D1RNQPX2", "E4:54:E8:51:5E:66"))
+        self.assertIsNone(sw01["Gi1/0/6"]["remote_system_name"])
+        self.assertIsNone(sw01["Gi1/0/6"]["remote_interface"])

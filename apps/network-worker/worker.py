@@ -75,11 +75,11 @@ app.conf.beat_schedule = {
     },
 }
 
-# Automatic topology discovery is INTENTIONALLY DISABLED pending validation of the LLDP
-# parsers against real output from one OS10 (Kenda-Core-1) and one OS6
-# (Kenda-HARO-IDF-A) switch. The topology tasks remain registered and can be run
-# manually. Set to True only in the release that ships the validated real fixtures.
-TOPOLOGY_BEAT_ENABLED = False
+# Automatic topology discovery ENABLED (v0.15.13): LLDP parsers validated against real
+# output from Kenda-Core-1/-2 (OS10) and Kenda-HARO-IDF-A / HARO-SW-01 (OS6), and
+# device identities confirmed by reciprocal LLDP (db/seeds/lldp_identity_confirmed.sql).
+# Set back to False to stop scheduled discovery; the tasks stay callable manually.
+TOPOLOGY_BEAT_ENABLED = True
 
 if TOPOLOGY_BEAT_ENABLED:
     # Read-only LLDP collection; a run that cannot start within the interval is dropped.

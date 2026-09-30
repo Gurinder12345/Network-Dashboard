@@ -1,0 +1,15 @@
+
+LLDP Remote Device Summary
+
+Local
+Interface RemID   Chassis ID          Port ID           System Name
+--------- ------- ------------------- ----------------- -----------------
+Gi1/0/1   1       F0:D4:E2:95:6B:19   Gi1/0/1             HARO_SW_02
+Gi1/0/6   123     KEN-D1RNQPX2        E4:54:E8:51:5E:66
+Gi1/0/10  573     KENXPS-DBGB25Y2     8C:04:BA:80:C4:67
+Gi1/0/12  574     KENLAP-8XYPLN3      08:92:04:61:20:70
+Gi1/0/16  565     KENLAP-D9OZJ777     34:48:ED:CC:5B:6D
+Gi1/0/22  567     KENL-H5CD330F0M     64:4E:D7:13:0F:2C
+Te1/0/1   564     0C:97:5F:74:EE:80   51                  VN26KYG0X3
+Te1/0/3   540     E8:B2:65:4C:C2:68   Tw1/0/4             HARO-IDF-A
+Te1/0/4   293     E8:B5:D0:4F:A2:06   Tw1/0/4             Haro-IDF-B

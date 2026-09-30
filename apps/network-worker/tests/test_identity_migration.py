@@ -23,6 +23,11 @@ class IdentityMigrationTests(unittest.TestCase):
             conn.execute("DROP TABLE IF EXISTS device_lldp_identity")
             conn.execute(open(MIGRATION).read())
             conn.execute(open(MIGRATION).read())  # re-run must be safe
+            ids = [row[0] for row in conn.execute("SELECT id FROM devices ORDER BY id LIMIT 2")]
+        if len(ids) < 2:
+            raise unittest.SkipTest("disposable DB needs at least 2 rows in devices")
+        # Use whatever devices exist; never assume specific IDs.
+        cls.A, cls.B = ids
 
     def setUp(self):
         self.conn = self.psycopg.connect(DSN, autocommit=True)
@@ -42,34 +47,34 @@ class IdentityMigrationTests(unittest.TestCase):
             self.insert(*args)
 
     def test_duplicate_system_name_rejected_case_insensitively(self):
-        self.insert(13, "kenda-core-02")
-        self.assertRejected(1, "KENDA-CORE-02")
+        self.insert(self.A, "kenda-core-02")
+        self.assertRejected(self.B, "KENDA-CORE-02")
 
     def test_duplicate_chassis_rejected(self):
-        self.insert(13, None, "e8:b5:d0:7a:5c:a3")
-        self.assertRejected(1, None, "e8:b5:d0:7a:5c:a3")
+        self.insert(self.A, None, "e8:b5:d0:7a:5c:a3")
+        self.assertRejected(self.B, None, "e8:b5:d0:7a:5c:a3")
 
     def test_non_canonical_mac_rejected(self):
         for form in ("E8:B5:D0:7A:5C:A3", "e8-b5-d0-7a-5c-a3", "e8b5.d07a.5ca3", "e8b5d07a5ca3", " e8:b5:d0:7a:5c:a3"):
-            self.assertRejected(13, None, form)
+            self.assertRejected(self.A, None, form)
 
     def test_requires_name_or_chassis(self):
-        self.assertRejected(13, None, None)
+        self.assertRejected(self.A, None, None)
 
     def test_untrimmed_or_empty_name_rejected(self):
-        self.assertRejected(13, " kenda-core-02")
-        self.assertRejected(13, "")
+        self.assertRejected(self.A, " kenda-core-02")
+        self.assertRejected(self.A, "")
 
     def test_multiple_identities_per_device_allowed(self):
-        self.insert(4, "HARO_SW_01")
-        self.insert(4, None, "f0:d4:e2:95:6b:1d")
-        self.insert(4, "haro-sw-01-old")
-        count = self.conn.execute("SELECT count(*) FROM device_lldp_identity WHERE device_id = 4").fetchone()[0]
+        self.insert(self.A, "HARO_SW_01")
+        self.insert(self.A, None, "f0:d4:e2:95:6b:1d")
+        self.insert(self.A, "haro-sw-01-old")
+        count = self.conn.execute("SELECT count(*) FROM device_lldp_identity WHERE device_id = %s", (self.A,)).fetchone()[0]
         self.assertEqual(count, 3)
 
     def test_unknown_device_rejected(self):
         with self.assertRaises(self.psycopg.errors.ForeignKeyViolation):
-            self.insert(99999, "ghost")
+            self.insert(-1, "ghost")
 
 
 if __name__ == "__main__":

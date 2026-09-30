@@ -1,0 +1,17 @@
+Loc PortID          Rem Host Name        Rem Port Id                    Rem Chassis Id
+--------------------------------------------------------------------------------------
+ethernet1/1/13      Broadcom Adv. Dua... 04:32:01:c5:9f:c0             04:32:01:c5:9f:c0       
+ethernet1/1/14      Kenda-HQ-Array01-A   a4:bf:01:40:6f:43             a4:bf:01:40:6f:43       
+ethernet1/1/15      Kenda-HQ-Array01-B   a4:bf:01:40:69:12             a4:bf:01:40:69:12       
+ethernet1/1/25      kenda-core-01        ethernet1/1/25                e8:b5:d0:7a:61:a3       
+ethernet1/1/26:2    HQ-KENDA-2           Te1/0/2                       e8:b5:d0:cd:0c:cb       
+ethernet1/1/26:3    HQ-KENDA-2           Te1/0/1                       e8:b5:d0:cd:0c:cb       
+ethernet1/1/26:4    KENDA-HQ-1           Te1/0/3                       e8:b5:d0:cd:04:cb       
+ethernet1/1/30:1    Kenda-HQ-Array01-A   00:e0:ed:96:ca:2a             00:e0:ed:96:ca:2a       
+ethernet1/1/30:2    Kenda-HQ-Array01-B   00:e0:ed:96:d9:66             00:e0:ed:96:d9:66       
+ethernet1/1/31      Not Advertised       50:7c:6f:4a:53:01             50:7c:6f:4a:53:01       
+ethernet1/1/33      Not Advertised       50:7c:6f:4a:53:02             50:7c:6f:4a:53:02       
+ethernet1/1/41      Not Advertised       50:7c:6f:49:a1:d3             50:7c:6f:49:a1:d3       
+ethernet1/1/42      Not Advertised       50:7c:6f:49:a1:d2             50:7c:6f:49:a1:d2       
+ethernet1/1/49      Broadcom Adv. Dua... 6c:92:cf:7a:14:c1             6c:92:cf:7a:14:c1       
+ethernet1/1/50      Broadcom Adv. Dua... 6c:92:cf:7a:14:c0             6c:92:cf:7a:14:c0       
