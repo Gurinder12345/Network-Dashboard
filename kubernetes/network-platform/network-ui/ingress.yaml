@@ -1,0 +1,38 @@
+# Single-origin dashboard entrypoint on the K3s-bundled Traefik (internal lab access, HTTP only).
+#   /api/...  -> network-api:8081  (forwarded unchanged; FastAPI routes already start with /api/v1)
+#   /...      -> network-ui:80
+# No host rule yet (no DNS): the dashboard answers on any K3s node IP, port 80.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: network-dashboard
+  namespace: network-platform
+  labels:
+    app: network-ui
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+    # <namespace>-<middleware name>@kubernetescrd; applies to both the / and /api paths.
+    traefik.ingress.kubernetes.io/router.middlewares: network-platform-network-dashboard-allowlist@kubernetescrd
+
+spec:
+  ingressClassName: traefik
+
+  rules:
+    - http:
+        paths:
+          # Longest prefix wins, so /api is matched before /.
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: network-api
+                port:
+                  number: 8081
+
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: network-ui
+                port:
+                  number: 80

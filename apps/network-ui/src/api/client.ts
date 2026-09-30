@@ -11,6 +11,9 @@ import type {
   Os6PrecheckSubmitted,
 } from "./types";
 
+// Every path below already starts with /api/v1, so the default (empty) base keeps requests
+// same-origin: Traefik routes /api to network-api in K3s, and the Vite dev server proxies
+// /api locally. Set VITE_API_BASE_URL only to call an API on another origin.
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
 // FastAPI returns `detail` as a string, or as a list of validation errors.

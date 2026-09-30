@@ -20,6 +20,9 @@ spec:
           - name: network-api
             path: kubernetes/network-platform/network-api
             namespace: network-platform
+          - name: network-ui
+            path: kubernetes/network-platform/network-ui
+            namespace: network-platform
 
   template:
     metadata:
