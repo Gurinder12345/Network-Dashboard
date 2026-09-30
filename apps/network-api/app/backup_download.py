@@ -40,6 +40,16 @@ def resolve_backup_file(storage_path):
     return resolved
 
 
+def download_filename(hostname, device_id, storage_path):
+    """<hostname>_<timestamp>.cfg, restricted to safe characters."""
+    name = hostname or f"device-{device_id}"
+    return SAFE_FILENAME_CHARS.sub("_", f"{name}_{os.path.basename(storage_path)}")
+
+
+def file_available(storage_path):
+    return resolve_backup_file(storage_path) is not None
+
+
 @router.get("/{backup_id}/download")
 def download_backup(backup_id: int):
     # The client supplies only the numeric ID; the path always comes from the database.
@@ -62,8 +72,7 @@ def download_backup(backup_id: int):
         )
         raise HTTPException(status_code=404, detail=f"Backup file for {backup_id} not found")
 
-    hostname = backup["hostname"] or f"device-{backup['device_id']}"
-    filename = SAFE_FILENAME_CHARS.sub("_", f"{hostname}_{os.path.basename(resolved)}")
+    filename = download_filename(backup["hostname"], backup["device_id"], resolved)
 
     try:
         create_audit_event(

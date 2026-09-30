@@ -175,7 +175,10 @@ export function Jobs() {
                     </td>
                     <td>
                       {humanize(job.job_type)}
-                      <span className="cell-sub mono">{job.job_type}</span>
+                      <span className="cell-sub mono">
+                        {job.job_type}
+                        {job.backup_id ? ` · backup #${job.backup_id}` : ""}
+                      </span>
                     </td>
                     <td className="secondary">{job.requested_by}</td>
                     <td>

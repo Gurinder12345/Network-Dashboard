@@ -128,6 +128,21 @@ class FleetLock:
         return False
 
 
+# ---- Manual backup (per-device lock taken by the API, released here) --------------
+DEVICE_BACKUP_LOCK_KEY = "backup:device:{device_id}:lock"
+
+
+def release_device_backup_lock(device_id, token):
+    """Release the API's per-device lock if it still holds our job's token; its TTL covers failures."""
+    if not token:
+        return
+
+    try:
+        _redis().eval(_RELEASE_LOCK_SCRIPT, 1, DEVICE_BACKUP_LOCK_KEY.format(device_id=device_id), token)
+    except redis.RedisError as exc:
+        _warn("release device backup lock", exc)
+
+
 # ---- Topology (same Redis DB 1; PostgreSQL stays authoritative) -------------------
 TOPOLOGY_GRAPH_KEY = "topology:graph"
 TOPOLOGY_LAST_DISCOVERY_KEY = "topology:last_discovery"

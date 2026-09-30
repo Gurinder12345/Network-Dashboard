@@ -1,61 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
-import { downloadBackup, getBackups, getDevices } from "../api/client";
+import { getBackups, getDevices } from "../api/client";
 import type { Backup, Device } from "../api/types";
+import { BackupDownloadButton } from "../components/BackupDownloadButton";
 import { CopyButton } from "../components/CopyButton";
 import { Banner, EmptyState, TableSkeleton } from "../components/Feedback";
 import { PageHeader } from "../components/PageHeader";
 import { RelativeTime } from "../components/RelativeTime";
+import { StatusBadge } from "../components/StatusBadge";
 import { humanize, truncateId } from "../utils/format";
 
 const ALL_DEVICES = "all";
 
-function saveFile(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-}
-
-function DownloadCell({ backupId }: { backupId: number }) {
-  const [downloading, setDownloading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function handleDownload() {
-    setDownloading(true);
-    setError(null);
-
-    try {
-      const { blob, filename } = await downloadBackup(backupId);
-      saveFile(blob, filename);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Download failed");
-    } finally {
-      setDownloading(false);
-    }
-  }
-
-  return (
-    <div className="download-cell">
-      <button
-        type="button"
-        className="secondary-button small-button"
-        disabled={downloading}
-        onClick={handleDownload}
-        aria-label={`Download backup ${backupId}`}
-      >
-        {downloading ? "Downloading…" : "Download"}
-      </button>
-      {error && (
-        <span className="form-error" title={error}>
-          {error}
-        </span>
-      )}
-    </div>
-  );
+// Which workflow produced the backup (from its job).
+function sourceLabel(jobType: string | null | undefined): string {
+  if (jobType === "manual_backup") return "Manual";
+  if (jobType === "config_backup") return "Pre-change";
+  return jobType ? humanize(jobType) : "—";
 }
 
 function StoragePathCell({ path }: { path: string }) {
@@ -213,14 +173,16 @@ export function Backups() {
         </div>
         <div className="table-wrap">
           {loading ? (
-            <TableSkeleton rows={8} columns={7} />
+            <TableSkeleton rows={8} columns={9} />
           ) : (
             <table className="data-table">
               <thead>
                 <tr>
                   <th>Device</th>
                   <th>Type</th>
+                  <th>Source</th>
                   <th>Created</th>
+                  <th>Status</th>
                   <th>Checksum (SHA-256)</th>
                   <th>Job ID</th>
                   <th>Download</th>
@@ -228,17 +190,29 @@ export function Backups() {
                 </tr>
               </thead>
               <tbody>
-                {filteredBackups.map((backup) => (
+                {filteredBackups.map((backup) => {
+                  // Older APIs do not report availability; assume the file exists then.
+                  const available = backup.file_available !== false;
+                  const hostname = deviceHostnameById.get(backup.device_id) ?? backup.hostname ?? `Device #${backup.device_id}`;
+                  return (
                   <tr key={backup.id}>
                     <td className="cell-primary">
-                      {deviceHostnameById.get(backup.device_id) ?? `Device #${backup.device_id}`}
+                      {hostname}
                       <span className="cell-sub mono">backup #{backup.id}</span>
                     </td>
                     <td>
                       <span className="tag tag-plain">{humanize(backup.backup_type)}</span>
                     </td>
+                    <td className="secondary">{sourceLabel(backup.job_type)}</td>
                     <td>
                       <RelativeTime value={backup.created_at} />
+                    </td>
+                    <td>
+                      {available ? (
+                        <StatusBadge status="success" label="stored" />
+                      ) : (
+                        <StatusBadge status="failed" label="file missing" title="The backup record exists but its file is not readable under /backups." />
+                      )}
                     </td>
                     <td>
                       <ChecksumCell checksum={backup.checksum} />
@@ -247,19 +221,24 @@ export function Backups() {
                       {truncateId(backup.job_id)}
                     </td>
                     <td>
-                      <DownloadCell backupId={backup.id} />
+                      {available ? (
+                        <BackupDownloadButton backupId={backup.id} ariaLabel={`Download backup ${backup.id} of ${hostname}`} />
+                      ) : (
+                        <span className="muted">—</span>
+                      )}
                     </td>
                     <td>
                       <StoragePathCell path={backup.storage_path} />
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
                 {filteredBackups.length === 0 && (
                   <tr>
-                    <td colSpan={7}>
+                    <td colSpan={9}>
                       <EmptyState
                         title={backups.length === 0 ? "No backups recorded yet." : "No backups match these filters."}
-                        hint={backups.length === 0 ? "Backups are taken automatically during prechecks." : undefined}
+                        hint={backups.length === 0 ? "Use Backup Now on the Devices page, or run a precheck." : undefined}
                       />
                     </td>
                   </tr>

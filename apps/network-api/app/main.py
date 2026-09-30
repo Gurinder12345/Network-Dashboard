@@ -6,7 +6,8 @@ from app.db.approvals import list_approvals
 from app.db.backups import list_backups
 from app.db.audit import list_audit_events
 from app.changes import router as changes_router
-from app.backup_download import router as backup_download_router
+from app.backup_download import file_available, router as backup_download_router
+from app.device_backup import router as device_backup_router
 from app.approval_actions import router as approval_actions_router
 from app.health import devices_with_health, router as health_router
 from app.topology import router as topology_router
@@ -26,6 +27,7 @@ app.add_middleware(
 
 app.include_router(changes_router)
 app.include_router(backup_download_router)
+app.include_router(device_backup_router)
 app.include_router(approval_actions_router)
 app.include_router(health_router)
 app.include_router(topology_router)
@@ -63,9 +65,15 @@ def get_approvals():
 @app.get("/api/v1/backups")
 def get_backups():
     try:
-        return list_backups()
+        backups = list_backups()
     except RuntimeError as exc:
         raise HTTPException(status_code=500, detail=str(exc))
+
+    # Download is offered only when the stored file is actually readable under /backups.
+    for backup in backups:
+        backup["file_available"] = file_available(backup["storage_path"])
+
+    return backups
 
 
 @app.get("/api/v1/audit")

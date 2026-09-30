@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { getDevices } from "../api/client";
+import { getBackups, getDevices } from "../api/client";
 import { HEALTH_SLOW_THRESHOLD_MS, OS6_PLATFORM } from "../api/constants";
-import type { Device, HealthStatus } from "../api/types";
+import type { Backup, Device, HealthStatus } from "../api/types";
+import { BackupDownloadButton } from "../components/BackupDownloadButton";
 import { Banner, EmptyState, StaleDataWarning, TableSkeleton } from "../components/Feedback";
+import { isActive, useDeviceBackups, type BackupRun } from "../hooks/useDeviceBackups";
 import { FilterChips } from "../components/FilterChips";
 import { PageHeader } from "../components/PageHeader";
 import { RelativeTime } from "../components/RelativeTime";
@@ -63,6 +65,95 @@ function HealthIssueCell({ device }: { device: Device }) {
   );
 }
 
+interface BackupCellProps {
+  device: Device;
+  latest: Backup | undefined;
+  run: BackupRun | undefined;
+  onStart: (deviceId: number, hostname: string) => void;
+}
+
+/** Read-only running-config backup for one switch; independent of every other row. */
+function BackupCell({ device, latest, run, onStart }: BackupCellProps) {
+  const active = isActive(run);
+  const justBackedUp = run?.state === "success" && run.backupId !== null && run.fileAvailable;
+
+  return (
+    <div className="backup-cell">
+      <span className="backup-last">
+        Last backup: {latest ? <RelativeTime value={latest.created_at} /> : <span className="muted">Never</span>}
+      </span>
+      <div className="backup-actions">
+        <button
+          type="button"
+          className="secondary-button small-button"
+          disabled={active || !device.enabled}
+          aria-busy={active}
+          title={device.enabled ? "Read-only running-config backup; no approval needed" : "Device is disabled"}
+          aria-label={active ? `Backing up ${device.hostname}` : `Backup ${device.hostname} now`}
+          onClick={() => onStart(device.id, device.hostname)}
+        >
+          {active ? "Backing up…" : "Backup Now"}
+        </button>
+        {justBackedUp ? (
+          <BackupDownloadButton
+            backupId={run.backupId!}
+            label="Download"
+            ariaLabel={`Download new backup of ${device.hostname}`}
+          />
+        ) : (
+          latest && (
+            <BackupDownloadButton
+              backupId={latest.id}
+              label="Download latest"
+              ariaLabel={`Download latest backup of ${device.hostname}`}
+            />
+          )
+        )}
+      </div>
+      {run?.state === "success" && <span className="backup-result ok">Backup completed</span>}
+      {(run?.state === "failed" || run?.state === "lost") && (
+        <details className="error-details">
+          <summary className="error-summary">Backup failed</summary>
+          <pre className="error-full">{run.error}</pre>
+        </details>
+      )}
+    </div>
+  );
+}
+
+function BackupNotice({ run, onDismiss }: { run: BackupRun; onDismiss: () => void }) {
+  switch (run.state) {
+    case "requesting":
+    case "queued":
+      return (
+        <Banner tone="info" title={`Backup queued for ${run.hostname}.`}>
+          Running-config backup is waiting for a worker.
+        </Banner>
+      );
+    case "running":
+      return <Banner tone="info" title={`Backing up ${run.hostname}…`}>Reading the running configuration (read-only).</Banner>;
+    case "success":
+      return (
+        <Banner tone="success" title="Backup completed successfully." onDismiss={onDismiss}>
+          <span>{run.hostname}</span>
+          {run.backupId !== null && run.fileAvailable && (
+            <BackupDownloadButton
+              backupId={run.backupId}
+              label="Download Backup"
+              ariaLabel={`Download new backup of ${run.hostname}`}
+            />
+          )}
+        </Banner>
+      );
+    default:
+      return (
+        <Banner tone="danger" title="Backup failed." onDismiss={onDismiss}>
+          {run.hostname}: {run.error}
+        </Banner>
+      );
+  }
+}
+
 export function Devices() {
   const [devices, setDevices] = useState<Device[]>([]);
   const [loading, setLoading] = useState(true);
@@ -86,11 +177,35 @@ export function Devices() {
     }
   }, []);
 
+  // Backup metadata only (never file contents): used for "Last backup" and Download latest.
+  const [backups, setBackups] = useState<Backup[]>([]);
+
+  const loadBackups = useCallback(async () => {
+    try {
+      setBackups(await getBackups());
+    } catch {
+      // Not fatal for the Devices page; the backup column shows "Never" until it loads.
+    }
+  }, []);
+
+  const { runs, start, lastRun, dismiss } = useDeviceBackups(loadBackups);
+
   useEffect(() => {
     load();
-  }, [load]);
+    loadBackups();
+  }, [load, loadBackups]);
 
   usePolling(load, HEALTH_POLL_MS);
+
+  const latestBackupByDevice = useMemo(() => {
+    const latest = new Map<number, Backup>();
+    backups.forEach((backup) => {
+      if (backup.file_available === false) return;
+      const current = latest.get(backup.device_id);
+      if (!current || (backup.created_at ?? "") > (current.created_at ?? "")) latest.set(backup.device_id, backup);
+    });
+    return latest;
+  }, [backups]);
 
   const platforms = useMemo(
     () => Array.from(new Set(devices.map((device) => device.platform))).sort(),
@@ -141,6 +256,8 @@ export function Devices() {
         </Banner>
       )}
 
+      {lastRun && <BackupNotice run={lastRun} onDismiss={dismiss} />}
+
       <div className="filters-bar">
         <input
           type="search"
@@ -186,7 +303,7 @@ export function Devices() {
         </div>
         <div className="table-wrap">
           {loading ? (
-            <TableSkeleton rows={8} columns={8} />
+            <TableSkeleton rows={8} columns={9} />
           ) : (
             <table className="data-table">
               <thead>
@@ -199,6 +316,7 @@ export function Devices() {
                   <th>Response</th>
                   <th>Last Check</th>
                   <th>Issue</th>
+                  <th>Backup</th>
                 </tr>
               </thead>
               <tbody>
@@ -236,12 +354,20 @@ export function Devices() {
                       <td>
                         <HealthIssueCell device={device} />
                       </td>
+                      <td>
+                        <BackupCell
+                          device={device}
+                          latest={latestBackupByDevice.get(device.id)}
+                          run={runs[device.id]}
+                          onStart={start}
+                        />
+                      </td>
                     </tr>
                   );
                 })}
                 {filteredDevices.length === 0 && (
                   <tr>
-                    <td colSpan={8}>
+                    <td colSpan={9}>
                       <EmptyState
                         title={devices.length === 0 ? "No devices found." : "No devices match these filters."}
                         hint={devices.length === 0 ? undefined : "Clear the search or choose another filter."}

@@ -2189,3 +2189,39 @@ summary:focus-visible {
     height: max(380px, 60vh);
   }
 }
+
+/* ---- Manual backup (Devices) ------------------------------------------------------ */
+.backup-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 190px;
+}
+
+.backup-last {
+  font-size: var(--fs-xs);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.backup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.backup-result {
+  font-size: var(--fs-xs);
+}
+
+.backup-result.ok {
+  color: var(--tone-success);
+}
+
+.banner-body .download-cell {
+  display: inline-flex;
+  margin-left: 10px;
+  vertical-align: middle;
+}

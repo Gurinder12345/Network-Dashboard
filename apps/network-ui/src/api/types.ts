@@ -60,6 +60,30 @@ export interface Job {
   started_at: string | null;
   finished_at: string | null;
   error_message: string | null;
+  /** Backup produced by this job (backup jobs only). */
+  backup_id?: number | null;
+}
+
+/** GET /api/v1/jobs/{id}: status plus the backup it produced (no filesystem path). */
+export interface JobDetail extends Omit<Job, "backup_id"> {
+  hostname: string | null;
+  backup: {
+    backup_id: number;
+    device_id: number;
+    filename: string;
+    created_at: string | null;
+    file_available: boolean;
+  } | null;
+}
+
+/** 202 from POST /api/v1/devices/{id}/backup. */
+export interface BackupRequested {
+  status: "queued";
+  device_id: number;
+  hostname: string;
+  job_id: string;
+  request_id: string;
+  message: string;
 }
 
 export interface Backup {
@@ -70,6 +94,11 @@ export interface Backup {
   storage_path: string;
   checksum: string;
   created_at: string | null;
+  /** Type of the job that produced it: manual_backup or config_backup (pre-change). */
+  job_type?: string | null;
+  hostname?: string | null;
+  /** The stored file exists and is readable by the API. */
+  file_available?: boolean;
 }
 
 export interface Approval {

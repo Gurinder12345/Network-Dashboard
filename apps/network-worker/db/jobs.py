@@ -31,6 +31,24 @@ def create_job(device_id, job_type, requested_by="system"):
     return str(job_id)
 
 
+def mark_job_running(job_id):
+    """queued -> running for a job the API created. False if it is not (or no longer) queued."""
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE jobs
+                SET status = 'running',
+                    started_at = NOW()
+                WHERE id = %s
+                  AND status = 'queued'
+                """,
+                (job_id,),
+            )
+
+            return cur.rowcount == 1
+
+
 def mark_job_success(job_id):
     with get_connection() as conn:
         with conn.cursor() as cur:
@@ -108,6 +126,7 @@ def create_backup_record(
                     checksum
                 )
                 VALUES (%s, %s, %s, %s, %s)
+                RETURNING id, created_at
                 """,
                 (
                     job_id,
@@ -117,3 +136,10 @@ def create_backup_record(
                     checksum,
                 ),
             )
+
+            backup_id, created_at = cur.fetchone()
+
+    return {
+        "backup_id": backup_id,
+        "created_at": created_at.isoformat() if created_at else None,
+    }

@@ -4,10 +4,12 @@ import type {
   Approval,
   AuditEvent,
   Backup,
+  BackupRequested,
   Device,
   FleetHealth,
   HealthCheckRequested,
   Job,
+  JobDetail,
   Os6PrecheckRequest,
   Os6PrecheckStatus,
   Os6PrecheckSubmitted,
@@ -85,6 +87,36 @@ export function submitOs6Precheck(request: Os6PrecheckRequest): Promise<Os6Prech
 
 export function getOs6Precheck(requestId: string): Promise<Os6PrecheckStatus> {
   return getJson<Os6PrecheckStatus>(`/api/v1/changes/os6/precheck/${encodeURIComponent(requestId)}`);
+}
+
+export type BackupRequestResult =
+  | { kind: "queued"; response: BackupRequested }
+  | { kind: "already_running"; jobId: string | null; message: string };
+
+// Read-only running-config backup; no approval. Only the device ID is sent. A 409 means a
+// backup is already running for that device and carries its job ID so the UI can follow it.
+export async function requestDeviceBackup(deviceId: number): Promise<BackupRequestResult> {
+  const path = `/api/v1/devices/${deviceId}/backup`;
+  const response = await fetch(`${API_BASE_URL}${path}`, { method: "POST" });
+
+  if (response.status === 409) {
+    const body = await response.json().catch(() => ({}));
+    return {
+      kind: "already_running",
+      jobId: typeof body?.job_id === "string" ? body.job_id : null,
+      message: typeof body?.detail === "string" ? body.detail : "Backup already running for this device.",
+    };
+  }
+
+  if (!response.ok) {
+    throw new Error(await errorMessage(response, path));
+  }
+
+  return { kind: "queued", response: (await response.json()) as BackupRequested };
+}
+
+export function getJob(jobId: string): Promise<JobDetail> {
+  return getJson<JobDetail>(`/api/v1/jobs/${encodeURIComponent(jobId)}`);
 }
 
 export interface DownloadedFile {

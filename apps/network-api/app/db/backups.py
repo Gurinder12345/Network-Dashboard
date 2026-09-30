@@ -7,15 +7,19 @@ def list_backups():
             cur.execute(
                 """
                 SELECT
-                    id,
-                    job_id,
-                    device_id,
-                    backup_type,
-                    storage_path,
-                    checksum,
-                    created_at
-                FROM backups
-                ORDER BY created_at DESC
+                    b.id,
+                    b.job_id,
+                    b.device_id,
+                    b.backup_type,
+                    b.storage_path,
+                    b.checksum,
+                    b.created_at,
+                    j.job_type,
+                    d.hostname
+                FROM backups b
+                LEFT JOIN jobs j ON j.id = b.job_id
+                LEFT JOIN devices d ON d.id = b.device_id
+                ORDER BY b.created_at DESC
                 """
             )
 
@@ -30,6 +34,8 @@ def list_backups():
                     "storage_path": row[4],
                     "checksum": row[5],
                     "created_at": row[6].isoformat() if row[6] else None,
+                    "job_type": row[7],
+                    "hostname": row[8],
                 }
                 for row in rows
             ]

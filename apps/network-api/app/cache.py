@@ -92,13 +92,37 @@ def exists(key):
         return None
 
 
-def claim(key, ttl_seconds):
+def claim(key, ttl_seconds, value="1"):
     """SET NX EX. True if claimed, False if already held, None if Redis is unavailable."""
     try:
-        return bool(_redis().set(key, "1", nx=True, ex=ttl_seconds))
+        return bool(_redis().set(key, value, nx=True, ex=ttl_seconds))
     except redis.RedisError as exc:
         _warn(f"claim {key}", exc)
         return None
+
+
+def get_value(key):
+    try:
+        return _redis().get(key)
+    except redis.RedisError as exc:
+        _warn(f"get {key}", exc)
+        return None
+
+
+# Delete only if the key still holds our token (never a newer holder's lock).
+_RELEASE_SCRIPT = """
+if redis.call("get", KEYS[1]) == ARGV[1] then
+    return redis.call("del", KEYS[1])
+end
+return 0
+"""
+
+
+def release(key, token):
+    try:
+        _redis().eval(_RELEASE_SCRIPT, 1, key, token)
+    except redis.RedisError as exc:
+        _warn(f"release {key}", exc)
 
 
 def ttl(key):

@@ -35,11 +35,12 @@ from ansible.run_os6 import (
 
 from db.jobs import (
     create_job,
-    mark_job_success,
     mark_job_failed,
-    create_backup_record,
     create_audit_event,
 )
+
+from health.cache import release_device_backup_lock
+from tasks.config_backup import perform_config_backup, run_manual_backup
 
 from tasks.dell_os6 import (
     run_show_command as run_os6_show_command,
@@ -522,6 +523,8 @@ def backup_running_config_task(
     target_host,
     config_snapshot=None,
 ):
+    # Change-workflow backup (precheck passes its running-config snapshot). The collection,
+    # storage and records are the shared core in tasks/config_backup.py.
     device = get_device_by_hostname(target_host)
 
     device_id = device["id"]
@@ -534,107 +537,21 @@ def backup_running_config_task(
     )
 
     try:
-        create_audit_event(
-            job_id=job_id,
-            device_id=device_id,
-            event_type="backup_started",
-            message=f"Running-config backup started for {target_host}",
+        backup = perform_config_backup(
+            target_host,
+            device_id,
+            platform,
+            job_id,
+            config_snapshot=config_snapshot,
         )
-
-        if config_snapshot is not None:
-            from datetime import datetime, timezone
-            import hashlib
-
-            timestamp = datetime.now(
-                timezone.utc
-            ).strftime("%Y%m%dT%H%M%SZ")
-
-            checksum = hashlib.sha256(
-                config_snapshot.encode("utf-8")
-            ).hexdigest()
-
-            device_result = {
-                "failed": False,
-                "timestamp": timestamp,
-                "checksum": checksum,
-                "config": config_snapshot,
-            }
-
-        else:
-            if platform == "dell_os6":
-                result = backup_os6_running_config(
-                    target_host
-                )
-
-            elif platform == "dell_os10":
-                result = backup_os10_running_config(
-                    target_host
-                )
-
-            else:
-                raise ValueError(
-                    f"Unsupported platform for backup: {platform}"
-                )
-
-            device_result = result[target_host]
-
-        if device_result["failed"]:
-            raise RuntimeError(
-                device_result.get(
-                    "result",
-                    "Device backup failed",
-                )
-            )
-
-        timestamp = device_result["timestamp"]
-        checksum = device_result["checksum"]
-        config = device_result["config"]
-
-        backup_dir = f"/backups/{target_host}"
-        backup_path = f"{backup_dir}/{timestamp}.cfg"
-
-        import os
-
-        os.makedirs(
-            backup_dir,
-            mode=0o700,
-            exist_ok=True,
-        )
-
-        with open(
-            backup_path,
-            "w",
-        ) as backup_file:
-            backup_file.write(config)
-
-        os.chmod(
-            backup_path,
-            0o600,
-        )
-
-        create_backup_record(
-            job_id=job_id,
-            device_id=device_id,
-            storage_path=backup_path,
-            checksum=checksum,
-        )
-
-        create_audit_event(
-            job_id=job_id,
-            device_id=device_id,
-            event_type="backup_completed",
-            message=f"Backup completed: {backup_path}",
-        )
-
-        mark_job_success(job_id)
 
         return {
             "job_id": str(job_id),
             "status": "success",
             "hostname": target_host,
             "platform": platform,
-            "storage_path": backup_path,
-            "checksum": checksum,
+            "storage_path": backup["storage_path"],
+            "checksum": backup["checksum"],
         }
 
     except Exception as exc:
@@ -651,3 +568,13 @@ def backup_running_config_task(
         )
 
         raise
+
+
+@app.task(name="network_worker.manual_backup_device")
+def manual_backup_device(device_id, job_id, lock_token=None):
+    # Read-only "Backup Now": no approval, precheck or configuration commands. The API
+    # created job_id (queued) and holds the per-device lock; the job row carries the outcome.
+    try:
+        return run_manual_backup(int(device_id), job_id)
+    finally:
+        release_device_backup_lock(device_id, lock_token)
