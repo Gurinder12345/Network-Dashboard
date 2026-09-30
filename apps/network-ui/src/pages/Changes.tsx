@@ -4,6 +4,9 @@ import { getDevices, getOs6Precheck, submitOs6Precheck } from "../api/client";
 import { OS6_PLATFORM } from "../api/constants";
 import type { Device, Os6PrecheckStatus } from "../api/types";
 import { CopyButton } from "../components/CopyButton";
+import { Banner, EmptyState } from "../components/Feedback";
+import { PageHeader } from "../components/PageHeader";
+import { StatusBadge } from "../components/StatusBadge";
 import { truncateId, truncateText } from "../utils/format";
 
 type FindingLevel = "error" | "warning" | "info";
@@ -103,20 +106,24 @@ function runLocalValidation(device: Device, configParents: string[], configLines
   return findings;
 }
 
-function runSummary(run: PrecheckRun): { label: string; tone: string } {
+// status drives the shared badge color: failed=red, submitting/running=blue (pulsing),
+// queued/pending=amber, passed=green.
+function runSummary(run: PrecheckRun): { label: string; status: string } {
   switch (run.phase) {
     case "blocked":
-      return { label: "Blocked", tone: "failed" };
+      return { label: "Blocked by validation", status: "failed" };
     case "submitting":
-      return { label: "Submitting", tone: "applying" };
+      return { label: "Submitting", status: "submitting" };
     case "polling":
-      return { label: run.status?.state === "running" ? "Running" : "Queued", tone: "applying" };
+      return run.status?.state === "running"
+        ? { label: "Checking device", status: "running" }
+        : { label: "Waiting for worker", status: "queued" };
     case "failed":
-      return { label: "Failed", tone: "failed" };
+      return { label: "Failed", status: "failed" };
     case "completed":
       return run.status?.result?.status === "no_change_required"
-        ? { label: "No change required", tone: "applied" }
-        : { label: "Approval pending", tone: "pending" };
+        ? { label: "Passed · no change required", status: "passed" }
+        : { label: "Passed · approval pending", status: "pending" };
   }
 }
 
@@ -181,15 +188,9 @@ function DevicePrecheck({ run, elapsed }: { run: PrecheckRun; elapsed: number })
               <td className="mono muted">{command.verification_method}</td>
               <td>
                 {command.desired_state_present ? (
-                  <span className="badge badge-unknown">
-                    <span className="badge-dot" />
-                    Already present
-                  </span>
+                  <StatusBadge status="present" label="Already present" tone="neutral" />
                 ) : (
-                  <span className="badge badge-pending">
-                    <span className="badge-dot" />
-                    Will change
-                  </span>
+                  <StatusBadge status="change" label="Will change" tone="warning" />
                 )}
               </td>
             </tr>
@@ -238,9 +239,10 @@ function PrecheckResults({ run }: { run: PrecheckRun | null }) {
 
   if (!run) {
     return (
-      <div className="empty-state">
-        Select an OS6 device, enter configuration, and run a precheck.
-      </div>
+      <EmptyState
+        title="No precheck yet."
+        hint="Select an OS6 device, enter the context and commands, then run a precheck."
+      />
     );
   }
 
@@ -250,11 +252,8 @@ function PrecheckResults({ run }: { run: PrecheckRun | null }) {
   return (
     <div className="precheck-results">
       <div className="precheck-summary">
-        <span className={`badge badge-${summary.tone}`}>
-          <span className="badge-dot" />
-          {summary.label}
-        </span>
-        <span>{run.device.hostname}</span>
+        <StatusBadge status={summary.status} label={summary.label} />
+        <span className="target-host">{run.device.hostname}</span>
         <span className="mono muted">{run.device.management_ip}</span>
         {run.requestId && (
           <span className="precheck-request-id">
@@ -428,10 +427,16 @@ export function Changes() {
 
   return (
     <>
-      <h1 className="page-title">Changes</h1>
-      <p className="page-subtitle">Prepare a guarded OS6 configuration change. OS10 devices are view-only.</p>
+      <PageHeader
+        title="Changes"
+        subtitle="Prepare a guarded OS6 configuration change. Prechecks are read-only; OS10 devices are view-only."
+      />
 
-      {error && <div className="error-banner">Failed to load devices: {error}</div>}
+      {error && (
+        <Banner tone="danger" title="Failed to load devices.">
+          {error}
+        </Banner>
+      )}
 
       <div className="changes-grid">
         <div className="panel">
@@ -440,9 +445,12 @@ export function Changes() {
             <span className="count-tag">{actionableDevices.length} actionable</span>
           </div>
           <div className="change-form">
-            <label className="form-field">
-              <span className="form-label">Target device</span>
+            <div className="form-section">
+              <span className="form-section-title">
+                <span className="step-number">1</span>Target device
+              </span>
               <select
+                aria-label="Target device"
                 className="filter-select"
                 value={deviceId}
                 disabled={loading || running}
@@ -465,28 +473,39 @@ export function Changes() {
                   ))}
                 </optgroup>
               </select>
-            </label>
+              {selectedDevice && (
+                <span className="form-hint">
+                  {selectedDevice.platform} · {selectedDevice.management_ip}
+                </span>
+              )}
+            </div>
 
-            <label className="form-field">
-              <span className="form-label">Parent / context</span>
-              <span className="form-hint">One per line, outermost first. Leave empty for global config.</span>
+            <label className="form-section">
+              <span className="form-section-title">
+                <span className="step-number">2</span>Parent / context
+              </span>
+              <span className="form-hint">One per line, outermost first. Leave empty for global configuration.</span>
               <textarea
                 className="config-input mono"
                 rows={2}
-                placeholder="interface Tw1/0/4"
+                placeholder={"interface Tw1/0/12"}
+                spellCheck={false}
                 value={parentsText}
                 disabled={running}
                 onChange={(event) => edit(setParentsText)(event.target.value)}
               />
             </label>
 
-            <label className="form-field">
-              <span className="form-label">Configuration lines</span>
+            <label className="form-section">
+              <span className="form-section-title">
+                <span className="step-number">3</span>Configuration commands
+              </span>
               <span className="form-hint">One command per line. Do not include configure / exit / end.</span>
               <textarea
                 className="config-input mono"
                 rows={6}
-                placeholder="description NETOPS-TEST"
+                placeholder={"description NETOPS-TEST\nswitchport access vlan 20"}
+                spellCheck={false}
                 value={linesText}
                 disabled={running}
                 onChange={(event) => edit(setLinesText)(event.target.value)}
@@ -496,13 +515,19 @@ export function Changes() {
             <div className="form-actions">
               <button
                 type="button"
-                className="primary-button"
+                className="primary-button large-button"
                 disabled={!canRunPrecheck}
                 onClick={handleRunPrecheck}
               >
-                {running ? "Running Precheck…" : "Run Precheck"}
+                {running ? "Running precheck…" : "Run precheck"}
               </button>
-              <span className="view-only-tag">Apply is not available from this page yet.</span>
+              <span className="form-hint">
+                Read-only on the device. Approved changes are applied from{" "}
+                <Link to="/approvals" className="secondary">
+                  Approvals
+                </Link>
+                .
+              </span>
             </div>
           </div>
         </div>
@@ -510,6 +535,11 @@ export function Changes() {
         <div className="panel">
           <div className="panel-header">
             <h2>Precheck Results</h2>
+            {run ? (
+              <StatusBadge status={runSummary(run).status} label={runSummary(run).label} />
+            ) : (
+              <span className="panel-header-meta">Idle</span>
+            )}
           </div>
           <div className="panel-body" style={{ maxHeight: "none" }}>
             <PrecheckResults run={run} />

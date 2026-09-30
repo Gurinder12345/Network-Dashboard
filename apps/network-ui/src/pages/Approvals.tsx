@@ -9,10 +9,18 @@ import {
 } from "../api/client";
 import { OS6_PLATFORM } from "../api/constants";
 import type { Approval, Device } from "../api/types";
+import { ConfigView } from "../components/ConfigView";
+import { Banner, EmptyState, TableSkeleton } from "../components/Feedback";
+import { FilterChips } from "../components/FilterChips";
+import { Modal } from "../components/Modal";
+import { PageHeader } from "../components/PageHeader";
+import { RelativeTime } from "../components/RelativeTime";
 import { StatusBadge } from "../components/StatusBadge";
 import { formatTimestamp, truncateId } from "../utils/format";
 
 const ALL_STATUSES = "all";
+// Change-control lifecycle order, used for the status filter.
+const STATUS_ORDER = ["pending", "approved", "applying", "applied", "failed", "cancelled"];
 const APPROVER_STORAGE_KEY = "network-ui.approver";
 const APPROVER_PATTERN = /^[A-Za-z0-9._@-]{2,64}$/;
 const APPLY_POLL_INTERVAL_MS = 3000;
@@ -44,6 +52,76 @@ function storeApprover(value: string) {
   }
 }
 
+/** Device emphasized at the top of every change-control dialog. */
+function TargetCard({ hostname, approval }: { hostname: string; approval: Approval }) {
+  return (
+    <div className="target-card">
+      <div>
+        <div className="target-host">{hostname}</div>
+        <div className="target-sub">
+          Requested by {approval.requested_by}
+          {approval.created_at ? ` · ${formatTimestamp(approval.created_at)}` : ""}
+        </div>
+      </div>
+      <StatusBadge status={approval.status} />
+    </div>
+  );
+}
+
+/** Reference IDs, visually secondary to the device and commands. */
+function ReferenceIds({ approval, extra }: { approval: Approval; extra?: [string, string][] }) {
+  return (
+    <dl className="detail-list secondary">
+      {(extra ?? []).map(([label, value]) => (
+        <FragmentPair key={label} label={label} value={value} />
+      ))}
+      <FragmentPair label="Approval ID" value={approval.id} mono />
+      <FragmentPair label="Backup job" value={approval.backup_job_id ?? "—"} mono />
+    </dl>
+  );
+}
+
+function FragmentPair({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <>
+      <dt>{label}</dt>
+      <dd className={mono ? "mono" : undefined}>{value}</dd>
+    </>
+  );
+}
+
+function NameField({
+  label,
+  value,
+  onChange,
+  disabled,
+  error,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  disabled: boolean;
+  error: string | null;
+}) {
+  return (
+    <label className="form-field">
+      <span className="form-label">{label}</span>
+      <input
+        type="text"
+        className="search-input mono"
+        style={{ maxWidth: "none" }}
+        placeholder="your name"
+        value={value}
+        disabled={disabled}
+        autoFocus
+        autoComplete="off"
+        onChange={(event) => onChange(event.target.value)}
+      />
+      {error && <span className="form-error">{error}</span>}
+    </label>
+  );
+}
+
 interface ApproveDialogProps {
   approval: Approval;
   hostname: string;
@@ -55,104 +133,72 @@ interface ApproveDialogProps {
 
 function ApproveDialog({ approval, hostname, submitting, error, onConfirm, onCancel }: ApproveDialogProps) {
   const [approver, setApprover] = useState(readStoredApprover);
+  const [reviewed, setReviewed] = useState(false);
   const trimmed = approver.trim();
   const approverValid = APPROVER_PATTERN.test(trimmed);
   const sameAsRequester = trimmed.toLowerCase() === approval.requested_by.toLowerCase();
-  const canConfirm = approverValid && !sameAsRequester && !submitting;
+  const canConfirm = approverValid && !sameAsRequester && reviewed && !submitting;
 
-  useEffect(() => {
-    function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape" && !submitting) onCancel();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onCancel, submitting]);
+  const nameError =
+    trimmed.length > 0 && !approverValid
+      ? "2–64 characters: letters, digits, . _ @ -"
+      : approverValid && sameAsRequester
+        ? "Approver must be different from the requester."
+        : null;
 
   return (
-    <div className="modal-backdrop" onClick={() => !submitting && onCancel()}>
-      <div
-        className="modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="approve-title"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="panel-header">
-          <h2 id="approve-title">Approve change</h2>
-          <StatusBadge status={approval.status} />
-        </div>
-
-        <div className="modal-body">
-          <dl className="detail-list">
-            <dt>Device</dt>
-            <dd>{hostname}</dd>
-            <dt>Requested by</dt>
-            <dd>{approval.requested_by}</dd>
-            <dt>Backup job</dt>
-            <dd className="mono">{approval.backup_job_id ?? "—"}</dd>
-            <dt>Approval ID</dt>
-            <dd className="mono">{approval.id}</dd>
-          </dl>
-
-          <div className="form-field">
-            <span className="form-label">Parent / context</span>
-            <pre className="config-preview">
-              {(approval.config_parents ?? []).length > 0
-                ? (approval.config_parents ?? []).join("\n")
-                : "(global configuration)"}
-            </pre>
-          </div>
-
-          <div className="form-field">
-            <span className="form-label">Configuration lines</span>
-            <pre className="config-preview">{(approval.config_lines ?? []).join("\n")}</pre>
-          </div>
-
-          <label className="form-field">
-            <span className="form-label">Approver</span>
-            <input
-              type="text"
-              className="search-input mono"
-              style={{ maxWidth: "none" }}
-              placeholder="your name"
-              value={approver}
-              disabled={submitting}
-              autoFocus
-              onChange={(event) => setApprover(event.target.value)}
-            />
-            {trimmed.length > 0 && !approverValid && (
-              <span className="form-error">2–64 characters: letters, digits, . _ @ -</span>
-            )}
-            {approverValid && sameAsRequester && (
-              <span className="form-error">Approver must be different from the requester.</span>
-            )}
-          </label>
-
-          <div className="precheck-note">
-            Approving records your decision only. Configuration is not applied from this page.
-          </div>
-
-          {error && <div className="error-banner" style={{ marginBottom: 0 }}>{error}</div>}
-        </div>
-
-        <div className="modal-actions">
-          <button type="button" className="copy-button" disabled={submitting} onClick={onCancel}>
-            Cancel
+    <Modal
+      kicker="Change control"
+      title="Approve change"
+      busy={submitting}
+      onClose={onCancel}
+      actions={
+        <>
+          <button type="button" className="secondary-button" disabled={submitting} onClick={onCancel}>
+            Back
           </button>
           <button
             type="button"
-            className="primary-button"
+            className="success-button"
             disabled={!canConfirm}
             onClick={() => {
               storeApprover(trimmed);
               onConfirm(trimmed);
             }}
           >
-            {submitting ? "Approving…" : "Approve"}
+            {submitting ? "Approving…" : "Approve change"}
           </button>
-        </div>
-      </div>
-    </div>
+        </>
+      }
+    >
+      <TargetCard hostname={hostname} approval={approval} />
+
+      <Banner tone="info" title="Approval only.">
+        Approving records your decision. Nothing is sent to the switch until someone applies it.
+      </Banner>
+
+      <ConfigView parents={approval.config_parents} lines={approval.config_lines} />
+
+      <ReferenceIds approval={approval} />
+
+      <NameField label="Approver" value={approver} onChange={setApprover} disabled={submitting} error={nameError} />
+
+      <label className="form-field form-field-inline confirm-box">
+        <input
+          type="checkbox"
+          checked={reviewed}
+          disabled={submitting}
+          onChange={(event) => setReviewed(event.target.checked)}
+        />
+        <span>I have reviewed the target device and every command above.</span>
+      </label>
+
+      {error && (
+        <Banner tone="danger" title="Approval failed.">
+          {error}
+        </Banner>
+      )}
+    </Modal>
   );
 }
 
@@ -161,7 +207,7 @@ function ConfigDetail({ approval }: { approval: Approval }) {
   const lines = approval.config_lines ?? [];
 
   if (parents.length === 0 && lines.length === 0) {
-    return <span className="mono">—</span>;
+    return <span className="muted">—</span>;
   }
 
   return (
@@ -193,99 +239,67 @@ function ApplyDialog({ approval, hostname, submitting, error, onConfirm, onCance
   const [typedHostname, setTypedHostname] = useState("");
   const confirmed = typedHostname.trim() === hostname;
 
-  useEffect(() => {
-    function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape" && !submitting) onCancel();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onCancel, submitting]);
-
   return (
-    <div className="modal-backdrop" onClick={() => !submitting && onCancel()}>
-      <div
-        className="modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="apply-title"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="panel-header">
-          <h2 id="apply-title">Apply approved change</h2>
-          <StatusBadge status={approval.status} />
-        </div>
-
-        <div className="modal-body">
-          <div className="danger-banner">
-            <strong>This WILL modify the running configuration of {hostname}.</strong>
-            <span>
-              The commands below are sent to the switch now, followed by a post-check. There is no
-              automatic rollback. Do not apply changes to management or uplink interfaces.
-            </span>
-          </div>
-
-          <dl className="detail-list">
-            <dt>Device</dt>
-            <dd>{hostname}</dd>
-            <dt>Approval ID</dt>
-            <dd className="mono">{approval.id}</dd>
-            <dt>Approved by</dt>
-            <dd>{approval.approved_by ?? "—"}</dd>
-            <dt>Approved at</dt>
-            <dd className="mono">
-              {approval.approved_at ? new Date(approval.approved_at).toLocaleString() : "—"}
-            </dd>
-            <dt>Backup job</dt>
-            <dd className="mono">{approval.backup_job_id ?? "—"}</dd>
-          </dl>
-
-          <div className="form-field">
-            <span className="form-label">Parent / context</span>
-            <pre className="config-preview">
-              {(approval.config_parents ?? []).length > 0
-                ? (approval.config_parents ?? []).join("\n")
-                : "(global configuration)"}
-            </pre>
-          </div>
-
-          <div className="form-field">
-            <span className="form-label">Configuration lines</span>
-            <pre className="config-preview">{(approval.config_lines ?? []).join("\n")}</pre>
-          </div>
-
-          <label className="form-field">
-            <span className="form-label">Type the hostname to confirm</span>
-            <input
-              type="text"
-              className="search-input mono"
-              style={{ maxWidth: "none" }}
-              placeholder={hostname}
-              value={typedHostname}
-              disabled={submitting}
-              autoFocus
-              autoComplete="off"
-              onChange={(event) => setTypedHostname(event.target.value)}
-            />
-          </label>
-
-          {error && <div className="error-banner" style={{ marginBottom: 0 }}>{error}</div>}
-        </div>
-
-        <div className="modal-actions">
-          <button type="button" className="copy-button" disabled={submitting} onClick={onCancel}>
-            Cancel
+    <Modal
+      kicker="High-risk action"
+      title="Apply change to switch"
+      busy={submitting}
+      onClose={onCancel}
+      actions={
+        <>
+          <button type="button" className="secondary-button" disabled={submitting} onClick={onCancel}>
+            Back
           </button>
-          <button
-            type="button"
-            className="danger-button"
-            disabled={!confirmed || submitting}
-            onClick={onConfirm}
-          >
+          <button type="button" className="danger-button" disabled={!confirmed || submitting} onClick={onConfirm}>
             {submitting ? "Submitting…" : "Apply to switch"}
           </button>
-        </div>
+        </>
+      }
+    >
+      <div className="danger-banner" role="alert">
+        <strong>This WILL modify the running configuration of {hostname}.</strong>
+        <span>
+          The commands below are sent to the switch now, followed by a post-check. There is no
+          automatic rollback. Do not apply changes to management or uplink interfaces.
+        </span>
       </div>
-    </div>
+
+      <TargetCard hostname={hostname} approval={approval} />
+
+      <ConfigView parents={approval.config_parents} lines={approval.config_lines} />
+
+      <ReferenceIds
+        approval={approval}
+        extra={[
+          ["Approved by", approval.approved_by ?? "—"],
+          ["Approved at", approval.approved_at ? new Date(approval.approved_at).toLocaleString() : "—"],
+        ]}
+      />
+
+      <label className="form-field confirm-box">
+        <span className="form-label">
+          Type <span className="mono">{hostname}</span> to confirm
+        </span>
+        <input
+          type="text"
+          className="search-input mono"
+          style={{ maxWidth: "none" }}
+          placeholder={hostname}
+          value={typedHostname}
+          disabled={submitting}
+          autoFocus
+          autoComplete="off"
+          aria-invalid={typedHostname.length > 0 && !confirmed}
+          onChange={(event) => setTypedHostname(event.target.value)}
+        />
+      </label>
+
+      {error && (
+        <Banner tone="danger" title="Apply request failed.">
+          {error}
+        </Banner>
+      )}
+    </Modal>
   );
 }
 
@@ -307,112 +321,15 @@ function CancelDialog({ approval, hostname, submitting, error, onConfirm, onCanc
   const reasonTooLong = reason.trim().length > 500;
   const canConfirm = nameValid && !reasonTooLong && confirmed && !submitting;
 
-  useEffect(() => {
-    function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape" && !submitting) onCancel();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onCancel, submitting]);
-
   return (
-    <div className="modal-backdrop" onClick={() => !submitting && onCancel()}>
-      <div
-        className="modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="cancel-title"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="panel-header">
-          <h2 id="cancel-title">Cancel change</h2>
-          <StatusBadge status={approval.status} />
-        </div>
-
-        <div className="modal-body">
-          <dl className="detail-list">
-            <dt>Device</dt>
-            <dd>{hostname}</dd>
-            <dt>Approval ID</dt>
-            <dd className="mono">{approval.id}</dd>
-            <dt>Current status</dt>
-            <dd>{approval.status}</dd>
-            <dt>Requested by</dt>
-            <dd>{approval.requested_by}</dd>
-            {approval.approved_by && (
-              <>
-                <dt>Approved by</dt>
-                <dd>{approval.approved_by}</dd>
-              </>
-            )}
-            <dt>Backup job</dt>
-            <dd className="mono">{approval.backup_job_id ?? "—"}</dd>
-          </dl>
-
-          <div className="form-field">
-            <span className="form-label">Parent / context</span>
-            <pre className="config-preview">
-              {(approval.config_parents ?? []).length > 0
-                ? (approval.config_parents ?? []).join("\n")
-                : "(global configuration)"}
-            </pre>
-          </div>
-
-          <div className="form-field">
-            <span className="form-label">Configuration lines</span>
-            <pre className="config-preview">{(approval.config_lines ?? []).join("\n")}</pre>
-          </div>
-
-          <label className="form-field">
-            <span className="form-label">Cancelled by</span>
-            <input
-              type="text"
-              className="search-input mono"
-              style={{ maxWidth: "none" }}
-              placeholder="your name"
-              value={cancelledBy}
-              disabled={submitting}
-              autoFocus
-              onChange={(event) => setCancelledBy(event.target.value)}
-            />
-            {trimmed.length > 0 && !nameValid && (
-              <span className="form-error">2–64 characters: letters, digits, . _ @ -</span>
-            )}
-          </label>
-
-          <label className="form-field">
-            <span className="form-label">Reason (optional)</span>
-            <textarea
-              className="config-input"
-              rows={2}
-              maxLength={500}
-              value={reason}
-              disabled={submitting}
-              onChange={(event) => setReason(event.target.value)}
-            />
-            {reasonTooLong && <span className="form-error">At most 500 characters.</span>}
-          </label>
-
-          <label className="form-field form-field-inline">
-            <input
-              type="checkbox"
-              checked={confirmed}
-              disabled={submitting}
-              onChange={(event) => setConfirmed(event.target.checked)}
-            />
-            <span>Cancel this change permanently. It can never be approved or applied.</span>
-          </label>
-
-          <div className="precheck-note">
-            Cancelling only records a decision. Nothing is sent to the switch, and the approval
-            record is kept for audit.
-          </div>
-
-          {error && <div className="error-banner" style={{ marginBottom: 0 }}>{error}</div>}
-        </div>
-
-        <div className="modal-actions">
-          <button type="button" className="copy-button" disabled={submitting} onClick={onCancel}>
+    <Modal
+      kicker="Change control"
+      title="Cancel change"
+      busy={submitting}
+      onClose={onCancel}
+      actions={
+        <>
+          <button type="button" className="secondary-button" disabled={submitting} onClick={onCancel}>
             Keep change
           </button>
           <button
@@ -426,9 +343,64 @@ function CancelDialog({ approval, hostname, submitting, error, onConfirm, onCanc
           >
             {submitting ? "Cancelling…" : "Cancel change"}
           </button>
-        </div>
-      </div>
-    </div>
+        </>
+      }
+    >
+      <TargetCard hostname={hostname} approval={approval} />
+
+      <Banner tone="warning" title="Cancellation is permanent.">
+        The change can never be approved or applied afterwards. Nothing is sent to the switch,
+        and the record is kept for audit.
+      </Banner>
+
+      <ConfigView parents={approval.config_parents} lines={approval.config_lines} />
+
+      <ReferenceIds
+        approval={approval}
+        extra={[
+          ["Current status", approval.status],
+          ...(approval.approved_by ? ([["Approved by", approval.approved_by]] as [string, string][]) : []),
+        ]}
+      />
+
+      <NameField
+        label="Cancelled by"
+        value={cancelledBy}
+        onChange={setCancelledBy}
+        disabled={submitting}
+        error={trimmed.length > 0 && !nameValid ? "2–64 characters: letters, digits, . _ @ -" : null}
+      />
+
+      <label className="form-field">
+        <span className="form-label">Reason (optional)</span>
+        <textarea
+          className="config-input"
+          rows={2}
+          maxLength={500}
+          value={reason}
+          disabled={submitting}
+          placeholder="e.g. Superseded by a new change request"
+          onChange={(event) => setReason(event.target.value)}
+        />
+        {reasonTooLong && <span className="form-error">At most 500 characters.</span>}
+      </label>
+
+      <label className="form-field form-field-inline confirm-box">
+        <input
+          type="checkbox"
+          checked={confirmed}
+          disabled={submitting}
+          onChange={(event) => setConfirmed(event.target.checked)}
+        />
+        <span>Cancel this change permanently. It can never be approved or applied.</span>
+      </label>
+
+      {error && (
+        <Banner tone="danger" title="Cancel failed.">
+          {error}
+        </Banner>
+      )}
+    </Modal>
   );
 }
 
@@ -447,7 +419,7 @@ function ApprovalAction({ approval, platform, busy, onApprove, onApply, onCancel
   }
 
   const cancelButton = (
-    <button type="button" className="copy-button" disabled={busy} onClick={onCancelChange}>
+    <button type="button" className="secondary-button destructive small-button" disabled={busy} onClick={onCancelChange}>
       Cancel
     </button>
   );
@@ -456,7 +428,7 @@ function ApprovalAction({ approval, platform, busy, onApprove, onApply, onCancel
     case "pending":
       return (
         <div className="action-group">
-          <button type="button" className="primary-button small-button" disabled={busy} onClick={onApprove}>
+          <button type="button" className="success-button small-button" disabled={busy} onClick={onApprove}>
             Approve
           </button>
           {cancelButton}
@@ -472,19 +444,15 @@ function ApprovalAction({ approval, platform, busy, onApprove, onApply, onCancel
         </div>
       );
     case "applying":
-      return (
-        <button type="button" className="primary-button small-button" disabled>
-          Applying&hellip;
-        </button>
-      );
+      return <StatusBadge status="applying" label="Applying…" />;
     default:
-      return <span className="view-only-tag">—</span>;
+      return <span className="muted">—</span>;
   }
 }
 
 function ApplyStatusBanner({ apply, onDismiss }: { apply: ActiveApply; onDismiss: () => void }) {
-  const tone =
-    apply.phase === "applied" ? "applied" : apply.phase === "failed" ? "failed" : "applying";
+  const status =
+    apply.phase === "applied" ? "applied" : apply.phase === "failed" ? "failed" : apply.phase === "unknown" ? "unknown" : "applying";
   const label =
     apply.phase === "applied"
       ? "Applied"
@@ -495,13 +463,10 @@ function ApplyStatusBanner({ apply, onDismiss }: { apply: ActiveApply; onDismiss
           : "Applying";
 
   return (
-    <div className={`apply-banner apply-banner-${tone}`}>
+    <div className={`apply-banner apply-banner-${status}`} role="status">
       <div className="apply-banner-head">
-        <span className={`badge badge-${tone}`}>
-          <span className="badge-dot" />
-          {label}
-        </span>
-        <span>{apply.hostname}</span>
+        <StatusBadge status={status} label={label} />
+        <strong>{apply.hostname}</strong>
         <span className="mono muted" title={apply.requestId}>
           req {truncateId(apply.requestId)}
         </span>
@@ -736,10 +701,20 @@ export function Approvals() {
     return map;
   }, [devices]);
 
-  const statuses = useMemo(
-    () => Array.from(new Set(approvals.map((approval) => approval.status))).sort(),
-    [approvals],
-  );
+  // Lifecycle order first, then any unexpected status values.
+  const statuses = useMemo(() => {
+    const present = new Set(approvals.map((approval) => approval.status));
+    return [
+      ...STATUS_ORDER.filter((status) => present.has(status)),
+      ...Array.from(present).filter((status) => !STATUS_ORDER.includes(status)).sort(),
+    ];
+  }, [approvals]);
+
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    approvals.forEach((approval) => (counts[approval.status] = (counts[approval.status] ?? 0) + 1));
+    return counts;
+  }, [approvals]);
 
   const filteredApprovals = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -773,42 +748,48 @@ export function Approvals() {
 
   return (
     <>
-      <h1 className="page-title">Approvals</h1>
-      <p className="page-subtitle">Change approval history and pending requests.</p>
+      <PageHeader
+        title="Approvals"
+        subtitle="Change control: review, approve, apply or cancel OS6 changes."
+      />
 
-      {error && <div className="error-banner">Failed to load approvals: {error}</div>}
+      {error && (
+        <Banner tone="danger" title="Failed to load approvals.">
+          {error}
+        </Banner>
+      )}
       {activeApply && (
         <ApplyStatusBanner apply={activeApply} onDismiss={() => setActiveApply(null)} />
       )}
       {notice && (
-        <div className="notice-banner">
-          <span>{notice}</span>
-          <button type="button" className="copy-button" onClick={() => setNotice(null)}>
-            Dismiss
-          </button>
-        </div>
+        <Banner tone="success" onDismiss={() => setNotice(null)}>
+          {notice}
+        </Banner>
       )}
 
       <div className="filters-bar">
         <input
-          type="text"
+          type="search"
           className="search-input"
-          placeholder="Search device, requester, or config..."
+          placeholder="Search device, requester, or config…"
+          aria-label="Search approvals"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
         />
-        <select
-          className="filter-select"
+        <FilterChips
+          label="Approval status"
           value={statusFilter}
-          onChange={(event) => setStatusFilter(event.target.value)}
-        >
-          <option value={ALL_STATUSES}>All statuses</option>
-          {statuses.map((status) => (
-            <option key={status} value={status}>
-              {status}
-            </option>
-          ))}
-        </select>
+          onChange={setStatusFilter}
+          options={[
+            { value: ALL_STATUSES, label: "All", count: approvals.length },
+            ...statuses.map((status) => ({
+              value: status,
+              label: status.charAt(0).toUpperCase() + status.slice(1),
+              count: statusCounts[status] ?? 0,
+              status,
+            })),
+          ]}
+        />
       </div>
 
       <div className="panel">
@@ -816,27 +797,34 @@ export function Approvals() {
           <h2>Approvals</h2>
           <span className="count-tag">{filteredApprovals.length}</span>
         </div>
-        <div className="panel-body" style={{ maxHeight: "none" }}>
+        <div className="table-wrap">
           {loading ? (
-            <div className="empty-state">Loading approvals&hellip;</div>
+            <TableSkeleton rows={8} columns={7} />
           ) : (
             <table className="data-table">
               <thead>
                 <tr>
                   <th>Status</th>
                   <th>Device</th>
-                  <th>Requested By</th>
-                  <th>Approved By</th>
-                  <th>Config</th>
-                  <th>Created</th>
-                  <th>Approved</th>
+                  <th>Change</th>
+                  <th>Requested</th>
+                  <th>Decision</th>
                   <th>Backup Job</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredApprovals.map((approval) => (
-                  <tr key={approval.id}>
+                  <tr
+                    key={approval.id}
+                    className={
+                      approval.status === "failed"
+                        ? "row-alert"
+                        : approval.status === "pending" || approval.status === "approved"
+                          ? "row-warn"
+                          : undefined
+                    }
+                  >
                     <td
                       title={
                         approval.status === "cancelled"
@@ -847,18 +835,41 @@ export function Approvals() {
                     >
                       <StatusBadge status={approval.status} />
                     </td>
-                    <td>
-                      {deviceHostnameById.get(approval.device_id) ??
-                        `Device #${approval.device_id}`}
+                    <td className="cell-primary">
+                      {deviceHostnameById.get(approval.device_id) ?? `Device #${approval.device_id}`}
+                      <span className="cell-sub mono" title={approval.id}>
+                        {truncateId(approval.id)}
+                      </span>
                     </td>
-                    <td>{approval.requested_by}</td>
-                    <td>{approval.approved_by ?? "—"}</td>
                     <td>
                       <ConfigDetail approval={approval} />
                     </td>
-                    <td className="mono">{formatTimestamp(approval.created_at)}</td>
-                    <td className="mono">{formatTimestamp(approval.approved_at)}</td>
-                    <td className="mono" title={approval.backup_job_id ?? undefined}>
+                    <td>
+                      {approval.requested_by}
+                      <span className="cell-sub">
+                        <RelativeTime value={approval.created_at} />
+                      </span>
+                    </td>
+                    <td>
+                      {approval.status === "cancelled" ? (
+                        <>
+                          Cancelled by {approval.cancelled_by ?? "—"}
+                          <span className="cell-sub">
+                            <RelativeTime value={approval.cancelled_at} />
+                          </span>
+                        </>
+                      ) : approval.approved_by ? (
+                        <>
+                          {approval.approved_by}
+                          <span className="cell-sub">
+                            <RelativeTime value={approval.approved_at} />
+                          </span>
+                        </>
+                      ) : (
+                        <span className="muted">Awaiting approval</span>
+                      )}
+                    </td>
+                    <td className="mono muted" title={approval.backup_job_id ?? undefined}>
                       {truncateId(approval.backup_job_id)}
                     </td>
                     <td>
@@ -891,10 +902,11 @@ export function Approvals() {
                 ))}
                 {filteredApprovals.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="empty-state">
-                      {approvals.length === 0
-                        ? "No approvals recorded yet."
-                        : "No approvals match your search or filter."}
+                    <td colSpan={7}>
+                      <EmptyState
+                        title={approvals.length === 0 ? "No approvals recorded yet." : "No approvals match these filters."}
+                        hint={approvals.length === 0 ? "Prechecks that detect a change create approvals here." : undefined}
+                      />
                     </td>
                   </tr>
                 )}

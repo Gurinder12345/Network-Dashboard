@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { getDevices } from "../api/client";
 import { OS10_PLATFORM, OS6_PLATFORM } from "../api/constants";
 import type { Device } from "../api/types";
+import { Banner, EmptyState } from "../components/Feedback";
+import { PageHeader } from "../components/PageHeader";
 
 // Parameters are typed and bounded — there is deliberately no free-text/command parameter type.
 type ScriptParam =
@@ -188,10 +190,16 @@ export function Scripts() {
 
   return (
     <>
-      <h1 className="page-title">Scripts</h1>
-      <p className="page-subtitle">Run approved automation scripts. Only predefined scripts are available.</p>
+      <PageHeader
+        title="Scripts"
+        subtitle="Approved, read-only automation scripts. No free-form commands or code can be entered."
+      />
 
-      {error && <div className="error-banner">Failed to load devices: {error}</div>}
+      {error && (
+        <Banner tone="danger" title="Failed to load devices.">
+          {error}
+        </Banner>
+      )}
 
       <div className="panel" style={{ marginBottom: 16 }}>
         <div className="panel-header">
@@ -199,6 +207,7 @@ export function Scripts() {
           <span className="count-tag">{APPROVED_SCRIPTS.length}</span>
         </div>
         <div className="panel-body" style={{ maxHeight: "none" }}>
+          <div className="table-wrap no-max">
           <table className="data-table">
             <thead>
               <tr>
@@ -236,6 +245,7 @@ export function Scripts() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       </div>
 
@@ -294,7 +304,7 @@ export function Scripts() {
             </div>
 
             <div className="form-actions">
-              <button type="button" className="primary-button" disabled={!canRun} onClick={handleRun}>
+              <button type="button" className="primary-button large-button" disabled={!canRun} onClick={handleRun}>
                 Run
               </button>
               <span className="view-only-tag">Execution is not wired yet.</span>
@@ -315,9 +325,10 @@ export function Scripts() {
             <span className="count-tag">0</span>
           </div>
           <div className="panel-body" style={{ maxHeight: "none" }}>
-            <div className="empty-state">
-              Script run history will appear here once execution is wired to the API.
-            </div>
+            <EmptyState
+              title="No script runs yet."
+              hint="Run history will appear here once script execution is wired to the API."
+            />
           </div>
         </div>
       </div>

@@ -2,7 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { downloadBackup, getBackups, getDevices } from "../api/client";
 import type { Backup, Device } from "../api/types";
 import { CopyButton } from "../components/CopyButton";
-import { formatTimestamp, truncateId } from "../utils/format";
+import { Banner, EmptyState, TableSkeleton } from "../components/Feedback";
+import { PageHeader } from "../components/PageHeader";
+import { RelativeTime } from "../components/RelativeTime";
+import { humanize, truncateId } from "../utils/format";
 
 const ALL_DEVICES = "all";
 
@@ -39,9 +42,10 @@ function DownloadCell({ backupId }: { backupId: number }) {
     <div className="download-cell">
       <button
         type="button"
-        className="copy-button"
+        className="secondary-button small-button"
         disabled={downloading}
         onClick={handleDownload}
+        aria-label={`Download backup ${backupId}`}
       >
         {downloading ? "Downloading…" : "Download"}
       </button>
@@ -167,21 +171,29 @@ export function Backups() {
 
   return (
     <>
-      <h1 className="page-title">Backups</h1>
-      <p className="page-subtitle">Stored running-configuration backups.</p>
+      <PageHeader
+        title="Backups"
+        subtitle="Stored running-configuration backups. Downloads are recorded in the audit log."
+      />
 
-      {error && <div className="error-banner">Failed to load backups: {error}</div>}
+      {error && (
+        <Banner tone="danger" title="Failed to load backups.">
+          {error}
+        </Banner>
+      )}
 
       <div className="filters-bar">
         <input
-          type="text"
+          type="search"
           className="search-input"
-          placeholder="Search device, path, or checksum..."
+          placeholder="Search device, path, or checksum…"
+          aria-label="Search backups"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
         />
         <select
           className="filter-select"
+          aria-label="Device"
           value={deviceFilter}
           onChange={(event) => setDeviceFilter(event.target.value)}
         >
@@ -199,51 +211,56 @@ export function Backups() {
           <h2>Backups</h2>
           <span className="count-tag">{filteredBackups.length}</span>
         </div>
-        <div className="panel-body" style={{ maxHeight: "none" }}>
+        <div className="table-wrap">
           {loading ? (
-            <div className="empty-state">Loading backups&hellip;</div>
+            <TableSkeleton rows={8} columns={7} />
           ) : (
             <table className="data-table">
               <thead>
                 <tr>
                   <th>Device</th>
-                  <th>Backup Type</th>
+                  <th>Type</th>
                   <th>Created</th>
-                  <th>Storage Path</th>
-                  <th>Checksum</th>
+                  <th>Checksum (SHA-256)</th>
                   <th>Job ID</th>
-                  <th>Actions</th>
+                  <th>Download</th>
+                  <th>Storage Path</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredBackups.map((backup) => (
                   <tr key={backup.id}>
-                    <td>
-                      {deviceHostnameById.get(backup.device_id) ??
-                        `Device #${backup.device_id}`}
+                    <td className="cell-primary">
+                      {deviceHostnameById.get(backup.device_id) ?? `Device #${backup.device_id}`}
+                      <span className="cell-sub mono">backup #{backup.id}</span>
                     </td>
-                    <td>{backup.backup_type}</td>
-                    <td className="mono">{formatTimestamp(backup.created_at)}</td>
                     <td>
-                      <StoragePathCell path={backup.storage_path} />
+                      <span className="tag tag-plain">{humanize(backup.backup_type)}</span>
+                    </td>
+                    <td>
+                      <RelativeTime value={backup.created_at} />
                     </td>
                     <td>
                       <ChecksumCell checksum={backup.checksum} />
                     </td>
-                    <td className="mono" title={backup.job_id ?? undefined}>
+                    <td className="mono muted" title={backup.job_id ?? undefined}>
                       {truncateId(backup.job_id)}
                     </td>
                     <td>
                       <DownloadCell backupId={backup.id} />
                     </td>
+                    <td>
+                      <StoragePathCell path={backup.storage_path} />
+                    </td>
                   </tr>
                 ))}
                 {filteredBackups.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="empty-state">
-                      {backups.length === 0
-                        ? "No backups recorded yet."
-                        : "No backups match your search or filter."}
+                    <td colSpan={7}>
+                      <EmptyState
+                        title={backups.length === 0 ? "No backups recorded yet." : "No backups match these filters."}
+                        hint={backups.length === 0 ? "Backups are taken automatically during prechecks." : undefined}
+                      />
                     </td>
                   </tr>
                 )}

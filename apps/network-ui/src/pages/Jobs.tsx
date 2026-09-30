@@ -1,8 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { getDevices, getJobs } from "../api/client";
 import type { Device, Job } from "../api/types";
+import { Banner, EmptyState, TableSkeleton } from "../components/Feedback";
+import { FilterChips } from "../components/FilterChips";
+import { PageHeader } from "../components/PageHeader";
+import { RelativeTime } from "../components/RelativeTime";
 import { StatusBadge } from "../components/StatusBadge";
-import { formatTimestamp, truncateText } from "../utils/format";
+import { formatDuration, humanize, truncateId, truncateText } from "../utils/format";
 
 const ALL_STATUSES = "all";
 const ERROR_PREVIEW_LENGTH = 80;
@@ -97,33 +101,45 @@ export function Jobs() {
     });
   }, [jobs, search, statusFilter, deviceHostnameById]);
 
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    jobs.forEach((job) => (counts[job.status] = (counts[job.status] ?? 0) + 1));
+    return counts;
+  }, [jobs]);
+
   return (
     <>
-      <h1 className="page-title">Jobs</h1>
-      <p className="page-subtitle">Worker task history.</p>
+      <PageHeader title="Jobs" subtitle="Worker task history: backups, prechecks and applies." />
 
-      {error && <div className="error-banner">Failed to load jobs: {error}</div>}
+      {error && (
+        <Banner tone="danger" title="Failed to load jobs.">
+          {error}
+        </Banner>
+      )}
 
       <div className="filters-bar">
         <input
-          type="text"
+          type="search"
           className="search-input"
-          placeholder="Search device, job type, or error..."
+          placeholder="Search device, job type, or error…"
+          aria-label="Search jobs"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
         />
-        <select
-          className="filter-select"
+        <FilterChips
+          label="Job status"
           value={statusFilter}
-          onChange={(event) => setStatusFilter(event.target.value)}
-        >
-          <option value={ALL_STATUSES}>All statuses</option>
-          {statuses.map((status) => (
-            <option key={status} value={status}>
-              {status}
-            </option>
-          ))}
-        </select>
+          onChange={setStatusFilter}
+          options={[
+            { value: ALL_STATUSES, label: "All", count: jobs.length },
+            ...statuses.map((status) => ({
+              value: status,
+              label: humanize(status),
+              count: statusCounts[status] ?? 0,
+              status,
+            })),
+          ]}
+        />
       </div>
 
       <div className="panel">
@@ -131,9 +147,9 @@ export function Jobs() {
           <h2>Jobs</h2>
           <span className="count-tag">{filteredJobs.length}</span>
         </div>
-        <div className="panel-body" style={{ maxHeight: "none" }}>
+        <div className="table-wrap">
           {loading ? (
-            <div className="empty-state">Loading jobs&hellip;</div>
+            <TableSkeleton rows={8} columns={7} />
           ) : (
             <table className="data-table">
               <thead>
@@ -143,23 +159,34 @@ export function Jobs() {
                   <th>Job Type</th>
                   <th>Requested By</th>
                   <th>Started</th>
-                  <th>Finished</th>
+                  <th>Duration</th>
+                  <th>Job ID</th>
                   <th>Error</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredJobs.map((job) => (
-                  <tr key={job.id}>
+                  <tr key={job.id} className={job.status === "failed" ? "row-alert" : undefined}>
                     <td>
                       <StatusBadge status={job.status} />
                     </td>
-                    <td>
+                    <td className="cell-primary">
                       {deviceHostnameById.get(job.device_id) ?? `Device #${job.device_id}`}
                     </td>
-                    <td>{job.job_type}</td>
-                    <td>{job.requested_by}</td>
-                    <td className="mono">{formatTimestamp(job.started_at)}</td>
-                    <td className="mono">{formatTimestamp(job.finished_at)}</td>
+                    <td>
+                      {humanize(job.job_type)}
+                      <span className="cell-sub mono">{job.job_type}</span>
+                    </td>
+                    <td className="secondary">{job.requested_by}</td>
+                    <td>
+                      <RelativeTime value={job.started_at} />
+                    </td>
+                    <td className="duration">
+                      {job.finished_at ? formatDuration(job.started_at, job.finished_at) : <span className="muted">running</span>}
+                    </td>
+                    <td className="mono muted" title={job.id}>
+                      {truncateId(job.id)}
+                    </td>
                     <td>
                       <ErrorMessageCell message={job.error_message} />
                     </td>
@@ -167,10 +194,10 @@ export function Jobs() {
                 ))}
                 {filteredJobs.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="empty-state">
-                      {jobs.length === 0
-                        ? "No jobs recorded yet."
-                        : "No jobs match your search or filter."}
+                    <td colSpan={8}>
+                      <EmptyState
+                        title={jobs.length === 0 ? "No jobs recorded yet." : "No jobs match these filters."}
+                      />
                     </td>
                   </tr>
                 )}

@@ -1,21 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getDevices } from "../api/client";
-import { OS6_PLATFORM } from "../api/constants";
+import { HEALTH_SLOW_THRESHOLD_MS, OS6_PLATFORM } from "../api/constants";
 import type { Device, HealthStatus } from "../api/types";
+import { Banner, EmptyState, StaleDataWarning, TableSkeleton } from "../components/Feedback";
+import { FilterChips } from "../components/FilterChips";
+import { PageHeader } from "../components/PageHeader";
+import { RelativeTime } from "../components/RelativeTime";
 import { StatusBadge } from "../components/StatusBadge";
 import { usePolling } from "../hooks/usePolling";
-import { formatResponseTime, formatTime, truncateText } from "../utils/format";
+import { formatResponseTime, truncateText } from "../utils/format";
 
-const ALL_PLATFORMS = "all";
-const ALL_HEALTH = "all";
+const ALL = "all";
 const HEALTH_POLL_MS = 20000;
-const HEALTH_FILTERS: { value: HealthStatus | typeof ALL_HEALTH; label: string }[] = [
-  { value: ALL_HEALTH, label: "All health" },
-  { value: "healthy", label: "Healthy" },
-  { value: "degraded", label: "Degraded" },
-  { value: "down", label: "Down" },
-  { value: "unknown", label: "Unknown" },
-];
+const HEALTH_STATES: HealthStatus[] = ["healthy", "degraded", "down", "unknown"];
 
 function reachability(device: Device): string | null {
   if (device.tcp_reachable === null) return null;
@@ -24,7 +21,28 @@ function reachability(device: Device): string | null {
   return `TCP ${mark(device.tcp_reachable)} · SSH ${mark(device.ssh_reachable)} · CLI ${mark(device.cli_reachable)}`;
 }
 
-function HealthErrorCell({ device }: { device: Device }) {
+/** Response time against the worker's slow threshold (the only threshold health defines). */
+function ResponseCell({ ms }: { ms: number | null }) {
+  if (ms === null || ms === undefined) return <span className="muted">—</span>;
+
+  const slow = ms > HEALTH_SLOW_THRESHOLD_MS;
+  const fill = Math.min(ms / HEALTH_SLOW_THRESHOLD_MS, 1) * 100;
+
+  return (
+    <span
+      className="response-cell"
+      title={`${ms} ms · slow threshold ${HEALTH_SLOW_THRESHOLD_MS / 1000} s (health check)`}
+    >
+      <span className="response-meter" aria-hidden="true">
+        <span className={`response-meter-fill${slow ? " slow" : ""}`} style={{ width: `${fill}%` }} />
+      </span>
+      <span className="cell-num">{formatResponseTime(ms)}</span>
+      {slow && <span className="response-label slow">slow</span>}
+    </span>
+  );
+}
+
+function HealthIssueCell({ device }: { device: Device }) {
   const status = device.health_status;
 
   if (!device.last_error || (status !== "degraded" && status !== "down")) {
@@ -39,6 +57,7 @@ function HealthErrorCell({ device }: { device: Device }) {
       <pre className="error-full">
         {device.last_error}
         {reachability(device) ? `\n\n${reachability(device)}` : ""}
+        {device.last_success_at ? `\nLast success: ${new Date(device.last_success_at).toLocaleString()}` : ""}
       </pre>
     </details>
   );
@@ -49,8 +68,8 @@ export function Devices() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [platformFilter, setPlatformFilter] = useState(ALL_PLATFORMS);
-  const [healthFilter, setHealthFilter] = useState<string>(ALL_HEALTH);
+  const [platformFilter, setPlatformFilter] = useState(ALL);
+  const [healthFilter, setHealthFilter] = useState<string>(ALL);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
 
   // Re-reads inventory + stored health from the API; never starts switch checks.
@@ -78,16 +97,21 @@ export function Devices() {
     [devices],
   );
 
+  const healthCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    devices.forEach((d) => {
+      const status = d.health_status ?? "unknown";
+      counts[status] = (counts[status] ?? 0) + 1;
+    });
+    return counts;
+  }, [devices]);
+
   const filteredDevices = useMemo(() => {
     const query = search.trim().toLowerCase();
 
     return devices.filter((device) => {
-      const matchesPlatform =
-        platformFilter === ALL_PLATFORMS || device.platform === platformFilter;
-
-      const matchesHealth =
-        healthFilter === ALL_HEALTH || (device.health_status ?? "unknown") === healthFilter;
-
+      const matchesPlatform = platformFilter === ALL || device.platform === platformFilter;
+      const matchesHealth = healthFilter === ALL || (device.health_status ?? "unknown") === healthFilter;
       const matchesSearch =
         query.length === 0 ||
         device.hostname.toLowerCase().includes(query) ||
@@ -99,54 +123,60 @@ export function Devices() {
 
   return (
     <>
-      <div className="page-toolbar">
-        <div>
-          <h1 className="page-title">Devices</h1>
-          <p className="page-subtitle">Device inventory, access level and live health.</p>
-        </div>
-        <div className="refresh-control">
-          <span className="last-refreshed">
-            Updated: {lastRefreshedAt ? lastRefreshedAt.toLocaleTimeString() : "—"}
-          </span>
+      <PageHeader
+        title="Devices"
+        subtitle="Inventory, access level and live health (refreshes every 20 s)."
+        lastUpdated={lastRefreshedAt}
+        actions={
           <button type="button" className="refresh-button" onClick={() => load()}>
             Refresh
           </button>
-        </div>
-      </div>
+        }
+      />
 
-      {error && <div className="error-banner">Failed to load devices: {error}</div>}
+      {error && lastRefreshedAt && <StaleDataWarning since={lastRefreshedAt} error={error} />}
+      {error && !lastRefreshedAt && (
+        <Banner tone="danger" title="Failed to load devices.">
+          {error}
+        </Banner>
+      )}
 
       <div className="filters-bar">
         <input
-          type="text"
+          type="search"
           className="search-input"
-          placeholder="Search hostname or IP..."
+          placeholder="Search hostname or IP…"
+          aria-label="Search devices"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
         />
         <select
           className="filter-select"
+          aria-label="Platform"
           value={platformFilter}
           onChange={(event) => setPlatformFilter(event.target.value)}
         >
-          <option value={ALL_PLATFORMS}>All platforms</option>
+          <option value={ALL}>All platforms</option>
           {platforms.map((platform) => (
             <option key={platform} value={platform}>
               {platform}
             </option>
           ))}
         </select>
-        <select
-          className="filter-select"
+        <FilterChips
+          label="Health"
           value={healthFilter}
-          onChange={(event) => setHealthFilter(event.target.value)}
-        >
-          {HEALTH_FILTERS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+          onChange={setHealthFilter}
+          options={[
+            { value: ALL, label: "All", count: devices.length },
+            ...HEALTH_STATES.map((status) => ({
+              value: status,
+              label: status.charAt(0).toUpperCase() + status.slice(1),
+              count: healthCounts[status] ?? 0,
+              status,
+            })),
+          ]}
+        />
       </div>
 
       <div className="panel">
@@ -154,9 +184,9 @@ export function Devices() {
           <h2>Devices</h2>
           <span className="count-tag">{filteredDevices.length}</span>
         </div>
-        <div className="panel-body" style={{ maxHeight: "none" }}>
+        <div className="table-wrap">
           {loading ? (
-            <div className="empty-state">Loading devices&hellip;</div>
+            <TableSkeleton rows={8} columns={8} />
           ) : (
             <table className="data-table">
               <thead>
@@ -164,7 +194,6 @@ export function Devices() {
                   <th>Hostname</th>
                   <th>Management IP</th>
                   <th>Platform</th>
-                  <th>Enabled</th>
                   <th>Access</th>
                   <th>Health</th>
                   <th>Response</th>
@@ -173,39 +202,50 @@ export function Devices() {
                 </tr>
               </thead>
               <tbody>
-                {filteredDevices.map((device) => (
-                  <tr key={device.id}>
-                    <td>{device.hostname}</td>
-                    <td className="mono">{device.management_ip}</td>
-                    <td>
-                      <span className="platform-tag">{device.platform}</span>
-                    </td>
-                    <td>{device.enabled ? "Yes" : "No"}</td>
-                    <td>
-                      {device.platform === OS6_PLATFORM ? (
-                        "Actionable"
-                      ) : (
-                        <span className="view-only-tag">View only</span>
-                      )}
-                    </td>
-                    <td title={reachability(device) ?? undefined}>
-                      <StatusBadge status={device.health_status ?? "unknown"} />
-                    </td>
-                    <td className="mono">{formatResponseTime(device.response_time_ms)}</td>
-                    <td className="mono" title={device.last_check_at ?? undefined}>
-                      {formatTime(device.last_check_at)}
-                    </td>
-                    <td>
-                      <HealthErrorCell device={device} />
-                    </td>
-                  </tr>
-                ))}
+                {filteredDevices.map((device) => {
+                  const status = device.health_status ?? "unknown";
+                  return (
+                    <tr
+                      key={device.id}
+                      className={status === "down" ? "row-alert" : status === "degraded" ? "row-warn" : undefined}
+                    >
+                      <td className="cell-primary">
+                        {device.hostname}
+                        {!device.enabled && <span className="cell-sub">Disabled · not monitored</span>}
+                      </td>
+                      <td className="mono secondary">{device.management_ip}</td>
+                      <td>
+                        <span className="platform-tag">{device.platform}</span>
+                      </td>
+                      <td>
+                        {device.platform === OS6_PLATFORM ? (
+                          <span className="access-tag actionable">Actionable</span>
+                        ) : (
+                          <span className="view-only-tag">View only</span>
+                        )}
+                      </td>
+                      <td title={reachability(device) ?? undefined}>
+                        <StatusBadge status={status} />
+                      </td>
+                      <td>
+                        <ResponseCell ms={device.response_time_ms} />
+                      </td>
+                      <td>
+                        <RelativeTime value={device.last_check_at} />
+                      </td>
+                      <td>
+                        <HealthIssueCell device={device} />
+                      </td>
+                    </tr>
+                  );
+                })}
                 {filteredDevices.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="empty-state">
-                      {devices.length === 0
-                        ? "No devices found."
-                        : "No devices match your search or filter."}
+                    <td colSpan={8}>
+                      <EmptyState
+                        title={devices.length === 0 ? "No devices found." : "No devices match these filters."}
+                        hint={devices.length === 0 ? undefined : "Clear the search or choose another filter."}
+                      />
                     </td>
                   </tr>
                 )}
