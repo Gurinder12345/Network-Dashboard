@@ -196,17 +196,17 @@ class BeatScheduleTests(unittest.TestCase):
         schedule = worker.app.conf.beat_schedule
         self.assertTrue(worker.TELEMETRY_BEAT_ENABLED)
         self.assertEqual(set(schedule), {"fleet-health-every-60s", "topology-discovery-every-5m", "fleet-metrics-every-60s"})
-        # Existing schedules exactly as before.
-        self.assertEqual(schedule["fleet-health-every-60s"], {
-            "task": "network_worker.health_check_all_devices", "schedule": 60.0,
-            "kwargs": {"trigger": "schedule"}, "options": {"expires": 55}})
-        self.assertEqual(schedule["topology-discovery-every-5m"], {
-            "task": "network_worker.discover_topology_all_devices", "schedule": 300.0,
-            "kwargs": {"trigger": "schedule"}, "options": {"expires": 280}})
-        # Telemetry: every 60 s; a run that cannot start within 55 s is dropped (no backlog).
-        self.assertEqual(schedule["fleet-metrics-every-60s"], {
-            "task": "network_worker.collect_fleet_metrics", "schedule": 60.0,
-            "kwargs": {"trigger": "schedule"}, "options": {"expires": 55}})
+        # Cadence and expiry; second offsets are covered in test_beat_schedule.py.
+        expected = {
+            "fleet-health-every-60s": ("network_worker.health_check_all_devices", 60, 55),
+            "topology-discovery-every-5m": ("network_worker.discover_topology_all_devices", 300, 280),
+            # A telemetry run that cannot start within 55 s is dropped (no backlog).
+            "fleet-metrics-every-60s": ("network_worker.collect_fleet_metrics", 60, 55),
+        }
+        for name, (task, period, expires) in expected.items():
+            entry = schedule[name]
+            self.assertEqual((entry["task"], entry["schedule"].seconds, entry["options"], entry["kwargs"]),
+                             (task, period, {"expires": expires}, {"trigger": "schedule"}))
         for entry in schedule.values():
             self.assertIn(entry["task"], worker.app.tasks)
         self.assertIn("network_worker.collect_device_metrics", worker.app.tasks)

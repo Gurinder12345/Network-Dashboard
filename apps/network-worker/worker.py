@@ -19,6 +19,7 @@ from telemetry.collector import collect_and_record, run_fleet_metrics
 from ansible.run_os6 import run_os6_config_apply
 
 from celery import Celery
+from scheduling import offset_schedule
 from tasks.dell_os6 import run_show_command, backup_running_config
 from tasks.dell_os6 import run_show_command
 from vault.client import get_device_credentials
@@ -68,10 +69,19 @@ app = Celery(
 
 # Read by the single celery-beat Deployment only. "expires" drops a sweep that could not
 # start within one interval, so a busy worker never builds up a backlog of health runs.
+#
+# Staggered on the wall clock so the three fleet sweeps never start together (each opens
+# SSH sessions to every switch; the OS10 cores take ~13 s per login):
+#   :00 every minute  health      :20 every minute  telemetry
+#   :40 every 5 min   topology (minutes 0, 5, 10, ...)
+HEALTH_SCHEDULE = offset_schedule(60, 0)
+METRICS_SCHEDULE = offset_schedule(60, 20)
+TOPOLOGY_SCHEDULE = offset_schedule(300, 40)
+
 app.conf.beat_schedule = {
     "fleet-health-every-60s": {
         "task": "network_worker.health_check_all_devices",
-        "schedule": 60.0,
+        "schedule": HEALTH_SCHEDULE,
         "kwargs": {"trigger": "schedule"},
         "options": {"expires": 55},
     },
@@ -87,7 +97,7 @@ if TOPOLOGY_BEAT_ENABLED:
     # Read-only LLDP collection; a run that cannot start within the interval is dropped.
     app.conf.beat_schedule["topology-discovery-every-5m"] = {
         "task": "network_worker.discover_topology_all_devices",
-        "schedule": 300.0,
+        "schedule": TOPOLOGY_SCHEDULE,
         "kwargs": {"trigger": "schedule"},
         "options": {"expires": 280},
     }
@@ -102,7 +112,7 @@ if TELEMETRY_BEAT_ENABLED:
     # Read-only; separate from health so a slow CLI never delays health polling.
     app.conf.beat_schedule["fleet-metrics-every-60s"] = {
         "task": "network_worker.collect_fleet_metrics",
-        "schedule": 60.0,
+        "schedule": METRICS_SCHEDULE,
         "kwargs": {"trigger": "schedule"},
         "options": {"expires": 55},
     }
