@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { getBackups, getDevices } from "../api/client";
 import { HEALTH_SLOW_THRESHOLD_MS, OS6_PLATFORM } from "../api/constants";
 import type { Backup, Device, HealthStatus } from "../api/types";
 import { BackupDownloadButton } from "../components/BackupDownloadButton";
 import { Banner, EmptyState, StaleDataWarning, TableSkeleton } from "../components/Feedback";
+import { BackupNotice } from "../components/BackupNotice";
 import { isActive, useDeviceBackups, type BackupRun } from "../hooks/useDeviceBackups";
 import { FilterChips } from "../components/FilterChips";
 import { PageHeader } from "../components/PageHeader";
@@ -119,39 +121,6 @@ function BackupCell({ device, latest, run, onStart }: BackupCellProps) {
       )}
     </div>
   );
-}
-
-function BackupNotice({ run, onDismiss }: { run: BackupRun; onDismiss: () => void }) {
-  switch (run.state) {
-    case "requesting":
-    case "queued":
-      return (
-        <Banner tone="info" title={`Backup queued for ${run.hostname}.`}>
-          Running-config backup is waiting for a worker.
-        </Banner>
-      );
-    case "running":
-      return <Banner tone="info" title={`Backing up ${run.hostname}…`}>Reading the running configuration (read-only).</Banner>;
-    case "success":
-      return (
-        <Banner tone="success" title="Backup completed successfully." onDismiss={onDismiss}>
-          <span>{run.hostname}</span>
-          {run.backupId !== null && run.fileAvailable && (
-            <BackupDownloadButton
-              backupId={run.backupId}
-              label="Download Backup"
-              ariaLabel={`Download new backup of ${run.hostname}`}
-            />
-          )}
-        </Banner>
-      );
-    default:
-      return (
-        <Banner tone="danger" title="Backup failed." onDismiss={onDismiss}>
-          {run.hostname}: {run.error}
-        </Banner>
-      );
-  }
 }
 
 export function Devices() {
@@ -328,7 +297,9 @@ export function Devices() {
                       className={status === "down" ? "row-alert" : status === "degraded" ? "row-warn" : undefined}
                     >
                       <td className="cell-primary">
-                        {device.hostname}
+                        <Link className="device-link" to={`/devices/${device.id}`}>
+                          {device.hostname}
+                        </Link>
                         {!device.enabled && <span className="cell-sub">Disabled · not monitored</span>}
                       </td>
                       <td className="mono secondary">{device.management_ip}</td>

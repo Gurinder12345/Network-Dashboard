@@ -13,6 +13,8 @@ import { Scripts } from "./pages/Scripts";
 
 // Cytoscape is only downloaded when the Topology page is opened.
 const Topology = lazy(() => import("./pages/Topology"));
+// Device detail (telemetry charts) is only downloaded when a device is opened.
+const DeviceDetail = lazy(() => import("./pages/DeviceDetail"));
 
 export function App() {
   return (
@@ -20,6 +22,14 @@ export function App() {
       <Routes>
         <Route path="/" element={<Overview />} />
         <Route path="/devices" element={<Devices />} />
+        <Route
+          path="/devices/:deviceId"
+          element={
+            <Suspense fallback={<TableSkeleton rows={6} columns={4} />}>
+              <DeviceDetail />
+            </Suspense>
+          }
+        />
         <Route
           path="/topology"
           element={

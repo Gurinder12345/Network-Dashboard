@@ -143,6 +143,22 @@ def release_device_backup_lock(device_id, token):
         _warn("release device backup lock", exc)
 
 
+# ---- Telemetry (latest sample per device only; history stays in PostgreSQL) --------
+METRICS_DEVICE_KEY = "metrics:device:{device_id}"
+METRICS_DEVICE_TTL_SECONDS = int(os.getenv("METRICS_CACHE_TTL_SECONDS", "180"))
+
+
+def cache_device_metrics(latest):
+    try:
+        _redis().setex(
+            METRICS_DEVICE_KEY.format(device_id=latest["device_id"]),
+            METRICS_DEVICE_TTL_SECONDS,
+            json.dumps(latest),
+        )
+    except redis.RedisError as exc:
+        _warn("cache_device_metrics", exc)
+
+
 # ---- Topology (same Redis DB 1; PostgreSQL stays authoritative) -------------------
 TOPOLOGY_GRAPH_KEY = "topology:graph"
 TOPOLOGY_LAST_DISCOVERY_KEY = "topology:last_discovery"

@@ -14,6 +14,7 @@ from db.health import list_enabled_devices
 from health.checks import check_and_record, run_fleet_health_check
 from db.topology import list_inventory, list_lldp_identities
 from topology.discovery import discover_device, run_fleet_topology_discovery
+from telemetry.collector import collect_and_record, run_fleet_metrics
 
 from ansible.run_os6 import run_os6_config_apply
 
@@ -89,6 +90,21 @@ if TOPOLOGY_BEAT_ENABLED:
         "schedule": 300.0,
         "kwargs": {"trigger": "schedule"},
         "options": {"expires": 280},
+    }
+
+# CPU/memory telemetry ENABLED (v0.15.15): OS6/OS10 parsers built from real captures
+# (Kenda-HARO-IDF-A, Kenda-Core-1) and validated live; a manual 10-device fleet run took
+# 21 s (OS6 avg 5.7 s, OS10 avg 13.8 s) at concurrency 4, well inside the 60 s interval.
+# metrics:fleet:lock prevents overlap. Set back to False to stop scheduled collection.
+TELEMETRY_BEAT_ENABLED = True
+
+if TELEMETRY_BEAT_ENABLED:
+    # Read-only; separate from health so a slow CLI never delays health polling.
+    app.conf.beat_schedule["fleet-metrics-every-60s"] = {
+        "task": "network_worker.collect_fleet_metrics",
+        "schedule": 60.0,
+        "kwargs": {"trigger": "schedule"},
+        "options": {"expires": 55},
     }
 
 
@@ -386,6 +402,30 @@ def discover_topology_device(device_id):
 @app.task(name="network_worker.discover_topology_all_devices")
 def discover_topology_all_devices(trigger="schedule"):
     return run_fleet_topology_discovery(trigger=trigger)
+
+
+@app.task(name="network_worker.collect_device_metrics")
+def collect_device_metrics(device_id):
+    # Read-only CPU/memory telemetry for one device. Never changes health or configuration.
+    device = next(
+        (d for d in list_enabled_devices() if d["id"] == int(device_id)),
+        None,
+    )
+
+    if device is None:
+        return {
+            "device_id": device_id,
+            "skipped": True,
+            "reason": "Device not found or disabled",
+        }
+
+    sample = collect_and_record(device)
+    return {**sample, "collected_at": sample["collected_at"].isoformat()}
+
+
+@app.task(name="network_worker.collect_fleet_metrics")
+def collect_fleet_metrics(trigger="schedule"):
+    return run_fleet_metrics(trigger=trigger)
 
 
 @app.task(name="network_worker.vault_test")

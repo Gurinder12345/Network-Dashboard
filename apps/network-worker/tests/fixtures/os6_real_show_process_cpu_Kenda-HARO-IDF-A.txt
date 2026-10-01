@@ -1,0 +1,46 @@
+
+Memory Utilization Report
+
+status     KBytes
+------ ----------
+free      1758740
+alloc     2235804
+
+CPU Utilization:
+
+PID        Name                  5 Secs  60 Secs 300 Secs
+---------- ------------------- -------- -------- --------
+8          (rcu_sched)           0.09%    0.02%    0.02%  
+358        (procmgr)             0.00%    0.03%    0.03%  
+443        envMonitorTask        0.00%    0.02%    0.03%  
+449        osapiTimer            0.09%    0.09%    0.09%  
+452        bcmINTR               0.09%    0.08%    0.09%  
+454        socdmadesc.0          0.09%    0.07%    0.07%  
+458        bcmSRAM_SCAN.0        0.00%    0.00%    0.01%  
+461        bcmCNTR.0             0.59%    0.49%    0.50%  
+472        bcmRX                 0.00%    0.03%    0.04%  
+481        L2x_Recv_Task         0.00%    0.00%    0.01%  
+483        MAC_Age_Task          0.00%    0.01%    0.00%  
+487        bcmLINK.0             0.68%    0.70%    0.71%  
+488        hpcAqMonTask          0.09%    0.03%    0.02%  
+489        cpuUtilMonitorTask    0.09%    0.08%    0.07%  
+507        simPts_task           0.00%    0.04%    0.04%  
+528        hapiBpduTxTask        0.00%    0.01%    0.01%  
+529        hapiRxTask            0.09%    0.03%    0.03%  
+539        g8032                 0.00%    0.03%    0.03%  
+543        hapiBroadBfdCtrlTas   0.00%    0.05%    0.06%  
+569        dot1s_timer_task      0.00%    0.03%    0.03%  
+582        snoopTask             0.00%    0.00%    0.01%  
+615        spmTask               0.00%    0.03%    0.03%  
+623        ipMapForwardingTask   0.00%    0.02%    0.02%  
+644        openrTask             0.68%    0.64%    0.64%  
+648        (ospf_app)            0.00%    0.01%    0.00%  
+679        lldpTask              0.09%    0.06%    0.06%  
+690        RMONTask              0.00%    0.01%    0.01%  
+692        boxs_Req              0.00%    0.02%    0.02%  
+708        StatsAppTask          0.09%    0.11%    0.12%  
+747        poeRead.0             0.00%    0.01%    0.01%  
+758        poe_monitor           0.00%    0.01%    0.01%  
+25069      (kworker/u4:1)        0.00%    0.01%    0.00%
+------------------------------ -------- -------- --------
+Total CPU Utilization            2.85%    2.98%    3.10%

@@ -247,3 +247,73 @@ export interface TopologyGraph {
   nodes: TopologyNode[];
   links: TopologyLink[];
 }
+
+// ---- Device detail + telemetry (read-only; telemetry never changes health) ----------
+export type TelemetryStatus = "success" | "partial" | "failed" | "not_collected";
+
+export interface DeviceTelemetry {
+  device_id: number;
+  hostname: string;
+  status: TelemetryStatus;
+  cpu_percent: number | null;
+  memory_percent: number | null;
+  memory_used_mb: number | null;
+  memory_total_mb: number | null;
+  uptime_seconds: number | null;
+  collected_at: string | null;
+  last_success_at: string | null;
+  stale: boolean;
+  error: string | null;
+  interval_seconds: number;
+  stale_after_seconds: number;
+}
+
+export interface DeviceHealthSummary {
+  status: HealthStatus;
+  last_check_at: string | null;
+  last_success_at: string | null;
+  response_time_ms: number | null;
+  tcp_reachable: boolean | null;
+  ssh_reachable: boolean | null;
+  cli_reachable: boolean | null;
+  last_error: string | null;
+}
+
+export interface DeviceDetail {
+  id: number;
+  hostname: string;
+  management_ip: string;
+  platform: string;
+  enabled: boolean;
+  site: string | null;
+  role: string | null;
+  health: DeviceHealthSummary;
+  telemetry: DeviceTelemetry;
+  latest_backup: {
+    backup_id: number;
+    created_at: string | null;
+    source: string | null;
+    filename: string;
+    file_available: boolean;
+  } | null;
+}
+
+export type MetricsRange = "1h" | "6h" | "24h" | "7d";
+
+export interface MetricSample {
+  collected_at: string;
+  cpu_percent: number | null;
+  memory_percent: number | null;
+  memory_used_mb: number | null;
+  memory_total_mb: number | null;
+  status: string | null;
+}
+
+export interface MetricsHistory {
+  device_id: number;
+  range: MetricsRange;
+  interval_seconds: number;
+  bucket_seconds: number | null;
+  downsampled: boolean;
+  samples: MetricSample[];
+}

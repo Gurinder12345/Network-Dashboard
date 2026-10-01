@@ -8,6 +8,7 @@ from app.db.audit import list_audit_events
 from app.changes import router as changes_router
 from app.backup_download import file_available, router as backup_download_router
 from app.device_backup import router as device_backup_router
+from app.device_detail import router as device_detail_router
 from app.approval_actions import router as approval_actions_router
 from app.health import devices_with_health, router as health_router
 from app.topology import router as topology_router
@@ -28,6 +29,7 @@ app.add_middleware(
 app.include_router(changes_router)
 app.include_router(backup_download_router)
 app.include_router(device_backup_router)
+app.include_router(device_detail_router)
 app.include_router(approval_actions_router)
 app.include_router(health_router)
 app.include_router(topology_router)

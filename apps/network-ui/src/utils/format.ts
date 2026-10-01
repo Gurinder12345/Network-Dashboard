@@ -65,3 +65,30 @@ export function truncateText(value: string, length = 80): string {
   const firstLine = value.split("\n")[0];
   return firstLine.length > length ? `${firstLine.slice(0, length)}…` : firstLine;
 }
+
+/** 2095200 -> "24d 6h"; 11520 -> "3h 12m"; 300 -> "5m". */
+export function formatUptime(seconds: number | null): string {
+  if (seconds === null || seconds === undefined || seconds < 0) return "—";
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+}
+
+export function formatPercent(value: number | null): string {
+  return value === null || value === undefined ? "—" : `${value.toFixed(1)}%`;
+}
+
+/** 3481.6 MB -> "3.4 GB"; 512 -> "512 MB". */
+export function formatMegabytes(mb: number | null): string {
+  if (mb === null || mb === undefined) return "—";
+  return mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${Math.round(mb)} MB`;
+}
+
+const PLATFORM_LABELS: Record<string, string> = { dell_os6: "Dell OS6", dell_os10: "Dell OS10" };
+
+export function platformLabel(platform: string): string {
+  return PLATFORM_LABELS[platform] ?? platform;
+}

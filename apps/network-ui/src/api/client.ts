@@ -6,10 +6,13 @@ import type {
   Backup,
   BackupRequested,
   Device,
+  DeviceDetail,
   FleetHealth,
   HealthCheckRequested,
   Job,
   JobDetail,
+  MetricsHistory,
+  MetricsRange,
   Os6PrecheckRequest,
   Os6PrecheckStatus,
   Os6PrecheckSubmitted,
@@ -202,4 +205,13 @@ export function getTopology(includeInactive = false): Promise<TopologyGraph> {
 // Queues one read-only fleet LLDP discovery. 409 = already running, 429 = cooldown.
 export function requestTopologyDiscovery(): Promise<HealthCheckRequested> {
   return postJson<HealthCheckRequested>("/api/v1/topology/discover", {});
+}
+
+// Device detail + telemetry: reads stored data only; never starts switch polling.
+export function getDeviceDetail(deviceId: number): Promise<DeviceDetail> {
+  return getJson<DeviceDetail>(`/api/v1/devices/${deviceId}`);
+}
+
+export function getDeviceMetrics(deviceId: number, range: MetricsRange): Promise<MetricsHistory> {
+  return getJson<MetricsHistory>(`/api/v1/devices/${deviceId}/metrics?range=${range}`);
 }

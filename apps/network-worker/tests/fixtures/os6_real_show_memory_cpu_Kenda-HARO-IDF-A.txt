@@ -1,0 +1,3 @@
+
+Total Memory................................... 3994544 KBytes
+Available Memory Space......................... 1758740 KBytes

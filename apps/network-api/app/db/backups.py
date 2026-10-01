@@ -41,6 +41,33 @@ def list_backups():
             ]
 
 
+def latest_backup_for_device(device_id):
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT b.id, b.storage_path, b.created_at, j.job_type
+                FROM backups b
+                LEFT JOIN jobs j ON j.id = b.job_id
+                WHERE b.device_id = %s
+                ORDER BY b.created_at DESC
+                LIMIT 1
+                """,
+                (device_id,),
+            )
+            row = cur.fetchone()
+
+    if row is None:
+        return None
+
+    return {
+        "id": row[0],
+        "storage_path": row[1],
+        "created_at": row[2].isoformat() if row[2] else None,
+        "job_type": row[3],
+    }
+
+
 def get_backup_by_id(backup_id):
     with get_connection() as conn:
         with conn.cursor() as cur:

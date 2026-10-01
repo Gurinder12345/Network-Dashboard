@@ -13,6 +13,7 @@ COPY vault ./vault
 COPY db ./db
 COPY health ./health
 COPY topology ./topology
+COPY telemetry ./telemetry
 COPY ansible ./ansible
 COPY collections-requirements.yml .
 
