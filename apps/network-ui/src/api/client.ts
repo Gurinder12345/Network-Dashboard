@@ -14,6 +14,8 @@ import type {
   MetricsHistory,
   MetricsRange,
   Os6PrecheckRequest,
+  PcapAnalysis,
+  PcapMode,
   Os6PrecheckStatus,
   Os6PrecheckSubmitted,
   TopologyGraph,
@@ -214,4 +216,56 @@ export function getDeviceDetail(deviceId: number): Promise<DeviceDetail> {
 
 export function getDeviceMetrics(deviceId: number, range: MetricsRange): Promise<MetricsHistory> {
   return getJson<MetricsHistory>(`/api/v1/devices/${deviceId}/metrics?range=${range}`);
+}
+
+// ---- PCAP Analyzer ----------------------------------------------------------------------
+// Upload with XMLHttpRequest so the page can show upload progress. The API answers 202 as
+// soon as the files are stored; analysis status is then polled. Files go to the API only.
+export function uploadPcapAnalysis(
+  mode: PcapMode,
+  clientFile: File,
+  serverFile: File | null,
+  onProgress: (fraction: number) => void,
+): Promise<{ analysis_id: string; status: string }> {
+  const form = new FormData();
+  form.append("mode", mode);
+  form.append("client_file", clientFile, clientFile.name);
+  if (serverFile) form.append("server_file", serverFile, serverFile.name);
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${API_BASE_URL}/api/v1/pcap-analysis`);
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress(event.loaded / event.total);
+    };
+    xhr.onerror = () => reject(new Error("Cannot reach the API. Check the connection and try again."));
+    xhr.onload = () => {
+      let body: { detail?: unknown; analysis_id?: string; status?: string } = {};
+      try {
+        body = JSON.parse(xhr.responseText);
+      } catch {
+        // non-JSON error body
+      }
+      if (xhr.status === 202 && body.analysis_id) {
+        resolve({ analysis_id: body.analysis_id, status: body.status ?? "queued" });
+      } else {
+        reject(new Error(typeof body.detail === "string" ? body.detail : `Upload failed (${xhr.status})`));
+      }
+    };
+    xhr.send(form);
+  });
+}
+
+export function getPcapAnalysis(analysisId: string): Promise<PcapAnalysis> {
+  return getJson<PcapAnalysis>(`/api/v1/pcap-analysis/${encodeURIComponent(analysisId)}`);
+}
+
+export function listPcapAnalyses(): Promise<PcapAnalysis[]> {
+  return getJson<PcapAnalysis[]>("/api/v1/pcap-analysis");
+}
+
+export async function deletePcapAnalysis(analysisId: string): Promise<void> {
+  const path = `/api/v1/pcap-analysis/${encodeURIComponent(analysisId)}`;
+  const response = await fetch(`${API_BASE_URL}${path}`, { method: "DELETE" });
+  if (!response.ok) throw new Error(await errorMessage(response, path));
 }

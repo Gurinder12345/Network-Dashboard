@@ -27,7 +27,7 @@ spec:
 
       containers:
         - name: network-worker
-          image: ghcr.io/gurinder12345/network-worker:v0.15.16
+          image: ghcr.io/gurinder12345/network-worker:v0.15.17
 
           imagePullPolicy: IfNotPresent
 
@@ -60,11 +60,22 @@ spec:
                   name: postgresql-auth
                   key: password
 
+            - name: PCAP_ROOT
+              value: /pcap-analysis
+
           volumeMounts:
             - name: backups
               mountPath: /backups
+
+            # Uploaded captures (read by TShark, deleted after analysis).
+            - name: pcap-analysis
+              mountPath: /pcap-analysis
 
       volumes:
         - name: backups
           persistentVolumeClaim:
             claimName: network-backups
+
+        - name: pcap-analysis
+          persistentVolumeClaim:
+            claimName: pcap-analysis

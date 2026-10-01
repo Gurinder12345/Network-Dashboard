@@ -6,6 +6,14 @@ COPY requirements.txt .
 
 RUN pip install --no-cache-dir -r requirements.txt
 
+# TShark for offline analysis of uploaded captures (PCAP Analyzer). CLI only: no GUI.
+# dumpcap is removed: the platform never captures live traffic, and nothing may gain
+# capture privileges through this image.
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tshark=4.4.18-0+deb13u1 \
+    && rm -f /usr/bin/dumpcap \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY worker.py .
 COPY scheduling.py .
 COPY inventory ./inventory
@@ -15,6 +23,7 @@ COPY db ./db
 COPY health ./health
 COPY topology ./topology
 COPY telemetry ./telemetry
+COPY pcap ./pcap
 COPY ansible ./ansible
 COPY collections-requirements.yml .
 

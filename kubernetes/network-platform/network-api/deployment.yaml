@@ -36,7 +36,7 @@ spec:
 
       containers:
         - name: network-api
-          image: ghcr.io/gurinder12345/network-api:v0.1.7
+          image: ghcr.io/gurinder12345/network-api:v0.1.8
 
           imagePullPolicy: IfNotPresent
 
@@ -72,6 +72,13 @@ spec:
 
             - name: BACKUP_ROOT
               value: /backups
+
+            # PCAP Analyzer uploads are streamed here (never to /tmp or memory).
+            - name: PCAP_ROOT
+              value: /pcap-analysis
+
+            - name: PCAP_MAX_UPLOAD_MB
+              value: "200"
 
           readinessProbe:
             httpGet:
@@ -115,6 +122,9 @@ spec:
             - name: tmp
               mountPath: /tmp
 
+            - name: pcap-analysis
+              mountPath: /pcap-analysis
+
       volumes:
         - name: backups
           persistentVolumeClaim:
@@ -124,3 +134,7 @@ spec:
         - name: tmp
           emptyDir:
             sizeLimit: 64Mi
+
+        - name: pcap-analysis
+          persistentVolumeClaim:
+            claimName: pcap-analysis

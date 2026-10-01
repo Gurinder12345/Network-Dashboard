@@ -195,7 +195,8 @@ class BeatScheduleTests(unittest.TestCase):
 
         schedule = worker.app.conf.beat_schedule
         self.assertTrue(worker.TELEMETRY_BEAT_ENABLED)
-        self.assertEqual(set(schedule), {"fleet-health-every-60s", "topology-discovery-every-5m", "fleet-metrics-every-60s"})
+        self.assertEqual(set(schedule), {"fleet-health-every-60s", "topology-discovery-every-5m", "fleet-metrics-every-60s",
+                                         "pcap-cleanup-hourly"})
         # Cadence and expiry; second offsets are covered in test_beat_schedule.py.
         expected = {
             "fleet-health-every-60s": ("network_worker.health_check_all_devices", 60, 55),

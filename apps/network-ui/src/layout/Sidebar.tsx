@@ -10,6 +10,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       { to: "/", label: "Overview" },
       { to: "/devices", label: "Devices", badge: "attention" },
       { to: "/topology", label: "Topology" },
+      { to: "/packet-analysis", label: "Packet Analysis" },
     ],
   },
   {

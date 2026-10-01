@@ -317,3 +317,160 @@ export interface MetricsHistory {
   downsampled: boolean;
   samples: MetricSample[];
 }
+
+// ---- PCAP Analyzer (structured, payload-free results) -------------------------------
+export type PcapStatus = "queued" | "validating" | "extracting" | "analyzing" | "correlating" | "completed" | "failed";
+export type PcapMode = "single" | "dual";
+export type Severity = "critical" | "warning" | "info";
+
+export interface PcapFinding {
+  id: string;
+  severity: Severity;
+  category: string;
+  cause: string | null;
+  strength: "strong" | "supporting" | null;
+  title: string;
+  observed: string;
+  evidence: Record<string, unknown>;
+  interpretation: string;
+  confidence: "high" | "medium" | "low";
+  flows: string[];
+  capture?: "client" | "server" | "correlation";
+}
+
+export interface PcapEndpoint {
+  ip: string;
+  port: number | null;
+}
+
+export interface PcapFlow {
+  id: string;
+  protocol: "tcp" | "udp";
+  stream: number;
+  client: PcapEndpoint;
+  server: PcapEndpoint;
+  client_inferred_by: string;
+  key: string;
+  start_s: number;
+  duration_s: number;
+  packets: number;
+  bytes: number;
+  client_to_server: { packets: number; bytes: number; payload_bytes?: number };
+  server_to_client: { packets: number; bytes: number; payload_bytes?: number };
+  handshake?: {
+    state: string;
+    syn_packets: number;
+    syn_to_synack_ms: number | null;
+    synack_to_ack_ms: number | null;
+    rtt_ms: number | null;
+  };
+  tcp?: Record<string, number | Array<{ at_s: number; from: string }> | Record<string, number>>;
+  rtt?: { count: number; min_ms: number; median_ms: number; max_ms: number } | null;
+  timing?: {
+    request_to_first_response_ms: number | null;
+    first_request_at_s: number | null;
+    first_response_at_s: number | null;
+    server_spoke_first: boolean;
+    retransmissions_before_response: number | null;
+  };
+  tls?: {
+    sni: string | null;
+    offered_versions: string[];
+    negotiated_version: string | null;
+    client_hello_to_server_hello_ms: number | null;
+    alerts: Array<{ at_s: number; from: string; level: string | null; description: string }>;
+  } | null;
+  dns_transactions?: number;
+  correlation?: {
+    matched_by: string;
+    delivered_client_to_server: number;
+    delivered_server_to_client: number;
+    missing_at_server: number;
+    missing_at_client: number;
+    server_side_response_ms: number | null;
+    client_side_response_ms: number | null;
+    network_share_of_response_ms: number | null;
+  };
+  issues: string[];
+}
+
+export interface PcapCaptureSummary {
+  packets: number;
+  bytes: number;
+  duration_s: number;
+  flows: number;
+  tcp_streams: number;
+  udp_flows: number;
+  dns_queries: number;
+  tls_sessions: number;
+  icmp_events: number;
+}
+
+export interface PcapCaptureMetadata {
+  file_type: string | null;
+  encapsulation: string | null;
+  packets: number | null;
+  size_bytes: number;
+  duration_s: number | null;
+  first_packet: string | null;
+  last_packet: string | null;
+  avg_packet_rate: number | null;
+  avg_byte_rate: number | null;
+}
+
+export interface PcapAssessment {
+  label: "likely" | "possible" | "multiple" | "none";
+  cause: string | null;
+  issue: string | null;
+  summary: string;
+  strong_evidence: Array<{ finding: string; text: string }>;
+  supporting_evidence: Array<{ finding: string; text: string }>;
+  no_evidence_for: string[];
+  candidates?: Array<{ cause: string; issue: string; strong_evidence: Array<{ finding: string; text: string }> }>;
+}
+
+export interface PcapResult {
+  version: number;
+  mode: PcapMode;
+  observations: { captures: Record<string, { metadata: PcapCaptureMetadata; summary: PcapCaptureSummary }> };
+  metrics: Record<string, { tcp: Record<string, unknown>; dns: Record<string, unknown> }>;
+  flows: PcapFlow[];
+  flow_total: number;
+  dns: { transactions: Array<{ at_s: number; name: string | null; type: string | null; server: string; answered: boolean;
+                               rcode: string | null; latency_ms: number | null; repeats: number }> };
+  tls: { sessions: Array<{ flow: string; key: string; sni: string | null; negotiated_version: string | null;
+                           client_hello_to_server_hello_ms: number | null; alerts: Array<{ description: string; from: string }> }> };
+  icmp: { events: Array<{ at_s: number; name: string; detail: string | null; from: string; to: string; mtu: number | null }> };
+  correlation: {
+    matched_flows: number;
+    only_client_flows: number;
+    only_server_flows: number;
+    clock: { estimated_clock_offset_ms: number | null; confidence: string; path_rtt_between_capture_points_ms?: number | null;
+             forward_samples: number; reverse_samples: number };
+  } | null;
+  findings: PcapFinding[];
+  assessment: PcapAssessment;
+  recommendations: Array<{ cause: string; text: string; findings: string[] }>;
+  performance?: { analysis_ms: number; result_bytes: number };
+}
+
+export interface PcapAnalysis {
+  id: string;
+  status: PcapStatus;
+  mode: PcapMode;
+  created_at: string;
+  completed_at: string | null;
+  client_filename: string;
+  server_filename: string | null;
+  client_size_bytes: number;
+  server_size_bytes: number | null;
+  capture_duration_seconds: number | null;
+  packet_count: number | null;
+  flow_count: number | null;
+  likely_issue: string | null;
+  finding_counts: Record<Severity, number> | null;
+  error: string | null;
+  expires_at: string;
+  files_deleted_at: string | null;
+  result?: PcapResult | null;
+}

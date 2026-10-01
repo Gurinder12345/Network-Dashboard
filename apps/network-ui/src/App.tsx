@@ -15,6 +15,8 @@ import { Scripts } from "./pages/Scripts";
 const Topology = lazy(() => import("./pages/Topology"));
 // Device detail (telemetry charts) is only downloaded when a device is opened.
 const DeviceDetail = lazy(() => import("./pages/DeviceDetail"));
+// PCAP analyzer page (upload + report) is only downloaded when opened.
+const PacketAnalysis = lazy(() => import("./pages/PacketAnalysis"));
 
 export function App() {
   return (
@@ -35,6 +37,14 @@ export function App() {
           element={
             <Suspense fallback={<TableSkeleton rows={6} columns={4} />}>
               <Topology />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/packet-analysis"
+          element={
+            <Suspense fallback={<TableSkeleton rows={6} columns={4} />}>
+              <PacketAnalysis />
             </Suspense>
           }
         />

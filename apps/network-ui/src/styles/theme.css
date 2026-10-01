@@ -2496,3 +2496,277 @@ line.chart-gridline {
   color: var(--text-primary);
   word-break: break-word;
 }
+
+/* ---- Packet Analysis ------------------------------------------------------------- */
+.link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent-hover);
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.link-button:hover,
+.link-button:focus-visible {
+  text-decoration: underline;
+}
+
+.tag-warn {
+  color: var(--tone-warning);
+  border-color: var(--tone-warning-border);
+  background: var(--tone-warning-bg);
+  margin: 0 4px 2px 0;
+}
+
+.clickable-row {
+  cursor: pointer;
+}
+
+.clickable-row:hover {
+  background: var(--bg-hover);
+}
+
+.row-selected {
+  background: var(--accent-soft);
+}
+
+.detail-pair {
+  display: contents;
+}
+
+.detail-list.compact {
+  padding: 0;
+  gap: 4px var(--space-4);
+  margin-bottom: var(--space-2);
+}
+
+.pcap-upload {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.pcap-files {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-4);
+}
+
+.pcap-file {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--space-3);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-inset);
+}
+
+.pcap-file input[type="file"] {
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+}
+
+.pcap-file-meta {
+  font-size: var(--fs-xs);
+  color: var(--text-secondary);
+  word-break: break-all;
+}
+
+.pcap-upload-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.pcap-progress .pcap-steps {
+  list-style: none;
+  margin: 0;
+  padding: var(--space-4);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+}
+
+.pcap-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.pcap-step-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 2px solid var(--border-strong);
+}
+
+.pcap-step.done {
+  color: var(--text-secondary);
+}
+
+.pcap-step.done .pcap-step-dot {
+  background: var(--tone-success);
+  border-color: var(--tone-success);
+}
+
+.pcap-step.active {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.pcap-step.active .pcap-step-dot {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.panel + .pcap-progress,
+.panel + .banner,
+.banner + .panel {
+  margin-top: var(--space-4);
+}
+
+.pcap-assessment-body,
+.pcap-summary-body,
+.pcap-findings,
+.pcap-pad {
+  padding: var(--space-4);
+}
+
+.pcap-issue {
+  font-size: var(--fs-lg);
+  font-weight: 650;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+
+.pcap-summary-text {
+  margin: 0 0 var(--space-3);
+  color: var(--text-secondary);
+  line-height: 1.5;
+  max-width: 90ch;
+}
+
+.pcap-evidence-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-4);
+}
+
+.pcap-evidence {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.pcap-capture + .pcap-capture,
+.pcap-capture + .kpi-grid {
+  margin-top: var(--space-4);
+}
+
+.pcap-capture-meta {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  margin-bottom: var(--space-2);
+  word-break: break-all;
+}
+
+.pcap-kpis {
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.pcap-findings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.pcap-finding {
+  border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--tone-neutral);
+  border-radius: var(--radius);
+  background: var(--bg-panel-raised);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+}
+
+.pcap-finding-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-bottom: var(--space-2);
+}
+
+.pcap-finding-head h3 {
+  margin: 0;
+  font-size: var(--fs-md);
+  color: var(--text-primary);
+}
+
+.pcap-finding-meta {
+  font-size: var(--fs-2xs);
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
+.pcap-finding-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-3);
+}
+
+.pcap-finding p {
+  margin: 2px 0 var(--space-2);
+  line-height: 1.5;
+}
+
+.pcap-evidence-json summary {
+  cursor: pointer;
+  font-size: var(--fs-xs);
+}
+
+.pcap-evidence-json pre {
+  margin: 4px 0;
+  padding: 8px 10px;
+  max-height: 240px;
+  overflow: auto;
+  background: var(--bg-inset);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-xs);
+  color: var(--text-primary);
+}
+
+.pcap-recs {
+  margin: 2px 0 var(--space-2);
+  padding-left: 18px;
+  line-height: 1.5;
+}
+
+.pcap-recs-all {
+  padding: var(--space-3) var(--space-4) var(--space-3) calc(var(--space-4) + 18px);
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+}
+
+.pcap-finding-flows,
+.pcap-issues {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: var(--space-2);
+}
+
+.modal .detail-list {
+  padding: var(--space-4);
+}

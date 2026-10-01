@@ -1,0 +1,20 @@
+# Temporary storage for uploaded packet captures (PCAP Analyzer). Files live here only
+# while an analysis runs (deleted when it ends; the hourly cleanup removes anything older
+# than 24 h). Structured results are stored in PostgreSQL, never raw packets.
+# Same local-path/RWO pattern as network-backups: network-api (writes uploads) and
+# network-worker (reads + deletes them) already share a node through that volume.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pcap-analysis
+  namespace: network-platform
+
+spec:
+  accessModes:
+    - ReadWriteOnce
+
+  storageClassName: local-path
+
+  resources:
+    requests:
+      storage: 10Gi

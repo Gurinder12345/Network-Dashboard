@@ -15,6 +15,7 @@ from health.checks import check_and_record, run_fleet_health_check
 from db.topology import list_inventory, list_lldp_identities
 from topology.discovery import discover_device, run_fleet_topology_discovery
 from telemetry.collector import collect_and_record, run_fleet_metrics
+from pcap.task import cleanup as cleanup_pcap, run_analysis as run_pcap_analysis
 
 from ansible.run_os6 import run_os6_config_apply
 
@@ -61,6 +62,8 @@ REDIS_URL = os.getenv(
     "redis://redis-master.network-platform.svc.cluster.local:6379/0",
 )
 
+PCAP_TASK_SOFT_LIMIT_SECONDS = int(os.getenv("PCAP_TASK_SOFT_LIMIT_SECONDS", "900"))
+
 app = Celery(
     "network_worker",
     broker=REDIS_URL,
@@ -77,6 +80,7 @@ app = Celery(
 HEALTH_SCHEDULE = offset_schedule(60, 0)
 METRICS_SCHEDULE = offset_schedule(60, 20)
 TOPOLOGY_SCHEDULE = offset_schedule(300, 40)
+PCAP_CLEANUP_SCHEDULE = offset_schedule(3600, 50)
 
 app.conf.beat_schedule = {
     "fleet-health-every-60s": {
@@ -107,6 +111,13 @@ if TOPOLOGY_BEAT_ENABLED:
 # 21 s (OS6 avg 5.7 s, OS10 avg 13.8 s) at concurrency 4, well inside the 60 s interval.
 # metrics:fleet:lock prevents overlap. Set back to False to stop scheduled collection.
 TELEMETRY_BEAT_ENABLED = True
+
+# PCAP uploads: hourly cleanup at :00:50 (filesystem/DB only; no SSH, so it cannot load switches).
+app.conf.beat_schedule["pcap-cleanup-hourly"] = {
+    "task": "network_worker.cleanup_pcap_files",
+    "schedule": PCAP_CLEANUP_SCHEDULE,
+    "options": {"expires": 3000},
+}
 
 if TELEMETRY_BEAT_ENABLED:
     # Read-only; separate from health so a slow CLI never delays health polling.
@@ -436,6 +447,22 @@ def collect_device_metrics(device_id):
 @app.task(name="network_worker.collect_fleet_metrics")
 def collect_fleet_metrics(trigger="schedule"):
     return run_fleet_metrics(trigger=trigger)
+
+
+@app.task(
+    name="network_worker.analyze_pcap",
+    soft_time_limit=PCAP_TASK_SOFT_LIMIT_SECONDS,
+    time_limit=PCAP_TASK_SOFT_LIMIT_SECONDS + 60,
+)
+def analyze_pcap(analysis_id):
+    # Reads an uploaded capture file with TShark; no live capture, no device access.
+    return run_pcap_analysis(analysis_id)
+
+
+@app.task(name="network_worker.cleanup_pcap_files")
+def cleanup_pcap_files():
+    # Backstop for the per-analysis deletion: expired/orphan uploads, stale analyses.
+    return cleanup_pcap()
 
 
 @app.task(name="network_worker.vault_test")
