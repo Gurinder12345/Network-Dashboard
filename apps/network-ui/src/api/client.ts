@@ -269,3 +269,28 @@ export async function deletePcapAnalysis(analysisId: string): Promise<void> {
   const response = await fetch(`${API_BASE_URL}${path}`, { method: "DELETE" });
   if (!response.ok) throw new Error(await errorMessage(response, path));
 }
+
+/** Error carrying the HTTP status, for callers that word 404/409 differently. */
+export class ApiRequestError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
+
+// Removes a finished job from the Jobs list (server-side soft delete). Related backups,
+// approvals and audit history are kept; the server re-checks the job's current status.
+export async function deleteJob(jobId: string): Promise<void> {
+  const path = `/api/v1/jobs/${encodeURIComponent(jobId)}`;
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, { method: "DELETE" });
+  } catch {
+    throw new ApiRequestError("Cannot reach the API.", 0);
+  }
+  if (!response.ok) {
+    throw new ApiRequestError(await errorMessage(response, path), response.status);
+  }
+}
