@@ -204,12 +204,33 @@ textarea {
   white-space: nowrap;
 }
 
-.app-header .brand-mark {
-  width: 10px;
-  height: 10px;
-  border-radius: 2px;
-  background: var(--accent);
-  box-shadow: 0 0 10px rgba(59, 158, 255, 0.6);
+.app-header .brand-logo {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  background: #ffffff;
+  line-height: 0;
+}
+
+.app-header .brand-logo img {
+  display: block;
+  height: 18px;
+  width: auto;
+}
+
+.app-header .brand-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--border-strong);
+}
+
+/* Phones: logo + environment tag only. */
+@media (max-width: 600px) {
+  .app-header .brand-divider,
+  .app-header .brand-name {
+    display: none;
+  }
 }
 
 .brand-sub {

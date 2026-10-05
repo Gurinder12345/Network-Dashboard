@@ -1,3 +1,4 @@
+import kendaLogo from "../assets/kenda-logo.png";
 import { isHealthStale, useFleetHealth } from "../hooks/FleetHealthContext";
 import { formatRelative } from "../utils/format";
 
@@ -16,8 +17,14 @@ export function Header() {
     <header className="app-header">
       <div className="header-left">
         <div className="brand">
-          <span className="brand-mark" aria-hidden="true" />
-          Network Management <span className="brand-sub">Platform</span>
+          {/* Light plate: the logo's black lettering would disappear on the dark header. */}
+          <span className="brand-logo">
+            <img src={kendaLogo} alt="Kenda" width={92} height={18} />
+          </span>
+          <span className="brand-divider" aria-hidden="true" />
+          <span className="brand-name">
+            Network Management <span className="brand-sub">Platform</span>
+          </span>
         </div>
         <span className="env-tag" title="Lab environment">
           Lab
