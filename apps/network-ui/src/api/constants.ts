@@ -1,8 +1,8 @@
 export const OS6_PLATFORM = "dell_os6";
 export const OS10_PLATFORM = "dell_os10";
 
-// Platforms the guarded change workflow supports. The worker enforces each platform's
-// command policy; Dell OS10 is limited to safe L2 changes on one eligible ethernet interface.
+// Platforms the guarded change workflow supports (ordered configuration blocks; no command
+// policy: the device is the syntax authority; precheck, backup and approval always apply).
 export const CHANGE_PLATFORMS = [OS6_PLATFORM, OS10_PLATFORM];
 
 // Mirrors the worker's HEALTH_SLOW_THRESHOLD_MS default: a successful check slower than

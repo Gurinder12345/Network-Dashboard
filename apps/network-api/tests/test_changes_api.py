@@ -27,10 +27,20 @@ OS10_CHANGE = {"device_id": 12, "config_parents": ["interface ethernet1/1/5"], "
 APPROVAL_ID = str(uuid.uuid4())
 
 
-def approval(status, device_id=12):
+def approval(status, device_id=12, execution_result=None):
     return {"id": APPROVAL_ID, "device_id": device_id, "backup_job_id": str(uuid.uuid4()), "requested_by": "system",
             "approved_by": "approver" if status != "pending" else None, "status": status,
-            "config_lines": OS10_CHANGE["config_lines"], "config_parents": OS10_CHANGE["config_parents"]}
+            "config_lines": OS10_CHANGE["config_lines"], "config_parents": OS10_CHANGE["config_parents"],
+            "config_blocks": [{"order": 0, "parent": "interface ethernet1/1/5", "commands": ["description AUTOMATION-TEST"]}],
+            "block_count": 1, "command_count": 1, "execution_result": execution_result}
+
+
+MULTI = {"device_id": 12, "blocks": [
+    {"parent": "interface ethernet 1/1/18", "commands": ["description APP-SERVER", "switchport mode trunk"]},
+    {"parent": "vlan 50", "commands": ["name USERS"]},
+    {"parent": None, "commands": ["ip routing"]},
+    {"parent": "", "commands": ["router ospf 1", "router-id 10.0.0.1"]},
+], "verification_commands": ["show vlan"]}
 
 
 class PrecheckRouteTests(unittest.TestCase):
@@ -82,39 +92,125 @@ class PrecheckRouteTests(unittest.TestCase):
             body = self.client.get(f"/api/v1/changes/precheck/{rid}").json()
             self.assertEqual((body["result"]["platform"], body["result"]["approval"]["status"]), ("dell_os10", "pending"))
 
-    def test_os10_safe_l2_detail_and_rejection_are_forwarded(self):
-        dry_run = {"would_change": False, "verification_method": "running-configuration", "already_present": [],
-                   "proposed_changes": [], "command_results": [{"command": "shutdown"}], "rejected": True,
-                   "rejection_reasons": ["shutdown rejected: ethernet1/1/25 is classified as an uplink (live LLDP: x)."],
-                   "interface": "ethernet1/1/25", "current_state": {"mode": "trunk"}, "requested_state": {"admin": "down"},
-                   "safety": {"status": "FAIL", "classification": "an uplink", "checks": []}, "change_plan": [],
-                   "expected_diff": {"current": ["interface ethernet1/1/25"], "requested": []}, "device_commands": [],
+    def test_blocks_are_queued_in_order(self):
+        r = self.client.post("/api/v1/changes/precheck", json=MULTI)
+        self.assertEqual(r.status_code, 202, r.text)
+        kwargs = self.send.call_args.kwargs["kwargs"]
+        self.assertEqual(kwargs["config_blocks"], [
+            {"order": 0, "parent": "interface ethernet 1/1/18", "commands": ["description APP-SERVER", "switchport mode trunk"]},
+            {"order": 1, "parent": "vlan 50", "commands": ["name USERS"]},
+            {"order": 2, "parent": None, "commands": ["ip routing"]},
+            {"order": 3, "parent": None, "commands": ["router ospf 1", "router-id 10.0.0.1"]}])
+        self.assertEqual(kwargs["verification_commands"], ["show vlan"])
+        self.assertNotIn("config_lines", kwargs)
+        self.assertIn("(request_id=", self.audit.call_args.kwargs["message"])
+        self.assertIn("4 block(s), 6 command(s)", self.audit.call_args.kwargs["message"])
+
+    def test_client_order_is_ignored_and_legacy_form_becomes_one_block(self):
+        body = {"device_id": 12, "blocks": [{"order": 9, "parent": "vlan 60", "commands": ["name B"]},
+                                            {"order": 1, "parent": "vlan 50", "commands": ["name A"]}]}
+        self.client.post("/api/v1/changes/precheck", json=body)
+        self.assertEqual([b["parent"] for b in self.send.call_args.kwargs["kwargs"]["config_blocks"]], ["vlan 60", "vlan 50"])
+        self.client.post("/api/v1/changes/precheck", json=OS10_CHANGE)
+        self.assertEqual(self.send.call_args.kwargs["kwargs"]["config_blocks"],
+                         [{"order": 0, "parent": "interface ethernet1/1/5", "commands": ["description AUTOMATION-TEST"]}])
+
+    def test_no_command_category_is_rejected(self):
+        commands = ["switchport mode trunk", "shutdown", "spanning-tree mode rstp", "router ospf 1", "router bgp 65000",
+                    "ip route 0.0.0.0/0 192.0.2.1", "aaa authentication login default local", "snmp-server community lab ro",
+                    "access-list 10 permit any", "username netops password x role sysadmin", "no switchport", "reload"]
+        for device_id in (12, 1):
+            with self.subTest(device_id=device_id):
+                r = self.client.post("/api/v1/changes/precheck", json={"device_id": device_id, "blocks": [
+                    {"parent": None, "commands": commands}, {"parent": "interface mgmt1/1/1", "commands": ["ip address dhcp"]}]})
+                self.assertEqual(r.status_code, 202, r.text)
+                self.assertEqual(self.send.call_args.kwargs["kwargs"]["config_blocks"][0]["commands"], commands)
+
+    def test_malformed_requests(self):
+        cases = {
+            "no blocks": {"device_id": 12}, "zero blocks": {"device_id": 12, "blocks": []},
+            "zero commands": {"device_id": 12, "blocks": [{"parent": "vlan 5", "commands": []}]},
+            "missing commands": {"device_id": 12, "blocks": [{"parent": "vlan 5"}]},
+            "non-string command": {"device_id": 12, "blocks": [{"parent": None, "commands": [42]}]},
+            "object command": {"device_id": 12, "blocks": [{"parent": None, "commands": [{"cli": "x"}]}]},
+            "non-string parent": {"device_id": 12, "blocks": [{"parent": ["x"], "commands": ["x"]}]},
+            "null byte": {"device_id": 12, "blocks": [{"parent": None, "commands": ["descr\u0000iption"]}]},
+            "newline": {"device_id": 12, "blocks": [{"parent": None, "commands": ["description a\nreload"]}]},
+            "escape": {"device_id": 12, "blocks": [{"parent": None, "commands": ["\u001b[2J"]}]},
+            "mode command": {"device_id": 12, "blocks": [{"parent": None, "commands": ["end"]}]},
+            "block not object": {"device_id": 12, "blocks": ["shutdown"]},
+            "unknown block field": {"device_id": 12, "blocks": [{"parent": None, "commands": ["x"], "x": 1}]},
+            "unknown top field": {"device_id": 12, "blocks": [{"parent": None, "commands": ["x"]}], "dry_run": False},
+            "both forms": {**OS10_CHANGE, "blocks": [{"parent": None, "commands": ["x"]}]},
+            "write verification": {"device_id": 12, "blocks": [{"parent": None, "commands": ["x"]}],
+                                   "verification_commands": ["reload"]},
+            "blocks not list": {"device_id": 12, "blocks": {"parent": None}},
+        }
+        for name, body in cases.items():
+            with self.subTest(name):
+                self.assertEqual(self.client.post("/api/v1/changes/precheck", json=body).status_code, 422)
+        r = self.client.post("/api/v1/changes/precheck", content=b'{"device_id": 12, "blocks": [', headers={"Content-Type": "application/json"})
+        self.assertEqual(r.status_code, 422)
+        self.send.assert_not_called()
+
+    def test_resource_limits(self):
+        one = {"parent": None, "commands": ["x"]}
+        cases = {"blocks": [one] * 51, "commands": [{"parent": None, "commands": ["x"] * 101}],
+                 "total": [{"parent": None, "commands": ["x"] * 100}] * 6,
+                 "length": [{"parent": None, "commands": ["x" * 1001]}], "parent": [{"parent": "p" * 1001, "commands": ["x"]}]}
+        for name, blocks in cases.items():
+            with self.subTest(name):
+                r = self.client.post("/api/v1/changes/precheck", json={"device_id": 12, "blocks": blocks})
+                self.assertEqual(r.status_code, 422)
+        self.assertEqual(self.client.post("/api/v1/changes/precheck", json={"device_id": 12, "blocks": [
+            {"parent": None, "commands": ["x" * 1000] * 100}] * 5}).status_code, 202)
+
+    def test_multi_block_precheck_result_is_forwarded(self):
+        dry_run = {"would_change": True, "verification_method": "running-configuration", "already_present": [],
+                   "proposed_changes": ["shutdown"], "command_results": [], "overall": "FAILED",
+                   "checks": {"structural_validation": "PASS", "device_connectivity": "PASS",
+                              "current_config_capture": "PASS", "semantic_verification": "PARTIAL"},
+                   "blocks": [{"index": 0, "status": "PASS"}, {"index": 1, "status": "FAILED"}],
+                   "cli_preview": "! Block 1\nip routing", "verification_commands": ["show vlan"],
                    "raw_device_output": "never forwarded"}
         with mock.patch.object(changes, "AsyncResult") as result:
             result.return_value.state = "SUCCESS"
-            result.return_value.result = {"status": "rejected", "platform": "dell_os10", "target_host": "Kenda-Core-1",
-                                          "rejection_reasons": dry_run["rejection_reasons"], "dry_run": dry_run}
+            result.return_value.result = {"status": "precheck_failed", "platform": "dell_os10", "target_host": "Kenda-Core-1",
+                                          "rejection_reasons": ["Block 2: x"], "dry_run": dry_run, "block_count": 2,
+                                          "command_count": 3}
             body = self.client.get(f"/api/v1/changes/precheck/{uuid.uuid4()}").json()["result"]
-        self.assertEqual((body["status"], body["rejection_reasons"]), ("rejected", dry_run["rejection_reasons"]))
-        for key in ("interface", "current_state", "requested_state", "safety", "change_plan", "expected_diff", "device_commands"):
+        self.assertEqual((body["status"], body["rejection_reasons"], body["block_count"], body["command_count"]),
+                         ("precheck_failed", ["Block 2: x"], 2, 3))
+        for key in ("overall", "checks", "blocks", "cli_preview", "verification_commands", "proposed_changes"):
             self.assertEqual(body["dry_run"][key], dry_run[key])
         self.assertNotIn("raw_device_output", body["dry_run"])
         self.assertIsNone(body["approval"])
 
-    def test_os6_result_shape_is_unchanged_apart_from_empty_os10_fields(self):
-        with mock.patch.object(changes, "AsyncResult") as result:
-            result.return_value.state = "SUCCESS"
-            result.return_value.result = {"status": "pending_approval", "platform": "dell_os6", "dry_run": {
-                "would_change": True, "proposed_changes": ["vlan 200"]}}
-            body = self.client.get(f"/api/v1/changes/precheck/{uuid.uuid4()}").json()["result"]
-        self.assertEqual((body["rejection_reasons"], body["dry_run"]["change_plan"], body["dry_run"]["safety"]), ([], [], None))
-        self.assertEqual(body["dry_run"]["proposed_changes"], ["vlan 200"])
 
-    def test_os10_l2_request_is_queued_verbatim_for_the_worker(self):
-        change = {"device_id": 12, "config_parents": ["interface ethernet1/1/18"],
-                  "config_lines": ["switchport mode trunk", "switchport trunk allowed vlan 30,40"]}
-        self.assertEqual(self.client.post("/api/v1/changes/precheck", json=change).status_code, 202)
-        self.assertEqual(self.send.call_args.kwargs["kwargs"]["config_lines"], change["config_lines"])
+class CompatibilityAdapterTests(unittest.TestCase):
+    def row(self, config_blocks, lines, parents):
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        return (APPROVAL_ID, 12, None, "system", None, "applied", lines, parents, now, None, None, None, None,
+                config_blocks, None, None, None)
+
+    def test_historical_single_parent_row_is_one_block(self):
+        from app.db.approvals import _row_to_approval
+        view = _row_to_approval(self.row(None, ["description X", "shutdown"], ["interface Tw1/0/3"]))
+        self.assertEqual(view["config_blocks"], [{"order": 0, "parent": "interface Tw1/0/3", "commands": ["description X", "shutdown"]}])
+        self.assertEqual((view["legacy_single_block"], view["block_count"], view["command_count"]), (True, 1, 2))
+        self.assertEqual(view["cli_preview"], "! Block 1\ninterface Tw1/0/3\n description X\n shutdown")
+        self.assertEqual((view["config_lines"], view["verification_commands"], view["execution_result"]),
+                         (["description X", "shutdown"], [], None))
+        global_view = _row_to_approval(self.row(None, ["vlan 200"], None))
+        self.assertEqual(global_view["cli_preview"], "! Block 1 - Global\nvlan 200")
+
+    def test_new_rows_use_config_blocks(self):
+        from app.db.approvals import _row_to_approval
+        blocks = [{"order": 0, "parent": "vlan 50", "commands": ["name USERS"]}, {"order": 1, "parent": None, "commands": ["ip routing"]}]
+        view = _row_to_approval(self.row(blocks, ["vlan 50", "name USERS", "ip routing"], None))
+        self.assertEqual((view["config_blocks"], view["legacy_single_block"], view["block_count"], view["command_count"]),
+                         (blocks, False, 2, 2))
 
 
 class ApprovalRouteTests(unittest.TestCase):
@@ -142,6 +238,16 @@ class ApprovalRouteTests(unittest.TestCase):
         self.assertEqual(r.status_code, 202, r.text)
         self.assertEqual(self.send.call_args.args[0], "network_worker.apply_approved_change")
         self.assertEqual(self.send.call_args.kwargs["kwargs"], {"approval_id": APPROVAL_ID, "claimed_by_api": True})
+
+    def test_apply_status_includes_block_progress(self):
+        progress = {"outcome": "partial_apply", "blocks": [{"index": 0, "status": "applied"}, {"index": 1, "status": "failed"}]}
+        self.get.return_value = approval("failed", execution_result=progress)
+        with mock.patch.object(approval_actions, "AsyncResult") as result:
+            result.return_value.state = "FAILURE"
+            result.return_value.result = RuntimeError("PARTIAL APPLY on Kenda-Core-1")
+            body = self.client.get(f"/api/v1/approvals/{APPROVAL_ID}/apply/{uuid.uuid4()}").json()
+        self.assertEqual((body["approval_status"], body["execution_result"]), ("failed", progress))
+        self.assertIn("PARTIAL APPLY", body["error"])
 
     def test_apply_is_claimed_once(self):
         self.get.return_value = approval("approved")

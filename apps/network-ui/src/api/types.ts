@@ -115,6 +115,91 @@ export interface Approval {
   cancelled_by: string | null;
   cancelled_at: string | null;
   cancellation_reason: string | null;
+  /** Ordered configuration blocks (historical single-parent rows are adapted to one block). */
+  config_blocks: ConfigBlock[];
+  legacy_single_block: boolean;
+  block_count: number;
+  command_count: number;
+  cli_preview: string;
+  verification_commands: string[];
+  precheck_summary: PrecheckSummary | null;
+  execution_result: ExecutionResult | null;
+}
+
+// ---- Multi-block configuration changes -----------------------------------------------------
+export interface ConfigBlock {
+  order?: number;
+  parent: string | null;
+  commands: string[];
+}
+
+export type SemanticStatus = "verified" | "not_present" | "not_available";
+
+export interface SemanticResult {
+  command?: string;
+  status: SemanticStatus | string;
+  method?: string;
+  detail: string;
+}
+
+export interface PrecheckChecks {
+  structural_validation: string;
+  device_connectivity: string;
+  current_config_capture: string;
+  semantic_verification: string;
+}
+
+export interface PrecheckBlock {
+  index: number;
+  parent: string | null;
+  global: boolean;
+  command_count: number;
+  status: "PASS" | "FAILED" | string;
+  issues: string[];
+  current_config_found: boolean;
+  current_config: string[];
+  commands: SemanticResult[];
+}
+
+export interface PrecheckSummary {
+  overall: string;
+  checks: PrecheckChecks;
+  block_count: number;
+  command_count: number;
+  blocks: { index: number; parent: string | null; status: string; issues: string[]; commands: SemanticResult[] }[];
+}
+
+export type BlockExecutionStatus = "pending" | "applying" | "applied" | "failed" | "not_attempted" | "unknown";
+
+export interface BlockExecution {
+  index: number;
+  parent: string | null;
+  command_count: number;
+  status: BlockExecutionStatus | string;
+  failed_command: number | null;
+  failed_step?: string;
+  error: string | null;
+}
+
+export interface ExecutionResult {
+  /** applying | applied | partial_apply | failed | unknown */
+  outcome: string;
+  /** applying | success | partial | failed | unknown */
+  execution: string;
+  /** verified | partial | not_available | failed (null until the post-check ran) */
+  semantic: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  job_id: string | null;
+  blocks: BlockExecution[];
+  post_check: {
+    read: string | null;
+    semantic: string;
+    error: string | null;
+    blocks: { index: number; found: boolean; commands: SemanticResult[] }[];
+  } | null;
+  verification: { command: string; ok: boolean; output: string }[];
+  error: string | null;
 }
 
 export interface AuditEvent {
@@ -126,10 +211,10 @@ export interface AuditEvent {
   created_at: string | null;
 }
 
-export interface Os6PrecheckRequest {
+export interface ChangeRequest {
   device_id: number;
-  config_parents: string[];
-  config_lines: string[];
+  blocks: ConfigBlock[];
+  verification_commands: string[];
 }
 
 export interface Os6PrecheckSubmitted {
@@ -146,55 +231,31 @@ export interface PrecheckCommandResult {
   type: string;
   verification_method: string;
   desired_state_present: boolean;
-  current_value?: string | number | null;
-}
-
-// Dell OS10 safe-L2 precheck detail (absent / null for Dell OS6).
-export interface Os10InterfaceState {
-  interface: string;
-  description: string | null;
-  admin: string;
-  mode: string;
-  access_vlan: number | null;
-  allowed_vlans: string | null;
-  port_channel: string | null;
-  lldp_neighbor: string;
-  protected: boolean;
-  classification: string;
-}
-
-export interface SafetyCheck {
-  name: string;
-  status: "pass" | "fail" | "unknown" | string;
-  detail: string;
-}
-
-export interface Os10Safety {
-  status: "PASS" | "FAIL" | string;
-  classification: string;
-  checks: SafetyCheck[];
+  block?: number;
+  status?: string;
+  detail?: string;
 }
 
 export interface Os6PrecheckResult {
   platform?: string | null;
-  status: "no_change_required" | "pending_approval" | "rejected" | string;
+  status: "no_change_required" | "pending_approval" | "precheck_failed" | string;
   target_host: string | null;
   ready_for_approval: boolean;
   backup_required: boolean;
   rejection_reasons?: string[];
+  block_count?: number | null;
+  command_count?: number | null;
   dry_run: {
     would_change: boolean | null;
     verification_method: string | null;
     already_present: string[];
     proposed_changes: string[];
     command_results: PrecheckCommandResult[];
-    interface?: string | null;
-    current_state?: Os10InterfaceState | null;
-    requested_state?: Record<string, string | number | null> | null;
-    safety?: Os10Safety | null;
-    change_plan?: string[];
-    expected_diff?: { current: string[]; requested: string[] } | null;
-    device_commands?: string[] | null;
+    overall?: string | null;
+    checks?: PrecheckChecks | null;
+    blocks?: PrecheckBlock[];
+    cli_preview?: string | null;
+    verification_commands?: string[];
   };
   backup: { job_id: string | null; status: string | null; checksum: string | null; storage_path: string | null } | null;
   approval: { approval_id: string | null; status: string | null } | null;
@@ -221,6 +282,7 @@ export interface ApplyStatus {
   approval_status: string;
   task_state: "queued" | "running" | "succeeded" | "failed";
   error: string | null;
+  execution_result?: ExecutionResult | null;
 }
 
 export interface TopologyNode {

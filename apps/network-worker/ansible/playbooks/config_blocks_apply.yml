@@ -1,0 +1,58 @@
+---
+# Approved multi-block configuration change (Dell OS6 and Dell OS10).
+#
+# apply_steps is the ordered list built by changes/blocks.py apply_steps():
+#   per block: configure -> parent (optional) -> child commands -> end
+# Every step is sent with ansible.netcommon.cli_command over network_cli; the platform's
+# connection/terminal plugins (dellemc.os6 / dellemc.os10) detect device errors.
+#
+# Stop at the first failure: an Ansible loop would otherwise keep sending the remaining
+# items after a failed one. Each step runs inside block/rescue and is skipped once a step
+# has failed, so nothing after the failing command is ever sent. The steps the device
+# accepted (and the failing one) are reported in one machine-readable line,
+# NMP_APPLY_RESULT:<base64 JSON>, which the worker parses for per-block progress.
+# Credentials come from environment variables set by the worker; nothing is saved to
+# startup-config.
+- name: Approved configuration change (ordered blocks)
+  hosts: all
+  gather_facts: false
+
+  vars:
+    ansible_user: "{{ lookup('env', 'ANSIBLE_REMOTE_USER') }}"
+    ansible_password: "{{ lookup('env', 'ANSIBLE_PASSWORD') }}"
+    ansible_become_password: "{{ lookup('env', 'ANSIBLE_BECOME_PASSWORD') }}"
+    nmp_applied: []
+    nmp_failed: null
+    nmp_error: ""
+
+  tasks:
+    - name: Validate approved configuration payload
+      ansible.builtin.assert:
+        that:
+          - apply_steps is defined
+          - apply_steps is sequence
+          - apply_steps is not string
+          - apply_steps | length > 0
+        fail_msg: "Invalid approved configuration payload"
+
+    - name: Apply steps in order (stop at the first failure)
+      ansible.builtin.include_tasks: config_blocks_step.yml
+      loop: "{{ apply_steps }}"
+      loop_control:
+        loop_var: step
+        label: "{{ step.i }}"
+
+    - name: Leave configuration mode after a failed step
+      when: nmp_failed is not none
+      ansible.netcommon.cli_command:
+        command: end
+      ignore_errors: true
+
+    - name: Report execution progress
+      ansible.builtin.debug:
+        msg: "NMP_APPLY_RESULT:{{ {'applied': nmp_applied, 'failed': nmp_failed, 'error': nmp_error} | to_json | b64encode }}"
+
+    - name: Fail the play when a step was rejected
+      when: nmp_failed is not none
+      ansible.builtin.fail:
+        msg: "Step {{ nmp_failed }} was rejected by the device"

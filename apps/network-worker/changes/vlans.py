@@ -1,12 +1,10 @@
 """
-Strict VLAN ID / VLAN list parsing for the Dell OS10 safe-L2 policy. Pure functions.
+Strict VLAN ID / VLAN list parsing. Pure functions. Used by the semantic verifier to read
+Dell OS10 `switchport trunk allowed vlan <list>` state (device_limits=True) and by the
+simulated test switches. Not a command policy.
 
 Accepted list syntax (no spaces):   10   10,20,30   10-20   10,20-30,40
-VLAN IDs are 1-4094. Ranges must be ascending (10-20, never 20-10 or 10-10). Leading
-zeros, signs, spaces, empty items and anything else are rejected rather than guessed.
-
-Operator input is size-limited (pathological lists are refused). Lists read back from a
-device's running-configuration use device_limits=True: a real trunk may carry far more.
+VLAN IDs are 1-4094. Ranges must be ascending. Anything else raises VlanListError.
 """
 
 import re

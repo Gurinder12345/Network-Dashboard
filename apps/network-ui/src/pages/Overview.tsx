@@ -33,13 +33,12 @@ function percentOf(count: number | undefined, total: number | undefined): string
   return `${Math.round((count / total) * 100)}% of fleet`;
 }
 
-/** Access level per platform, as enforced by the worker's change policies. */
+/** Access level per platform: both Dell platforms accept guarded configuration changes. */
 export function AccessTag({ platform }: { platform: string }) {
-  if (platform === OS6_PLATFORM) return <span className="access-tag actionable">Actionable</span>;
-  if (platform === OS10_PLATFORM) {
+  if (platform === OS6_PLATFORM || platform === OS10_PLATFORM) {
     return (
-      <span className="access-tag actionable" title="Dell OS10 safe L2 changes on eligible ethernet interfaces">
-        Actionable · safe L2
+      <span className="access-tag actionable" title="Guarded multi-block changes (precheck, backup, approval)">
+        Actionable
       </span>
     );
   }

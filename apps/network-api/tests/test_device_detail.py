@@ -22,6 +22,14 @@ CORE = {"id": 12, "hostname": "Kenda-Core-1", "management_ip": "10.0.0.10", "pla
 NOW = datetime.now(timezone.utc)
 
 
+def _refresh_now():
+    # Staleness is relative to the wall clock: take "now" when each test starts, not at
+    # import (a long-running module earlier in the suite would otherwise age it past the
+    # stale threshold).
+    global NOW
+    NOW = datetime.now(timezone.utc)
+
+
 def latest(**overrides):
     return {"device_id": 12, "status": "success", "cpu_percent": 18.4, "memory_percent": 42.1,
             "memory_used_mb": 3400.0, "memory_total_mb": 8000.0, "uptime_seconds": 2095200,
@@ -30,6 +38,7 @@ def latest(**overrides):
 
 class DetailApiTests(unittest.TestCase):
     def setUp(self):
+        _refresh_now()
         self.addCleanup(mock.patch.stopall)
         self.client = TestClient(app)
         mock.patch.object(device_detail, "get_device_by_id", side_effect=lambda i: CORE if i == 12 else None).start()

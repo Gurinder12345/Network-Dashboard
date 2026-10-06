@@ -1,12 +1,14 @@
 import logging
-import re
 import uuid
 
 from celery.result import AsyncResult
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field, field_validator
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from app.celery_client import PUBLISH_RETRY_POLICY, celery_app
+from app.config_blocks import blocks_from_legacy, validate_blocks, validate_verification_commands
 from app.db.audit import create_audit_event
 from app.db.devices import get_device_by_id
 
@@ -16,23 +18,12 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/changes", tags=["changes"])
 
 OS6_PLATFORM = "dell_os6"
-# Platforms the shared worker change workflow supports. Platform-specific command policy
-# (e.g. the OS10 safe-L2 allow-list and interface safety checks) is enforced by the worker
-# during precheck and again at apply.
+# Platforms the shared worker change workflow supports. Both use ordered configuration
+# blocks; there is no configuration command policy (the device is the syntax authority).
 SUPPORTED_CHANGE_PLATFORMS = {"dell_os6": "Dell OS6", "dell_os10": "Dell OS10"}
 PRECHECK_TASK = "network_worker.change_precheck"
 # Legacy OS6-only route keeps its original task.
 OS6_PRECHECK_TASK = "network_worker.os6_change_precheck"
-
-MAX_PARENTS = 5
-MAX_LINES = 50
-MAX_LINE_LENGTH = 250
-
-# One CLI command per entry: printable ASCII only, so a single entry can never
-# carry a newline/control character that the device would treat as a second command.
-PRINTABLE_LINE = re.compile(r"^[\x20-\x7e]+$")
-# The playbook enters/exits config mode itself; "do" would run exec-mode commands.
-FORBIDDEN_PREFIX = re.compile(r"^(configure|config|conf\s+t|end|exit|do)(\s|$)", re.IGNORECASE)
 
 # Celery states -> states the UI understands.
 STATE_MAP = {
@@ -46,42 +37,45 @@ STATE_MAP = {
 }
 
 
-def _clean_commands(values, field_name, max_items):
-    cleaned = [value.strip() for value in values]
-
-    if len(cleaned) > max_items:
-        raise ValueError(f"{field_name} accepts at most {max_items} entries")
-
-    for value in cleaned:
-        if not value:
-            raise ValueError(f"{field_name} cannot contain empty entries")
-        if len(value) > MAX_LINE_LENGTH:
-            raise ValueError(f"{field_name} entries must be at most {MAX_LINE_LENGTH} characters")
-        if not PRINTABLE_LINE.match(value):
-            raise ValueError(f"{field_name} entries must be single-line printable text: {value!r}")
-        if FORBIDDEN_PREFIX.match(value):
-            raise ValueError(f"{field_name} cannot include mode commands (configure/end/exit/do): {value!r}")
-
-    return cleaned
-
-
 class ChangePrecheckRequest(BaseModel):
+    """
+    One change request = ordered configuration blocks for one device:
+        {"device_id": 12, "blocks": [{"parent": "interface ethernet1/1/18", "commands": [...]},
+                                     {"parent": null, "commands": ["ip routing"]}],
+         "verification_commands": ["show vlan"]}
+    Order comes from the array order. The single-parent form
+        {"device_id": 1, "config_parents": [...], "config_lines": [...]}
+    is still accepted and converted to one block.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
     device_id: int
-    config_parents: list[str] = Field(default_factory=list)
-    config_lines: list[str]
+    blocks: list[Any] | None = None
+    config_parents: list[Any] | None = None
+    config_lines: list[Any] | None = None
+    verification_commands: list[Any] | None = None
 
-    @field_validator("config_parents")
-    @classmethod
-    def validate_parents(cls, value):
-        return _clean_commands(value, "config_parents", MAX_PARENTS)
-
-    @field_validator("config_lines")
-    @classmethod
-    def validate_lines(cls, value):
-        cleaned = _clean_commands(value, "config_lines", MAX_LINES)
-        if not cleaned:
-            raise ValueError("config_lines must contain at least one command")
-        return cleaned
+    @model_validator(mode="after")
+    def to_blocks(self):
+        if self.blocks is not None and (self.config_lines is not None or self.config_parents):
+            raise ValueError("send either blocks or config_lines/config_parents, not both")
+        if self.blocks is None:
+            if self.config_lines is None:
+                raise ValueError("blocks is required")
+            if not isinstance(self.config_parents or [], list):
+                raise ValueError("config_parents must be a list")
+            for value in (self.config_parents or []):
+                if not isinstance(value, str):
+                    raise ValueError("config_parents entries must be strings")
+            raw = blocks_from_legacy(self.config_lines, self.config_parents)
+        else:
+            raw = self.blocks
+        self.blocks = validate_blocks(raw)
+        self.verification_commands = validate_verification_commands(self.verification_commands)
+        self.config_lines = None
+        self.config_parents = None
+        return self
 
 
 # Backwards-compatible name.
@@ -103,23 +97,23 @@ def _summarize_result(result):
         "platform": result.get("platform"),
         "ready_for_approval": result.get("ready_for_approval", False),
         "backup_required": result.get("backup_required", False),
-        # Dell OS10: exact policy/safety reasons when status is "rejected".
+        # Per-block reasons when status is "precheck_failed".
         "rejection_reasons": result.get("rejection_reasons", []),
+        "block_count": result.get("block_count"),
+        "command_count": result.get("command_count"),
         "dry_run": {
             "would_change": dry_run.get("would_change"),
             "verification_method": dry_run.get("verification_method"),
             "already_present": dry_run.get("already_present", []),
             "proposed_changes": dry_run.get("proposed_changes", []),
             "command_results": dry_run.get("command_results", []),
-            # Dell OS10 safe-L2 precheck detail (absent for OS6): interface state, safety
-            # checks, the plan and the device commands an approval would store.
-            "interface": dry_run.get("interface"),
-            "current_state": dry_run.get("current_state"),
-            "requested_state": dry_run.get("requested_state"),
-            "safety": dry_run.get("safety"),
-            "change_plan": dry_run.get("change_plan", []),
-            "expected_diff": dry_run.get("expected_diff"),
-            "device_commands": dry_run.get("device_commands"),
+            # Multi-block precheck: overall result, the four check categories, per-block
+            # status (config capture + semantic pre-validation per command) and the CLI preview.
+            "overall": dry_run.get("overall"),
+            "checks": dry_run.get("checks"),
+            "blocks": dry_run.get("blocks", []),
+            "cli_preview": dry_run.get("cli_preview"),
+            "verification_commands": dry_run.get("verification_commands", []),
         },
         "backup": (
             {
@@ -169,8 +163,8 @@ def _submit_precheck(request, allowed_platforms, task_name):
             task_name,
             kwargs={
                 "target_host": device["hostname"],
-                "config_lines": request.config_lines,
-                "config_parents": request.config_parents or None,
+                "config_blocks": request.blocks,
+                "verification_commands": request.verification_commands,
             },
             retry=True,
             retry_policy=PUBLISH_RETRY_POLICY,
@@ -185,8 +179,8 @@ def _submit_precheck(request, allowed_platforms, task_name):
             device_id=device["id"],
             event_type="precheck_requested",
             message=(
-                f"{label} precheck requested for {device['hostname']} "
-                f"(request_id={task.id}, {len(request.config_lines)} line(s))"
+                f"{label} precheck requested for {device['hostname']} (request_id={task.id}, "
+                f"{len(request.blocks)} block(s), {sum(len(b['commands']) for b in request.blocks)} command(s))"
             ),
         )
     except Exception:

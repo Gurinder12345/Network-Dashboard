@@ -132,12 +132,16 @@ if TELEMETRY_BEAT_ENABLED:
 
 
 # ---- Guarded configuration changes (shared workflow: changes/workflow.py) -----------
-# Generic tasks dispatch on the device's platform (dell_os6, dell_os10). The OS6 task
-# names stay registered (same behaviour, OS6 only) for callers and in-flight messages.
+# Generic tasks dispatch on the device's platform (dell_os6, dell_os10); both use ordered
+# configuration blocks. The OS6 task names stay registered (OS6 only) for callers and
+# in-flight messages.
 
+# config_blocks: ordered [{parent, commands}] (changes/blocks.py). config_lines/config_parents
+# remain accepted for single-parent requests already queued by an older API.
 @app.task(name="network_worker.change_precheck")
-def change_precheck(target_host, config_lines, config_parents=None):
-    return run_change_precheck(target_host, config_lines, config_parents, backup=backup_running_config_task)
+def change_precheck(target_host, config_lines=None, config_parents=None, config_blocks=None, verification_commands=None):
+    return run_change_precheck(target_host, config_lines, config_parents, backup=backup_running_config_task,
+                               config_blocks=config_blocks, verification_commands=verification_commands)
 
 
 @app.task(name="network_worker.apply_approved_change")
@@ -146,9 +150,11 @@ def apply_approved_change(approval_id, claimed_by_api=False):
 
 
 @app.task(name="network_worker.os6_change_precheck")
-def os6_change_precheck(target_host, config_lines, config_parents=None):
+def os6_change_precheck(target_host, config_lines=None, config_parents=None, config_blocks=None,
+                        verification_commands=None):
     return run_change_precheck(target_host, config_lines, config_parents, backup=backup_running_config_task,
-                               expected_platform="dell_os6")
+                               expected_platform="dell_os6", config_blocks=config_blocks,
+                               verification_commands=verification_commands)
 
 
 @app.task(name="network_worker.os6_apply_approved_change")

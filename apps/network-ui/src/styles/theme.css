@@ -3113,29 +3113,6 @@ line.chart-gridline {
   padding: var(--space-4);
 }
 
-/* Dell OS10 safe-L2 precheck detail */
-.os10-policy {
-  margin-top: 6px;
-  line-height: 1.5;
-}
-
-.os10-examples {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 8px;
-}
-
-.precheck-diff {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 10px;
-}
-
-.precheck-diff .form-label {
-  display: block;
-  margin-bottom: 4px;
-}
 
 /* ---- Restyle helpers -------------------------------------------------------------- */
 /* Refresh buttons across pages get the same refresh glyph without per-page markup. */
@@ -3171,4 +3148,290 @@ line.chart-gridline {
     grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
     gap: var(--space-2);
   }
+}
+
+/* ---- Multi-block change editor / review ------------------------------------------------- */
+.block-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-default);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--bg-inset);
+}
+
+.block-editor.is-global {
+  border-left-color: var(--tone-warning);
+}
+
+.block-editor-head,
+.blocks-view-head,
+.execution-block-head,
+.precheck-block-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.block-editor-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.block-editor-foot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.block-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  color: var(--accent-hover);
+  background: var(--accent-soft);
+  border: 1px solid var(--tone-info-border);
+}
+
+.global-tag {
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--tone-warning);
+  background: var(--tone-warning-bg);
+  border: 1px solid var(--tone-warning-border);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-panel);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: var(--fs-md);
+  line-height: 1;
+}
+
+.icon-button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.icon-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.search-input.block-input {
+  max-width: none;
+  width: 100%;
+  flex: 1 1 auto;
+}
+
+.command-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.command-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.command-row .line-no,
+.config-view-lines .line-no {
+  display: inline-block;
+  min-width: 22px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  text-align: right;
+  margin-right: 8px;
+  user-select: none;
+}
+
+.add-block-button {
+  align-self: flex-start;
+}
+
+.blocks-view {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.blocks-view-block {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  background: var(--bg-inset);
+  padding: 8px 10px;
+}
+
+.blocks-view-block .config-view-lines {
+  margin: 6px 0 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.cli-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cli-preview .config-preview {
+  max-height: 320px;
+  overflow: auto;
+}
+
+.change-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+}
+
+.check-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.check-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  background: var(--bg-inset);
+}
+
+.check-item .badge {
+  align-self: flex-start;
+}
+
+.block-status-list,
+.semantic-list,
+.execution-blocks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.block-status-list li,
+.semantic-list li {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: var(--fs-sm);
+}
+
+.semantic-list .muted {
+  font-size: var(--fs-xs);
+}
+
+.precheck-summary-view,
+.execution-view {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.precheck-block,
+.execution-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--tone-success);
+  border-radius: var(--radius);
+  background: var(--bg-inset);
+}
+
+.precheck-block.is-failed,
+.execution-block.status-failed {
+  border-left-color: var(--tone-danger);
+}
+
+.execution-block.status-not_attempted,
+.execution-block.status-pending {
+  border-left-color: var(--tone-neutral);
+}
+
+.execution-block.status-unknown,
+.execution-block.status-applying {
+  border-left-color: var(--tone-warning);
+}
+
+.execution-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+}
+
+.change-details {
+  margin-top: 6px;
+  font-size: var(--fs-xs);
+}
+
+.change-details summary {
+  cursor: pointer;
+  color: var(--accent-hover);
+}
+
+.change-details .config-preview {
+  margin-top: 6px;
+  font-size: var(--fs-xs);
+}
+
+.verification-outputs {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.data-table .config-block {
+  max-width: 380px;
+}
+
+.data-table .config-block .execution-view {
+  font-family: var(--font-sans);
+  font-size: var(--fs-sm);
+  min-width: 420px;
 }

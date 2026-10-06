@@ -310,12 +310,8 @@ export function Devices() {
                         {device.platform === OS6_PLATFORM ? (
                           <span className="access-tag actionable">Actionable</span>
                         ) : device.platform === OS10_PLATFORM ? (
-                          <span
-                            className="access-tag actionable"
-                            title="Dell OS10 safe L2 policy: description, access/trunk mode, VLANs and guarded admin state on eligible ethernet interfaces"
-                          >
+<span className="access-tag actionable" title="Guarded multi-block changes (precheck, backup, approval)">
                             Actionable
-                            <span className="cell-sub">safe L2</span>
                           </span>
                         ) : (
                           <span className="view-only-tag">View only</span>

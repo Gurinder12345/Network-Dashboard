@@ -1,3 +1,4 @@
+from app.config_blocks import blocks_from_legacy, render_cli
 from app.db.client import get_connection
 
 
@@ -14,7 +15,11 @@ APPROVAL_COLUMNS = """
     approved_at,
     cancelled_by,
     cancelled_at,
-    cancellation_reason
+    cancellation_reason,
+    config_blocks,
+    verification_commands,
+    precheck_summary,
+    execution_result
 """
 
 
@@ -33,6 +38,26 @@ def _row_to_approval(row):
         "cancelled_by": row[10],
         "cancelled_at": row[11].isoformat() if row[11] else None,
         "cancellation_reason": row[12],
+        **_blocks_view(row[13], row[6], row[7]),
+        "verification_commands": row[14] or [],
+        "precheck_summary": row[15],
+        "execution_result": row[16],
+    }
+
+
+def _blocks_view(config_blocks, config_lines, config_parents):
+    """
+    Multi-block view of any change. Rows created before migration 008 have no
+    config_blocks: their single parent + lines are shown as one block (legacy=True).
+    """
+    legacy = not config_blocks
+    blocks = blocks_from_legacy(config_lines, config_parents) if legacy else config_blocks
+    return {
+        "config_blocks": blocks,
+        "legacy_single_block": legacy,
+        "block_count": len(blocks),
+        "command_count": sum(len(b.get("commands") or []) for b in blocks),
+        "cli_preview": render_cli(blocks),
     }
 
 

@@ -1,5 +1,0 @@
-Loc PortID          Rem Host Name        Rem Port Id                    Rem Chassis Id
---------------------------------------------------------------------------------------
-ethernet1/1/25      kenda-core-02        ethernet1/1/25                e8:b5:d0:7a:5c:a3       
-ethernet1/1/30:2    Kenda-HQ-Array01-B   00:e0:ed:96:d9:67             00:e0:ed:96:d9:67       
-ethernet1/1/33      Not Advertised       50:7c:6f:4a:53:03             50:7c:6f:4a:53:03       

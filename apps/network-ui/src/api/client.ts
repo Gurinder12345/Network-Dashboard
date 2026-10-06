@@ -13,7 +13,7 @@ import type {
   JobDetail,
   MetricsHistory,
   MetricsRange,
-  Os6PrecheckRequest,
+  ChangeRequest,
   PcapAnalysis,
   PcapMode,
   Os6PrecheckStatus,
@@ -86,12 +86,14 @@ export function getAuditEvents(): Promise<AuditEvent[]> {
   return getJson<AuditEvent[]>("/api/v1/audit");
 }
 
-export function submitOs6Precheck(request: Os6PrecheckRequest): Promise<Os6PrecheckSubmitted> {
+export function submitOs6Precheck(request: ChangeRequest): Promise<Os6PrecheckSubmitted> {
   return postJson<Os6PrecheckSubmitted>("/api/v1/changes/os6/precheck", request);
 }
 
-// Platform-generic precheck (Dell OS6 / Dell OS10): the worker dispatches by platform.
-export function submitChangePrecheck(request: Os6PrecheckRequest): Promise<Os6PrecheckSubmitted> {
+// Platform-generic precheck (Dell OS6 / Dell OS10) for ordered configuration blocks; the
+// worker dispatches by platform. Only the device id, blocks and read-only verification
+// commands are sent.
+export function submitChangePrecheck(request: ChangeRequest): Promise<Os6PrecheckSubmitted> {
   return postJson<Os6PrecheckSubmitted>("/api/v1/changes/precheck", request);
 }
 

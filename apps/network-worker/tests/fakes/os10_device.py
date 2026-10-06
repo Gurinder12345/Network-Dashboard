@@ -1,37 +1,24 @@
 """
-Simulated Dell OS10 SSH CLI for tests (paramiko server on 127.0.0.1). NOT a real switch.
+Simulated Dell OS10 SSH CLI for tests (see switch.py). NOT a real switch.
 
-Emulates just enough of OS10 10.5 for the change workflow:
-  exec   : `Kenda-Core-1# `  terminal length/width, show running-configuration [interface X],
-           show lldp neighbors, configure terminal, exit
-  config : `Kenda-Core-1(config)# `  interface ethernetX/Y/Z, end, exit
-  if     : `Kenda-Core-1(conf-if-eth1/1/5)# `  description <text>, no description,
-           shutdown, no shutdown, switchport mode access|trunk, switchport access vlan <id>,
+  exec   : `Kenda-Core-1# `  terminal ..., show running-configuration [interface X],
+           show lldp neighbors, show vlan, other `show ...`, configure terminal, exit
+  config : `Kenda-Core-1(config)# `  interface ethernetX/Y/Z | interface vlanN, context
+           openers (router ..., ip access-list ..., ...), any global command
+  if     : `Kenda-Core-1(conf-if-eth1/1/5)# `  description, no description, shutdown,
+           no shutdown, switchport mode access|trunk, switchport access vlan <id>,
            switchport trunk allowed vlan <list> (ADDS, as documented for OS10),
-           no switchport trunk allowed vlan <list>, end, exit
-Anything else returns `% Error: Unrecognized command.` like the device does. Assigning a
-VLAN that does not exist returns an error (the platform's precheck refuses it first).
+           no switchport trunk allowed vlan <list>; anything else is stored as-is
 Running-configuration and `show lldp neighbors` layouts follow the documented OS10 format
-and the real LLDP capture (tests/fixtures/os10_real_show_lldp_neighbors.txt); the
-switchport rendering is NOT from a lab capture.
-
-Knobs: reject (commands answered with an error), ignore_writes (accept writes but do not
-store them -> post-check mismatch). Every received line is recorded in `log`.
-Credentials are test-only placeholders.
+and the real LLDP capture (tests/fixtures/os10_real_show_lldp_neighbors.txt).
 """
 
-import socket
-import threading
+import re
 
-import paramiko
-
+from fakes.switch import TEST_PASSWORD, TEST_USERNAME, FakeSwitch, apply_generic  # noqa: F401
 from changes.vlans import VlanListError, format_vlan_list, parse_vlan_list
 
-TEST_USERNAME = "test-automation"
-TEST_PASSWORD = "test-only-not-a-real-password"
 MANAGEMENT_IP = "192.0.2.10"
-
-PROMPTS = {"exec": "#", "config": "(config)#"}
 
 
 def port(description=None, admin="up", mode="access", access_vlan=1, allowed=(), extra=()):
@@ -55,45 +42,17 @@ DEFAULT_LLDP = {"ethernet1/1/25": ("kenda-core-02", "ethernet1/1/25", "e8:b5:d0:
                 "ethernet1/1/30:2": ("Kenda-HQ-Array01-B", "00:e0:ed:96:d9:67", "00:e0:ed:96:d9:67")}
 
 
-class _Server(paramiko.ServerInterface):
-    def check_auth_password(self, username, password):
-        ok = username == TEST_USERNAME and password == TEST_PASSWORD
-        return paramiko.AUTH_SUCCESSFUL if ok else paramiko.AUTH_FAILED
+class FakeOS10(FakeSwitch):
+    configure_commands = ("configure terminal", "configure")
+    error_text = "% Error: Command rejected by simulated device."
 
-    def get_allowed_auths(self, username):
-        return "password"
-
-    def check_channel_request(self, kind, chanid):
-        return paramiko.OPEN_SUCCEEDED if kind == "session" else paramiko.OPEN_FAILED_ADMINISTRATIVELY_PROHIBITED
-
-    def check_channel_pty_request(self, *args):
-        return True
-
-    def check_channel_shell_request(self, channel):
-        return True
-
-
-class FakeOS10:
-    def __init__(self, hostname="Kenda-Core-1", interfaces=None, reject=(), ignore_writes=False, vlans=(1, 10, 20, 30, 40),
-                 lldp=None):
-        self.hostname = hostname
-        self.interfaces = interfaces or default_interfaces()
+    def __init__(self, hostname="Kenda-Core-1", interfaces=None, reject=(), ignore_writes=False,
+                 vlans=(1, 10, 20, 30, 40), lldp=None):
         self.vlans = set(vlans)
         self.lldp = dict(DEFAULT_LLDP if lldp is None else lldp)
-        self.reject = set(reject)
-        self.ignore_writes = ignore_writes
-        self.log = []
-        self.connections = 0
-        self._key = paramiko.RSAKey.generate(2048)
-        self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._sock.bind(("127.0.0.1", 0))
-        self._sock.listen(8)
-        self.port = self._sock.getsockname()[1]
-        self._stop = False
-        threading.Thread(target=self._accept, daemon=True).start()
+        super().__init__(hostname, interfaces or default_interfaces(), reject, ignore_writes)
 
-    # ---- rendering ---------------------------------------------------------------
+    # ---- rendering ------------------------------------------------------------------
     def interface_text(self, name):
         intf = self.interfaces[name]
         lines = [f"interface {name}"]
@@ -112,30 +71,81 @@ class FakeOS10:
 
     def running_config(self):
         lines = ["! Version 10.5.4.0", "! Last configuration change at Oct  06 12:00:00 2026", "!",
-                 f"hostname {self.hostname}", "!"]
+                 f"hostname {self.hostname}"]
+        lines += self.global_lines
+        lines.append("!")
         for vlan in sorted(self.vlans):
-            lines += [f"interface vlan{vlan}", " no shutdown", "!"]
+            lines += [f"interface vlan{vlan}", " no shutdown"]
+            lines += [f" {l}" for l in self.contexts.get(f"interface vlan{vlan}", [])]
+            lines.append("!")
         lines += ["interface mgmt1/1/1", " no shutdown", " no ip address dhcp", f" ip address {MANAGEMENT_IP}/24",
                   " ipv6 address autoconfig", "!"]
         for name in self.interfaces:
             lines += self.interface_text(name)
+        for parent, children in self.contexts.items():
+            if parent.startswith("interface vlan"):
+                continue
+            lines += [parent] + [f" {c}" for c in children] + ["!"]
         lines += ["!", "end"]
         return "\r\n".join(lines)
 
     def lldp_neighbors(self):
-        lines = ["Loc PortID          Rem Host Name        Rem Port Id                    Rem Chassis Id",
-                 "-" * 86]
+        lines = ["Loc PortID          Rem Host Name        Rem Port Id                    Rem Chassis Id", "-" * 86]
         for local, (host, remote_port, chassis) in self.lldp.items():
             lines.append(f"{local:<20}{host:<21}{remote_port:<30}{chassis:<24}")
         return "\r\n".join(lines)
 
-    # ---- CLI -------------------------------------------------------------------------
-    def _prompt(self, mode):
-        if mode.startswith("if:"):
-            return f"{self.hostname}(conf-if-eth{mode[3:][len('ethernet'):]})# "
-        return f"{self.hostname}{PROMPTS[mode]} "
+    def show(self, command):
+        if command == "show running-configuration":
+            return self.running_config()
+        if command.startswith("show running-configuration interface "):
+            name = command.split()[-1]
+            return "\r\n".join(self.interface_text(name)) if name in self.interfaces else "% Error: Interface not found."
+        if command == "show lldp neighbors":
+            return self.lldp_neighbors()
+        if command == "show vlan":
+            return "\r\n".join(["Codes: * - Default VLAN", "    NUM    Status    Description"]
+                               + [f"    {v:<6} Active" for v in sorted(self.vlans)])
+        if command.startswith("show "):
+            return f"simulated output of {command}"
+        return None
 
-    def _interface_command(self, intf, cmd, low):
+    # ---- CLI hooks -------------------------------------------------------------------
+    def interface_name(self, text):
+        name = "".join(text.lower().split())
+        if name in self.interfaces:
+            return name
+        match = re.fullmatch(r"vlan(\d{1,4})", name)
+        if match:
+            if not self.ignore_writes:
+                self.vlans.add(int(match.group(1)))
+            self.contexts.setdefault(f"interface vlan{match.group(1)}", [])
+            return f"vlan:{match.group(1)}"
+        return None
+
+    def _handle(self, mode, line):
+        # interface vlanN behaves as a generic context
+        if isinstance(mode, tuple) and mode[0] == "if" and mode[1].startswith("vlan:"):
+            cmd = " ".join(line.strip().split())
+            if cmd in ("exit", "end") or cmd in self.reject:
+                return super()._handle(mode, line)
+            self.log.append(cmd)
+            self._store(self.contexts[f"interface vlan{mode[1][5:]}"], cmd)
+            return mode, ""
+        return super()._handle(mode, line)
+
+    def context_prompt(self, mode):
+        if mode == "config":
+            return f"{self.hostname}(config)# "
+        kind, name = mode
+        if kind == "if":
+            short = name[len("ethernet"):] if name.startswith("ethernet") else name.replace(":", "")
+            return f"{self.hostname}(conf-if-{'eth' if name.startswith('ethernet') else 'vl-'}{short})# "
+        slug = re.sub(r"[^A-Za-z0-9-]+", "-", name).strip("-")[:30]
+        return f"{self.hostname}(conf-{slug})# "
+
+    def interface_command(self, intf, cmd):
+        low = cmd.lower()
         tokens = low.split()
         store = not self.ignore_writes
         if low.startswith("description "):
@@ -180,97 +190,6 @@ class FakeOS10:
                 return ""
         except (ValueError, VlanListError):
             return "% Error: Invalid VLAN."
-        return "% Error: Unrecognized command."
-
-    def _handle(self, mode, line):
-        cmd = " ".join(line.strip().split())
-        low = cmd.lower()
-        if cmd:
-            self.log.append(cmd)
-        if not cmd:
-            return mode, ""
-        if cmd in self.reject:
-            return mode, "% Error: Command rejected by simulated device."
-        if mode == "exec":
-            if low.startswith("terminal "):
-                return mode, ""
-            if low == "show running-configuration":
-                return mode, self.running_config()
-            if low == "show lldp neighbors":
-                return mode, self.lldp_neighbors()
-            if low.startswith("show running-configuration interface "):
-                name = low.split()[-1].replace("ethernet", "ethernet")
-                return mode, "\r\n".join(self.interface_text(name)) if name in self.interfaces else "% Error: Interface not found."
-            if low in ("configure terminal", "configure"):
-                return "config", ""
-            if low == "exit":
-                return None, ""
-            return mode, "% Error: Unrecognized command."
-        if low == "end":
-            return "exec", ""
-        if mode == "config":
-            if low.startswith("interface "):
-                name = low[len("interface "):].replace(" ", "")
-                if name in self.interfaces:
-                    return f"if:{name}", ""
-                return mode, "% Error: Interface not found."
-            if low == "exit":
-                return "exec", ""
-            return mode, "% Error: Unrecognized command."
-        # interface mode
-        if low == "exit":
-            return "config", ""
-        return mode, self._interface_command(self.interfaces[mode[3:]], cmd, low)
-
-    def _session(self, client):
-        transport = paramiko.Transport(client)
-        transport.add_server_key(self._key)
-        try:
-            transport.start_server(server=_Server())
-            channel = transport.accept(20)
-            if channel is None:
-                return
-            self.connections += 1
-            mode = "exec"
-            channel.send(f"\r\n{self._prompt(mode)}")
-            buffer = ""
-            while True:
-                data = channel.recv(4096)
-                if not data:
-                    break
-                for ch in data.decode("utf-8", "replace"):
-                    if ch in "\r\n":
-                        channel.send("\r\n")
-                        mode_after, output = self._handle(mode, buffer)
-                        buffer = ""
-                        if mode_after is None:
-                            channel.close()
-                            return
-                        mode = mode_after
-                        if output:
-                            channel.send(output + "\r\n")
-                        channel.send(self._prompt(mode))
-                    else:
-                        buffer += ch
-                        channel.send(ch)  # echo, like a terminal
-        except Exception:
-            pass
-        finally:
-            transport.close()
-
-    def _accept(self):
-        while not self._stop:
-            try:
-                client, _ = self._sock.accept()
-            except OSError:
-                return
-            threading.Thread(target=self._session, args=(client,), daemon=True).start()
-
-    def close(self):
-        self._stop = True
-        # shutdown() wakes the thread blocked in accept(); close() alone leaves it listening.
-        try:
-            self._sock.shutdown(socket.SHUT_RDWR)
-        except OSError:
-            pass
-        self._sock.close()
+        if store:
+            apply_generic(intf["extra"], cmd)
+        return ""

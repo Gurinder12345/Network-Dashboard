@@ -172,6 +172,24 @@ def get_running_config_and_lldp(target_host):
         nr.close_connections()
 
 
+def run_show_commands(target_host, commands):
+    """Read-only operator verification commands, one SSH session. Returns [{command, failed, output}]."""
+    nr = get_nornir(target_host)
+    try:
+        failed = _failed_prep(nr.run(task=netmiko_send_command, command_string="terminal length 0", read_timeout=30))
+        if failed:
+            return [{"command": c, "failed": True, "output": failed[target_host]["result"]} for c in commands]
+        results = []
+        for command in commands:
+            run = nr.run(task=netmiko_send_command, command_string=command, read_timeout=120)
+            task_result = run[target_host][0] if target_host in run else None
+            results.append({"command": command, "failed": task_result is None or task_result.failed,
+                            "output": str(task_result.result) if task_result is not None else "not run"})
+        return results
+    finally:
+        nr.close_connections()
+
+
 def backup_running_config(target_host):
     nr = get_nornir(target_host)
 

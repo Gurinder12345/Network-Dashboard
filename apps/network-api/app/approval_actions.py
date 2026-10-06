@@ -82,7 +82,7 @@ def approve(approval_id: uuid.UUID, request: ApproveRequest):
             event_type="approval_approved",
             message=(
                 f"Change approval {approval_key} for {device['hostname']} approved by "
-                f"{request.approved_by} ({len(updated['config_lines'] or [])} line(s)); not applied"
+                f"{request.approved_by} ({updated['block_count']} block(s), {updated['command_count']} command(s)); not applied"
             ),
         )
     except Exception:
@@ -130,7 +130,7 @@ def apply(approval_id: uuid.UUID):
     if not device["enabled"]:
         raise HTTPException(status_code=422, detail=f"{device['hostname']} is disabled")
 
-    if not approval["backup_job_id"] or not approval["config_lines"]:
+    if not approval["backup_job_id"] or not approval["command_count"]:
         raise HTTPException(status_code=422, detail="Approval is missing its backup reference or configuration")
 
     # approved -> applying. Only one request can win this UPDATE, so only one task is enqueued.
@@ -143,7 +143,7 @@ def apply(approval_id: uuid.UUID):
         claimed,
         "apply_requested",
         f"Apply requested for approval {approval_key} on {device['hostname']} "
-        f"(approved by {claimed['approved_by']}, {len(claimed['config_lines'])} line(s))",
+        f"(approved by {claimed['approved_by']}, {claimed['block_count']} block(s), {claimed['command_count']} command(s))",
     )
 
     try:
@@ -205,6 +205,8 @@ def apply_status(approval_id: uuid.UUID, request_id: uuid.UUID):
         "approval_status": approval["status"],
         "task_state": task_state,
         "error": error,
+        # Per-block execution progress / partial apply / post-check (stored by the worker).
+        "execution_result": approval.get("execution_result"),
     }
 
 

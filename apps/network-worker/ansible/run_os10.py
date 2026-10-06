@@ -94,3 +94,20 @@ def run_os10_config_apply(target_host, config_lines, config_parents=None):
     finally:
         if os.path.exists(inventory_file):
             os.remove(inventory_file)
+
+
+def run_os10_blocks_apply(target_host, steps):
+    """Ordered multi-block apply (ansible/playbooks/config_blocks_apply.yml)."""
+    from ansible.blocks_runner import run_blocks_playbook
+
+    device, credential_path = load_device(target_host)
+    credentials = get_device_credentials(credential_path)
+    host_vars = {
+        "ansible_host": device["hostname"],
+        "ansible_port": int(device.get("port") or 22),
+        "ansible_network_os": "dellemc.os10.os10",
+        "ansible_connection": "ansible.netcommon.network_cli",
+        # OS10 admin users land in privileged EXEC (#); there is no enable step.
+        "ansible_become": False,
+    }
+    return run_blocks_playbook(target_host, "dell_os10", host_vars, credentials, steps)

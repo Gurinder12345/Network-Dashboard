@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 import hashlib
+import os
 from nornir.core.filter import F
 from nornir import InitNornir
 from nornir.core.inventory import ConnectionOptions
@@ -36,14 +37,18 @@ DellDNOS6SSH.session_preparation = _dell_os6_session_preparation
 
 
 
+# Nornir inventory directory (overridable so tests can target a simulated device).
+INVENTORY_DIR = os.getenv("NORNIR_INVENTORY_DIR", "/app/inventory")
+
+
 def get_nornir(target_host):
     nr = InitNornir(
         inventory={
             "plugin": "SimpleInventory",
             "options": {
-                "host_file": "/app/inventory/hosts.yaml",
-                "group_file": "/app/inventory/groups.yaml",
-                "defaults_file": "/app/inventory/defaults.yaml",
+                "host_file": os.path.join(INVENTORY_DIR, "hosts.yaml"),
+                "group_file": os.path.join(INVENTORY_DIR, "groups.yaml"),
+                "defaults_file": os.path.join(INVENTORY_DIR, "defaults.yaml"),
             },
         }
     )
@@ -134,6 +139,24 @@ def run_show_command(
             ),
         }
     }
+
+
+def run_show_commands(target_host, commands):
+    """Read-only operator verification commands, one SSH session. Returns [{command, failed, output}]."""
+    nr = get_nornir(target_host)
+    results = []
+    try:
+        for command in commands:
+            try:
+                run = nr.run(task=netmiko_send_command, command_string=command, enable=True, read_timeout=120)
+                task_result = run[target_host][0] if target_host in run else None
+                results.append({"command": command, "failed": task_result is None or task_result.failed,
+                                "output": str(task_result.result) if task_result is not None else "not run"})
+            except Exception as exc:
+                results.append({"command": command, "failed": True, "output": f"{type(exc).__name__}: {exc}"})
+        return results
+    finally:
+        nr.close_connections()
 
 
 def backup_running_config(target_host):

@@ -1,43 +1,58 @@
 """
-Shared guarded-change workflow for every supported platform (Dell OS6, Dell OS10).
+Shared guarded-change workflow for every supported platform (Dell OS6, Dell OS10), using
+the ordered configuration-block model (changes/blocks.py). There is no configuration
+command policy: any CLI may be submitted; the device is the syntax authority. The
+operational protections stay: precheck, pre-change backup, human approval, atomic apply
+claim, one execution per approval, post-check, jobs and audit.
 
-Precheck (read-only):
-    device enabled -> platform adapter -> policy/normalize -> read device state ONCE
-    (running config; OS10 L2 changes also LLDP in the same session)
-    -> plan: OS6 verifies the lines; OS10 classifies the interface, checks VLANs and
-       current mode, and derives the exact device commands
-    -> [rejected by safety: done, nothing stored] [no change: done]
+Precheck (read-only, all-or-nothing):
+    device enabled -> structural validation -> read device state ONCE (running config;
+    OS6 `show vlan` when VLAN commands are present) -> per block: config capture,
+    detectable problems, semantic pre-validation where supported
+    -> [any block FAILED: precheck_failed, nothing stored] [all already in effect: done]
     -> pre-change backup from that same snapshot (no backup => no approval => no write)
-    -> pending approval (OS10: the planned device commands are what is approved)
+    -> one pending approval for the whole multi-block change
 
 Apply (the API has already claimed approved -> applying atomically):
-    status check -> backup belongs to this device and succeeded -> stored commands
-    re-validated -> [OS10: re-read; safety and preconditions re-checked against the
-    device as it is now; commands already in effect are skipped; nothing left => applied
-    without writing] -> Ansible write -> post-check reads the device again -> applied
-    Any failure after the claim -> failed (+ audit apply_failed). Ansible's return code
-    alone never marks a change applied: only a passing post-check does.
-
-The original OS6 behaviour is preserved; OS6-specific task names in worker.py call this
-module with expected_platform="dell_os6".
+    status check -> backup belongs to this device and succeeded -> structural re-check
+    -> execution claim (execution_result recorded once; a duplicate/redelivered task stops)
+    -> one config_apply job -> blocks sent strictly in order in one session, stopping at
+    the first rejected command -> per-block status persisted (applied / failed /
+    not_attempted) -> post-check: running config re-read, semantic verification where
+    supported, operator verification commands -> applied, or failed (partial apply is
+    reported block by block; nothing is rolled back automatically)
 """
 
 import logging
 import re
+from datetime import datetime, timezone
 
+from changes import execution as exe
+from changes.blocks import (
+    block_label,
+    blocks_from_legacy,
+    command_count,
+    flatten,
+    normalize_blocks,
+    normalize_verification_commands,
+    render_cli,
+    stored_blocks,
+)
 from changes.os10 import VerificationError
-from changes.os10_safety import SafetyRejection
 from changes.platforms import platform_for
+from changes.verify import NOT_AVAILABLE, NOT_PRESENT, VERIFIED, precheck_block_issues, semantic_status, verify_blocks
 from db.approvals import (
+    begin_execution,
     create_change_approval,
     get_change_approval,
     mark_approval_applied,
     mark_approval_applying,
     mark_approval_failed,
+    set_execution_result,
     verify_backup_for_device,
 )
 from db.devices import get_device_by_hostname, get_device_by_id
-from db.jobs import create_audit_event
+from db.jobs import create_audit_event, create_job, mark_job_failed, mark_job_success
 from tasks.config_backup import classify_backup_error
 
 logger = logging.getLogger("network_worker.changes")
@@ -49,9 +64,14 @@ class ChangeError(RuntimeError):
     """A sanitized, user-facing failure."""
 
 
+def _now():
+    return datetime.now(timezone.utc).isoformat()
+
+
 def _audit(job_id, device_id, event_type, message):
     try:
-        create_audit_event(job_id=job_id, device_id=device_id, event_type=event_type, message=message[:2000])
+        create_audit_event(job_id=job_id, device_id=device_id, event_type=event_type,
+                           message=exe.redact(message)[:2000])
     except Exception:
         logger.warning("audit event %s not recorded", event_type)
 
@@ -67,95 +87,166 @@ def ansible_failure_summary(result):
         lines = [line.strip() for line in text.splitlines() if line.strip()]
         flagged = [line for line in lines if line.startswith(("fatal:", "ERROR!", "[ERROR]"))]
         reason = msg.group(1) if msg else (flagged[0] if flagged else (lines[-1] if lines else "no output"))
-    item = re.search(r"(?:failed|fatal): \[[^\]]*\] \(item=([^)]*)\)", text)
-    suffix = f" (command: {item.group(1)})" if item else ""
-    return f"Ansible apply failed (rc={result.get('returncode')}): {reason}{suffix}"[:MAX_ERROR]
+    return f"Ansible apply failed (rc={result.get('returncode')}): {reason}"[:MAX_ERROR]
 
 
 def _sanitized(stage, exc):
     if isinstance(exc, ChangeError):
         return str(exc)
-    if isinstance(exc, (VerificationError, SafetyRejection)):  # our own messages: no device output or secrets
+    if isinstance(exc, VerificationError):  # our own message: no device output or secrets
         return f"{stage}: {exc}"[:MAX_ERROR]
     return f"{stage}: {classify_backup_error(exc)}"
 
 
-def run_precheck(target_host, config_lines, config_parents=None, *, backup, expected_platform=None):
+# ---- precheck ------------------------------------------------------------------------------
+def _precheck_report(adapter, blocks, state, verification_commands):
+    """Structured precheck: per-block PASS/FAILED + four separate check categories."""
+    verified = verify_blocks(adapter.name, blocks, state["running_config"], state.get("vlan_ids"))
+    report_blocks, command_results, already, proposed = [], [], [], []
+    for block, entry in zip(blocks, verified):
+        issues = precheck_block_issues(adapter.name, block, entry["found"])
+        for result in entry["commands"]:
+            command_results.append({**result, "block": entry["index"] + 1,
+                                    "desired_state_present": result["status"] == VERIFIED,
+                                    "verification_method": result["method"], "type": result["status"]})
+            (already if result["status"] == VERIFIED else proposed).append(result["command"])
+        report_blocks.append({
+            "index": entry["index"], "parent": block["parent"], "global": block["parent"] is None,
+            "command_count": len(block["commands"]), "status": "FAILED" if issues else "PASS", "issues": issues,
+            "current_config_found": entry["found"], "current_config": entry["current_config"],
+            "commands": entry["commands"],
+        })
+
+    statuses = {r["status"] for r in command_results}
+    semantic = ("SUPPORTED" if statuses <= {VERIFIED, NOT_PRESENT} else
+                "NOT AVAILABLE" if statuses == {NOT_AVAILABLE} else "PARTIAL")
+    failed = any(b["status"] == "FAILED" for b in report_blocks)
+    return {
+        "overall": "FAILED" if failed else "PASS",
+        "checks": {"structural_validation": "PASS", "device_connectivity": "PASS",
+                   "current_config_capture": "PASS", "semantic_verification": semantic},
+        "blocks": report_blocks,
+        "block_count": len(blocks),
+        "command_count": command_count(blocks),
+        "cli_preview": render_cli(blocks),
+        "verification_commands": verification_commands,
+        # Shape shared with the UI's per-command table.
+        "already_present": already,
+        "proposed_changes": proposed,
+        "would_change": bool(proposed),
+        "verification_method": "running-configuration",
+        "command_results": command_results,
+    }
+
+
+def _summary_for_approval(report):
+    """Compact precheck result stored on the approval (no captured configuration)."""
+    return {
+        "overall": report["overall"], "checks": report["checks"], "block_count": report["block_count"],
+        "command_count": report["command_count"],
+        "blocks": [{"index": b["index"], "parent": b["parent"], "status": b["status"], "issues": b["issues"],
+                    "commands": [{"status": c["status"], "detail": c["detail"]} for c in b["commands"]]}
+                   for b in report["blocks"]],
+    }
+
+
+def run_precheck(target_host, config_lines=None, config_parents=None, *, backup, expected_platform=None,
+                 config_blocks=None, verification_commands=None):
     device = get_device_by_hostname(target_host)  # enabled devices only
     try:
         adapter = platform_for(device["platform"])
         if expected_platform and device["platform"] != expected_platform:
             raise ValueError(f"{target_host} is {device['platform']}, not {expected_platform}")
 
-        lines, parents = adapter.prepare(config_lines, config_parents)
+        blocks = normalize_blocks(config_blocks if config_blocks is not None
+                                  else blocks_from_legacy(config_lines, config_parents))
+        verify_cmds = normalize_verification_commands(verification_commands)
 
         try:
-            state = adapter.read_device_state(target_host, lines)
+            state = adapter.read_device_state(target_host, blocks)
         except Exception as exc:
             raise ChangeError(_sanitized("Could not read the running configuration", exc)) from None
         snapshot = state["running_config"]
 
-        dry_run = adapter.plan(target_host, device, lines, parents, state)
+        report = _precheck_report(adapter, blocks, state, verify_cmds)
+        base = {"target_host": target_host, "platform": adapter.name, "dry_run": report,
+                "block_count": len(blocks), "command_count": command_count(blocks)}
 
-        if dry_run.get("rejected"):
-            reasons = dry_run["rejection_reasons"]
+        if report["overall"] == "FAILED":
+            failed = [f"Block {b['index'] + 1}: {'; '.join(b['issues'])}" for b in report["blocks"] if b["issues"]]
             _audit(None, device["id"], "precheck_failed",
-                   f"Precheck for {target_host} ({adapter.label}) rejected by safety policy: {' '.join(reasons)}")
-            return {
-                "target_host": target_host,
-                "platform": adapter.name,
-                "status": "rejected",
-                "rejection_reasons": reasons,
-                "dry_run": dry_run,
-                "backup_required": False,
-                "ready_for_approval": False,
-            }
+                   f"Precheck for {target_host} ({adapter.label}) failed: {' | '.join(failed)}")
+            return {**base, "status": "precheck_failed", "rejection_reasons": failed,
+                    "backup_required": False, "ready_for_approval": False}
 
-        if not dry_run["would_change"]:
+        if not report["would_change"]:
             _audit(None, device["id"], "precheck_completed",
-                   f"Precheck for {target_host} ({adapter.label}): requested state already present; no change required")
-            return {
-                "target_host": target_host,
-                "platform": adapter.name,
-                "status": "no_change_required",
-                "dry_run": dry_run,
-                "backup_required": False,
-                "ready_for_approval": False,
-            }
+                   f"Precheck for {target_host} ({adapter.label}): every command already in effect; no change required")
+            return {**base, "status": "no_change_required", "backup_required": False, "ready_for_approval": False}
 
         backup_result = backup(target_host, config_snapshot=snapshot)
         if backup_result.get("status") != "success":
             raise RuntimeError(f"Backup failed for {target_host}")
 
-        # OS10: the planned device commands are approved (and later re-validated) verbatim.
-        approved_lines = dry_run.get("device_commands") or lines
         approval = create_change_approval(
             device_id=device["id"],
             backup_job_id=backup_result["job_id"],
-            config_lines=approved_lines,
-            config_parents=parents,
+            config_lines=flatten(blocks),
+            config_parents=None,
             requested_by="system",
+            config_blocks=blocks,
+            verification_commands=verify_cmds,
+            precheck_summary=_summary_for_approval(report),
         )
     except Exception as exc:
         _audit(None, device["id"], "precheck_failed", f"Precheck for {target_host} failed: {str(exc)[:MAX_ERROR]}")
         raise
 
     _audit(backup_result["job_id"], device["id"], "precheck_completed",
-           f"Precheck for {target_host} ({adapter.label}): {len(dry_run['proposed_changes'])} change(s) proposed; "
-           f"pre-change backup {backup_result['job_id']}; approval {approval['approval_id']} pending")
+           f"Precheck for {target_host} ({adapter.label}): {len(blocks)} block(s), {command_count(blocks)} command(s), "
+           f"semantic pre-validation {report['checks']['semantic_verification'].lower()}; pre-change backup "
+           f"{backup_result['job_id']}; approval {approval['approval_id']} pending")
+    _audit(backup_result["job_id"], device["id"], "change_created",
+           f"Change {approval['approval_id']} created for {target_host}: "
+           + ", ".join(block_label(b, i) + f" {len(b['commands'])} command(s)" for i, b in enumerate(blocks)))
 
-    return {
-        "target_host": target_host,
-        "platform": adapter.name,
-        "status": "pending_approval",
-        "dry_run": dry_run,
-        "backup_required": True,
-        "backup": backup_result,
-        "approval": approval,
-        "config_lines": approved_lines,
-        "config_parents": parents,
-        "ready_for_approval": True,
-    }
+    return {**base, "status": "pending_approval", "backup_required": True, "backup": backup_result,
+            "approval": approval, "config_blocks": blocks, "ready_for_approval": True}
+
+
+# ---- apply ---------------------------------------------------------------------------------
+def _fail_before_device(approval_id, approval, claimed_by_api, exc):
+    if claimed_by_api:
+        mark_approval_failed(approval_id)
+        _audit(approval["backup_job_id"], approval["device_id"], "apply_failed",
+               f"Approved configuration apply rejected before device changes (approval_id={approval_id}): {exc}")
+
+
+def _post_check(adapter, hostname, blocks, execution, verify_cmds):
+    """Semantic verification of the applied blocks + operator verification commands."""
+    applied = {b["index"] for b in execution["blocks"] if b["status"] == "applied"}
+    post = {"read": None, "semantic": NOT_AVAILABLE, "blocks": [], "error": None}
+    try:
+        state = adapter.read_device_state(hostname, blocks)
+        post["read"] = "ok"
+        post["blocks"] = [{"index": e["index"], "found": e["found"], "commands": e["commands"]}
+                          for e in verify_blocks(adapter.name, blocks, state["running_config"], state.get("vlan_ids"),
+                                                 only=applied) if e["index"] in applied]
+        post["semantic"] = semantic_status([c for b in post["blocks"] for c in b["commands"]])
+    except Exception as exc:
+        post["read"] = "failed"
+        post["error"] = _sanitized("Post-check could not read the device", exc)
+
+    outputs = []
+    if verify_cmds:
+        try:
+            for item in adapter.run_show_commands(hostname, verify_cmds):
+                outputs.append({"command": item["command"], "ok": not item["failed"],
+                                "output": exe.truncate_output(item["output"])})
+        except Exception as exc:
+            outputs = [{"command": c, "ok": False, "output": _sanitized("Verification command not run", exc)}
+                       for c in verify_cmds]
+    return post, outputs
 
 
 def run_apply(approval_id, claimed_by_api=False, expected_platform=None):
@@ -177,87 +268,116 @@ def run_apply(approval_id, claimed_by_api=False, expected_platform=None):
         if not backup_check["valid"]:
             raise ValueError(f"Backup verification failed: {backup_check['reason']}")
 
-        if not approval["config_lines"]:
-            raise ValueError("Approved configuration is empty")
-
-        # Re-validate the stored change (defence in depth for OS10's allow-list).
-        config_lines, config_parents = adapter.validate_approved(approval["config_lines"], approval.get("config_parents"))
-
+        # Structural re-check of the stored change (integrity, not command policy).
+        blocks = normalize_blocks(stored_blocks(approval))
+        verify_cmds = normalize_verification_commands(approval.get("verification_commands") or [])
     except Exception as exc:
-        if claimed_by_api:
-            mark_approval_failed(approval_id)
-            _audit(approval["backup_job_id"], approval["device_id"], "apply_failed",
-                   f"Approved configuration apply rejected before device changes (approval_id={approval_id}): {exc}")
+        _fail_before_device(approval_id, approval, claimed_by_api, exc)
         raise
 
     if not claimed_by_api:
         mark_approval_applying(approval_id)  # approved -> applying
 
     hostname = device["hostname"]
+    started = _now()
+    record = {"outcome": "applying", "execution": "applying", "semantic": None, "started_at": started,
+              "finished_at": None, "job_id": None, "blocks": exe.initial_blocks(blocks, "applying"),
+              "post_check": None, "verification": [], "error": None}
+
+    # One execution per approval, even if the task is delivered twice.
+    if not begin_execution(approval_id, record):
+        raise ValueError(f"Approval {approval_id} already has an apply attempt; it will not be executed again")
+
+    job_id = create_job(device_id=device["id"], job_type="config_apply", requested_by=approval.get("approved_by") or "system")
+    record["job_id"] = job_id
+    set_execution_result(approval_id, record)
     _audit(approval["backup_job_id"], device["id"], "apply_started",
-           f"Approved configuration apply started for {hostname} (approval_id={approval_id})")
+           f"Approved configuration apply started for {hostname} (approval_id={approval_id}, job {job_id}): "
+           f"{len(blocks)} block(s), {command_count(blocks)} command(s)")
 
     try:
-        to_send = config_lines
-        if adapter.pre_apply_verify:
-            try:
-                before = adapter.pre_apply(device, config_lines, config_parents)
-            except SafetyRejection as exc:
-                raise ChangeError(f"Pre-apply safety check failed; nothing was sent: {exc}"[:MAX_ERROR]) from None
-            except Exception as exc:
-                raise ChangeError(_sanitized("Pre-apply read failed; nothing was sent", exc)) from None
-            if not before["would_change"]:
-                mark_approval_applied(approval_id)
-                _audit(approval["backup_job_id"], device["id"], "apply_completed",
-                       f"Approved configuration already present on {hostname}; no commands sent "
-                       f"(approval_id={approval_id}, verified by {before['verification_method']})")
-                return _apply_result(approval_id, approval, hostname, adapter, config_lines, config_parents,
-                                     None, before, write_skipped=True)
-            # Only what is still needed, in the approved order.
-            to_send = before["proposed_changes"]
-
-        result = adapter.apply(hostname, to_send, config_parents)
-        if result["returncode"] != 0:
-            raise ChangeError(ansible_failure_summary(result))
-
         try:
-            post_check = adapter.verify(hostname, config_lines, config_parents)
-        except Exception as exc:
-            raise ChangeError(_sanitized("Post-check could not read the device; the change may have been applied "
-                                         "- verify manually", exc)) from None
+            steps, run = adapter.apply_blocks(hostname, blocks)
+            execution = exe.interpret(blocks, steps, run)
+            if execution["outcome"] == "unknown" and run.get("progress") is None and run.get("returncode") not in (0, -1):
+                execution["error"] = f"{ansible_failure_summary(run)}; the device may be partially configured - verify manually"
+        except Exception as exc:  # runner failed before Ansible could send anything (inventory, Vault, ...)
+            execution = {"blocks": exe.initial_blocks(blocks, "not_attempted"), "outcome": "failed", "returncode": None,
+                         "error": _sanitized("Apply could not start; nothing was sent", exc)}
 
-        if post_check["would_change"]:
-            raise ChangeError(f"Post-check failed for {hostname}: configuration is not present after apply "
-                              f"(missing: {', '.join(post_check['proposed_changes'])})"[:MAX_ERROR])
+        record.update(blocks=execution["blocks"], execution=execution["outcome"], error=execution["error"])
+        set_execution_result(approval_id, record)
+        for entry in execution["blocks"]:
+            block = blocks[entry["index"]]
+            label = block_label(block, entry["index"])
+            if entry["status"] == "applied":
+                _audit(approval["backup_job_id"], device["id"], "apply_block_completed",
+                       f"{label} applied on {hostname}: {len(block['commands'])} command(s) (approval_id={approval_id})")
+            elif entry["status"] == "failed":
+                _audit(approval["backup_job_id"], device["id"], "apply_block_failed",
+                       f"{label} failed on {hostname} at "
+                       f"{'command ' + str(entry['failed_command']) if entry['failed_command'] else entry.get('failed_step')}: "
+                       f"{entry['error']} (approval_id={approval_id})")
+            else:
+                _audit(approval["backup_job_id"], device["id"], f"apply_block_{entry['status']}",
+                       f"{label} {entry['status'].replace('_', ' ')} on {hostname} (approval_id={approval_id})")
 
-        mark_approval_applied(approval_id)  # applying -> applied
-        _audit(approval["backup_job_id"], device["id"], "apply_completed",
-               f"Approved configuration apply completed for {hostname} (approval_id={approval_id}); "
-               f"post-check confirmed {len(post_check['already_present'])} line(s) via {post_check['verification_method']}")
-        return _apply_result(approval_id, approval, hostname, adapter, config_lines, config_parents, result, post_check,
-                             sent_lines=to_send)
+        post, outputs = (None, [])
+        if execution["outcome"] != "failed" or any(b["status"] == "applied" for b in execution["blocks"]):
+            post, outputs = _post_check(adapter, hostname, blocks, execution, verify_cmds)
+        record.update(post_check=post, verification=outputs, semantic=post["semantic"] if post else None)
+
+        outcome, message = _final_outcome(hostname, execution, post)
+        record.update(outcome=outcome, finished_at=_now(), error=message if outcome != "applied" else None)
+        set_execution_result(approval_id, record)
+
+        if post is not None:
+            _audit(approval["backup_job_id"], device["id"],
+                   "postcheck_failed" if post["read"] != "ok" or post["semantic"] == "failed" else "postcheck_completed",
+                   f"Post-check for {hostname} (approval_id={approval_id}): read {post['read']}, "
+                   f"semantic verification {post['semantic'].replace('_', ' ')}"
+                   + (f", {len(outputs)} verification command(s) run" if outputs else ""))
+
+        if outcome == "applied":
+            mark_approval_applied(approval_id)  # applying -> applied
+            mark_job_success(job_id)
+            _audit(approval["backup_job_id"], device["id"], "apply_completed",
+                   f"Approved configuration apply completed for {hostname} (approval_id={approval_id}): "
+                   f"{len(blocks)} block(s) applied; semantic verification {post['semantic'].replace('_', ' ')}")
+            return {"approval_id": approval_id, "status": "applied", "platform": adapter.name, "target_host": hostname,
+                    "approved_by": approval["approved_by"], "backup_job_id": approval["backup_job_id"], "job_id": job_id,
+                    "config_blocks": blocks, "execution": record, "post_check": post, "write_skipped": False}
+
+        raise ChangeError(message)
 
     except Exception as exc:
-        mark_approval_failed(approval_id)  # applying -> failed
         message = str(exc) if isinstance(exc, ChangeError) else f"{type(exc).__name__}: {exc}"[:MAX_ERROR]
+        if record.get("outcome") in ("applying", None):
+            record.update(outcome="failed", finished_at=_now(), error=message)
+            set_execution_result(approval_id, record)
+        mark_approval_failed(approval_id)  # applying -> failed
+        mark_job_failed(job_id, exe.redact(message))
         _audit(approval["backup_job_id"], device["id"], "apply_failed",
                f"Approved configuration apply failed for {hostname} (approval_id={approval_id}): {message}")
-        raise
+        if isinstance(exc, ChangeError):
+            raise
+        raise ChangeError(exe.redact(message)) from None
 
 
-def _apply_result(approval_id, approval, hostname, adapter, config_lines, config_parents, ansible_result, post_check,
-                  write_skipped=False, sent_lines=None):
-    return {
-        "approval_id": approval_id,
-        "status": "applied",
-        "platform": adapter.name,
-        "target_host": hostname,
-        "approved_by": approval["approved_by"],
-        "backup_job_id": approval["backup_job_id"],
-        "config_lines": config_lines,
-        "config_parents": config_parents,
-        "ansible_result": ansible_result,
-        "post_check": post_check,
-        "write_skipped": write_skipped,
-        "sent_lines": [] if write_skipped else (sent_lines if sent_lines is not None else config_lines),
-    }
+def _final_outcome(hostname, execution, post):
+    """(outcome, message): applied | partial_apply | failed | unknown."""
+    if execution["outcome"] == "success":
+        if post is None or post["read"] != "ok":
+            return "failed", (f"Post-check could not read the device; the change may have been applied - verify manually"
+                              f"{': ' + post['error'].split(': ', 1)[-1] if post and post['error'] else ''}")[:MAX_ERROR]
+        if post["semantic"] == "failed":
+            missing = [c["command"] for b in post["blocks"] for c in b["commands"] if c["status"] == NOT_PRESENT]
+            return "failed", (f"Post-check failed for {hostname}: configuration is not present after apply "
+                              f"(missing: {', '.join(missing)})")[:MAX_ERROR]
+        return "applied", None
+    if execution["outcome"] == "partial":
+        return "partial_apply", (f"PARTIAL APPLY on {hostname}: {exe.summary(execution)}. {execution['error']}. "
+                                 "Applied blocks were not rolled back.")[:MAX_ERROR]
+    if execution["outcome"] == "failed":
+        return "failed", (f"Apply failed on {hostname}; no block was applied. {execution['error']}")[:MAX_ERROR]
+    return "unknown", (f"Apply result unknown on {hostname}: {execution['error']}")[:MAX_ERROR]

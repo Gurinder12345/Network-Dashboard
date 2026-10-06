@@ -7,7 +7,7 @@ import json
 from vault.client import get_device_credentials
 from tasks.dell_os6 import run_show_command
 
-HOSTS_FILE = "/app/inventory/hosts.yaml"
+HOSTS_FILE = os.getenv("NETWORK_HOSTS_FILE", "/app/inventory/hosts.yaml")
 PLAYBOOK = "/app/ansible/playbooks/os6_show_version.yml"
 
 
@@ -514,3 +514,20 @@ def run_os6_config_apply(
     finally:
         if os.path.exists(inventory_file):
             os.remove(inventory_file)
+
+
+def run_os6_blocks_apply(target_host, steps):
+    """Ordered multi-block apply (ansible/playbooks/config_blocks_apply.yml)."""
+    from ansible.blocks_runner import run_blocks_playbook
+
+    device, credential_path = load_device(target_host)
+    credentials = get_device_credentials(credential_path)
+    host_vars = {
+        "ansible_host": device["hostname"],
+        "ansible_port": int(device.get("port") or 22),
+        "ansible_network_os": "dellemc.os6.os6",
+        "ansible_connection": "ansible.netcommon.network_cli",
+        "ansible_become": True,
+        "ansible_become_method": "enable",
+    }
+    return run_blocks_playbook(target_host, "dell_os6", host_vars, credentials, steps)

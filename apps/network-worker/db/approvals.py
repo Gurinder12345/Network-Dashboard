@@ -73,7 +73,12 @@ def create_change_approval(
     config_lines,
     config_parents=None,
     requested_by="system",
+    config_blocks=None,
+    verification_commands=None,
+    precheck_summary=None,
 ):
+    # config_blocks (migration 008) is the source of truth for new changes; config_lines
+    # keeps a flat CLI rendering for older readers.
     approval_id = uuid.uuid4()
 
     conn = get_connection()
@@ -89,9 +94,12 @@ def create_change_approval(
                     requested_by,
                     status,
                     config_lines,
-                    config_parents
+                    config_parents,
+                    config_blocks,
+                    verification_commands,
+                    precheck_summary
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
                     approval_id,
@@ -101,6 +109,9 @@ def create_change_approval(
                     "pending",
                     json.dumps(config_lines),
                     json.dumps(config_parents) if config_parents else None,
+                    json.dumps(config_blocks) if config_blocks is not None else None,
+                    json.dumps(verification_commands or []),
+                    json.dumps(precheck_summary) if precheck_summary is not None else None,
                 ),
             )
 
@@ -113,6 +124,8 @@ def create_change_approval(
             "status": "pending",
             "config_lines": config_lines,
             "config_parents": config_parents,
+            "config_blocks": config_blocks,
+            "verification_commands": verification_commands or [],
         }
 
     finally:
@@ -195,7 +208,10 @@ def get_change_approval(approval_id):
                     config_lines,
                     config_parents,
                     created_at,
-                    approved_at
+                    approved_at,
+                    config_blocks,
+                    verification_commands,
+                    execution_result
                 FROM change_approvals
                 WHERE id = %s
                 """,
@@ -228,6 +244,9 @@ def get_change_approval(approval_id):
                     if row[9]
                     else None
                 ),
+                "config_blocks": row[10],
+                "verification_commands": row[11] or [],
+                "execution_result": row[12],
             }
 
     finally:
@@ -306,6 +325,53 @@ def mark_approval_failed(approval_id):
                   AND status = 'applying'
                 """,
                 (approval_id,),
+            )
+
+        conn.commit()
+
+    finally:
+        conn.close()
+
+
+def begin_execution(approval_id, execution_result):
+    """
+    Record that the (only) apply attempt has started. Succeeds once per approval: a
+    redelivered or duplicated apply task finds execution_result already set and stops
+    before touching the device.
+    """
+    conn = get_connection()
+
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE change_approvals
+                SET execution_result = %s
+                WHERE id = %s
+                  AND status = 'applying'
+                  AND execution_result IS NULL
+                RETURNING id
+                """,
+                (json.dumps(execution_result), approval_id),
+            )
+            started = cur.fetchone() is not None
+
+        conn.commit()
+        return started
+
+    finally:
+        conn.close()
+
+
+def set_execution_result(approval_id, execution_result):
+    """Persist per-block execution progress / post-check results (no status change)."""
+    conn = get_connection()
+
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE change_approvals SET execution_result = %s WHERE id = %s",
+                (json.dumps(execution_result), approval_id),
             )
 
         conn.commit()

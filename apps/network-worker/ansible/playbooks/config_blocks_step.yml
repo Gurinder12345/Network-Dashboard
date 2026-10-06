@@ -1,0 +1,17 @@
+---
+# One step of config_blocks_apply.yml. Skipped once any earlier step failed.
+- name: "Step {{ step.i }} (block {{ step.block + 1 }}, {{ step.kind }})"
+  when: nmp_failed is none
+  block:
+    - name: "Send step {{ step.i }}"
+      ansible.netcommon.cli_command:
+        command: "{{ step.command }}"
+
+    - name: "Record step {{ step.i }} as accepted"
+      ansible.builtin.set_fact:
+        nmp_applied: "{{ nmp_applied + [step.i] }}"
+  rescue:
+    - name: "Record step {{ step.i }} as failed"
+      ansible.builtin.set_fact:
+        nmp_failed: "{{ step.i }}"
+        nmp_error: "{{ (ansible_failed_result.msg | default('command rejected')) | string | truncate(800) }}"

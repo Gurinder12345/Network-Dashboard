@@ -8,8 +8,8 @@ import {
   getDevices,
 } from "../api/client";
 import { CHANGE_PLATFORMS } from "../api/constants";
-import type { Approval, Device } from "../api/types";
-import { ConfigView } from "../components/ConfigView";
+import type { Approval, ConfigBlock, Device, ExecutionResult } from "../api/types";
+import { BlocksView, CliPreview, ExecutionView, PrecheckSummaryView } from "../components/ChangeBlocks";
 import { Banner, EmptyState, TableSkeleton } from "../components/Feedback";
 import { FilterChips } from "../components/FilterChips";
 import { Modal } from "../components/Modal";
@@ -34,6 +34,39 @@ interface ActiveApply {
   startedAt: number;
   phase: "applying" | "applied" | "failed" | "unknown";
   error: string | null;
+  blocks: ConfigBlock[];
+  execution: ExecutionResult | null;
+}
+
+/** Everything the approver needs about the change body: counts, blocks, CLI preview, precheck. */
+function ChangeReview({ approval }: { approval: Approval }) {
+  return (
+    <>
+      <div className="change-counts">
+        <span>
+          <strong>{approval.block_count}</strong> block(s)
+        </span>
+        <span>
+          <strong>{approval.command_count}</strong> command(s)
+        </span>
+        <span className="mono muted" title={approval.id}>
+          request {truncateId(approval.id)}
+        </span>
+      </div>
+      <BlocksView blocks={approval.config_blocks} legacy={approval.legacy_single_block} />
+      <CliPreview text={approval.cli_preview} />
+      {approval.verification_commands.length > 0 && (
+        <div className="form-hint">
+          Verification commands after apply: <span className="mono">{approval.verification_commands.join(" · ")}</span>
+        </div>
+      )}
+      {approval.precheck_summary ? (
+        <PrecheckSummaryView summary={approval.precheck_summary} />
+      ) : (
+        <div className="form-hint">No stored precheck detail (created before multi-block changes).</div>
+      )}
+    </>
+  );
 }
 
 function readStoredApprover(): string {
@@ -177,7 +210,7 @@ function ApproveDialog({ approval, hostname, submitting, error, onConfirm, onCan
         Approving records your decision. Nothing is sent to the switch until someone applies it.
       </Banner>
 
-      <ConfigView parents={approval.config_parents} lines={approval.config_lines} />
+      <ChangeReview approval={approval} />
 
       <ReferenceIds approval={approval} />
 
@@ -190,7 +223,7 @@ function ApproveDialog({ approval, hostname, submitting, error, onConfirm, onCan
           disabled={submitting}
           onChange={(event) => setReviewed(event.target.checked)}
         />
-        <span>I have reviewed the target device and every command above.</span>
+        <span>I have reviewed the target device and every block and command above (one approval covers the whole change).</span>
       </label>
 
       {error && (
@@ -203,25 +236,30 @@ function ApproveDialog({ approval, hostname, submitting, error, onConfirm, onCan
 }
 
 function ConfigDetail({ approval }: { approval: Approval }) {
-  const parents = approval.config_parents ?? [];
-  const lines = approval.config_lines ?? [];
-
-  if (parents.length === 0 && lines.length === 0) {
+  if (approval.command_count === 0) {
     return <span className="muted">—</span>;
   }
+  const first = approval.config_blocks[0];
 
   return (
     <div className="config-block">
-      {parents.map((parent) => (
-        <div className="config-parent" key={parent}>
-          {parent}
-        </div>
-      ))}
-      {lines.map((line, index) => (
-        <div className="config-line" key={index}>
-          {line}
-        </div>
-      ))}
+      <div className="config-parent">
+        {approval.block_count} block(s) · {approval.command_count} command(s)
+      </div>
+      <div className="config-line">
+        {first.parent ?? "global"}
+        {approval.block_count > 1 ? ` … +${approval.block_count - 1} more` : ""}
+      </div>
+      <details className="change-details">
+        <summary>CLI preview</summary>
+        <pre className="config-preview">{approval.cli_preview}</pre>
+      </details>
+      {approval.execution_result && approval.execution_result.outcome !== "applying" && (
+        <details className="change-details" open={approval.execution_result.outcome === "partial_apply"}>
+          <summary>Execution result</summary>
+          <ExecutionView result={approval.execution_result} blocks={approval.config_blocks} />
+        </details>
+      )}
     </div>
   );
 }
@@ -259,14 +297,16 @@ function ApplyDialog({ approval, hostname, submitting, error, onConfirm, onCance
       <div className="danger-banner" role="alert">
         <strong>This WILL modify the running configuration of {hostname}.</strong>
         <span>
-          The commands below are sent to the switch now, followed by a post-check. There is no
-          automatic rollback. Do not apply changes to management or uplink interfaces.
+          The blocks below are sent to the switch now, strictly in order, followed by a post-check.
+          Execution stops at the first command the device rejects; blocks already applied stay
+          applied (PARTIAL APPLY). There is no automatic rollback. The platform does not restrict
+          command types: review management, uplink, routing and AAA commands carefully.
         </span>
       </div>
 
       <TargetCard hostname={hostname} approval={approval} />
 
-      <ConfigView parents={approval.config_parents} lines={approval.config_lines} />
+      <ChangeReview approval={approval} />
 
       <ReferenceIds
         approval={approval}
@@ -353,7 +393,7 @@ function CancelDialog({ approval, hostname, submitting, error, onConfirm, onCanc
         and the record is kept for audit.
       </Banner>
 
-      <ConfigView parents={approval.config_parents} lines={approval.config_lines} />
+      <BlocksView blocks={approval.config_blocks} legacy={approval.legacy_single_block} />
 
       <ReferenceIds
         approval={approval}
@@ -479,7 +519,13 @@ function ApplyStatusBanner({ apply, onDismiss }: { apply: ActiveApply; onDismiss
         )}
       </div>
       {apply.phase === "applied" && (
-        <div className="muted">Post-check confirmed the configuration is present on the device.</div>
+        <div className="muted">
+          Every block was accepted by the device and the post-check passed (commands without a deterministic check are
+          reported as "not available").
+        </div>
+      )}
+      {apply.execution && apply.execution.outcome !== "applying" && (
+        <ExecutionView result={apply.execution} blocks={apply.blocks} />
       )}
       {apply.error && (
         <details className="error-details" style={{ maxWidth: "none" }} open={apply.error.length < 300}>
@@ -582,11 +628,12 @@ export function Approvals() {
         const status = await getApplyStatus(approvalId, requestId);
 
         // PostgreSQL approval status is the source of truth for the outcome.
+        const execution = status.execution_result ?? null;
         if (status.approval_status === "applied") {
-          updateApply({ phase: "applied", error: null });
+          updateApply({ phase: "applied", error: null, execution });
           await load();
         } else if (status.approval_status === "failed") {
-          updateApply({ phase: "failed", error: status.error ?? "Apply failed. See Audit for details." });
+          updateApply({ phase: "failed", error: status.error ?? "Apply failed. See Audit for details.", execution });
           await load();
         } else if (status.task_state === "failed") {
           updateApply({
@@ -631,6 +678,8 @@ export function Approvals() {
         startedAt,
         phase: "applying",
         error: null,
+        blocks: applyTarget.config_blocks,
+        execution: null,
       });
       await load();
       pollApply(submitted.approval_id, submitted.request_id, startedAt, 0);
@@ -728,10 +777,7 @@ export function Approvals() {
       if (query.length === 0) return true;
 
       const hostname = deviceHostnameById.get(approval.device_id) ?? "";
-      const configText = [
-        ...(approval.config_parents ?? []),
-        ...(approval.config_lines ?? []),
-      ].join(" ");
+      const configText = approval.cli_preview;
 
       const haystack = [
         hostname,
@@ -834,6 +880,11 @@ export function Approvals() {
                       }
                     >
                       <StatusBadge status={approval.status} />
+                      {approval.execution_result?.outcome === "partial_apply" && (
+                        <span className="cell-sub">
+                          <StatusBadge status="failed" label="Partial apply" tone="danger" />
+                        </span>
+                      )}
                     </td>
                     <td className="cell-primary">
                       {deviceHostnameById.get(approval.device_id) ?? `Device #${approval.device_id}`}
