@@ -60,7 +60,16 @@ function sourceLabel(jobType: string | null | undefined) {
 function MetricCard({ kind, label, value, extra }: { kind: MetricKind; label: string; value: number | null; extra?: string }) {
   const level = metricLevel(kind, value);
   const hint = [level ? humanize(level) : "No current value", extra].filter(Boolean).join(" · ");
-  return <KpiCard label={label} value={formatPercent(value)} hint={hint} tone={level ? LEVEL_TONE[level] : undefined} dim={value === null} />;
+  return (
+    <KpiCard
+      label={label}
+      value={formatPercent(value)}
+      hint={hint}
+      tone={level ? LEVEL_TONE[level] : undefined}
+      dim={value === null}
+      icon={kind === "cpu" ? "cpu" : "memory"}
+    />
+  );
 }
 
 /** One line per telemetry state; telemetry problems never imply the switch is down. */
@@ -310,12 +319,16 @@ export default function DeviceDetail() {
                 value={formatResponseTime(health.response_time_ms)}
                 hint={health.last_check_at ? `Health check ${formatRelative(health.last_check_at)}` : "Not checked yet"}
                 dim={health.response_time_ms === null}
+                icon="clock"
+                tone="info"
               />
               <KpiCard
                 label="Uptime"
                 value={formatUptime(telemetry.uptime_seconds)}
                 hint={telemetry.uptime_seconds === null ? "Unavailable" : "Reported by the switch"}
                 dim={telemetry.uptime_seconds === null}
+                icon="pulse"
+                tone="info"
               />
             </div>
 

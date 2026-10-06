@@ -4,12 +4,13 @@ import { getApprovals, getDevices, getJobs, requestHealthCheck } from "../api/cl
 import { OS10_PLATFORM, OS6_PLATFORM } from "../api/constants";
 import type { Approval, Device, DeviceHealthEntry, FleetHealth, HealthStatus, Job } from "../api/types";
 import { Banner, EmptyState, StaleDataWarning, TableSkeleton } from "../components/Feedback";
+import { Icon, IconTile, type IconName } from "../components/Icon";
 import { KpiCard } from "../components/KpiCard";
 import { PageHeader } from "../components/PageHeader";
 import { RelativeTime } from "../components/RelativeTime";
 import { StatusBadge, type Tone } from "../components/StatusBadge";
 import { isHealthStale, useFleetHealth } from "../hooks/FleetHealthContext";
-import { formatRelative, formatResponseTime, humanize, truncateText } from "../utils/format";
+import { formatRelative, formatResponseTime, humanize, platformLabel, truncateText } from "../utils/format";
 
 const CHECK_NOW_COOLDOWN_MS = 20000;
 
@@ -20,6 +21,30 @@ const HEALTH_LABELS: Record<HealthStatus, string> = {
   down: "Down",
   unknown: "Unknown",
 };
+const HEALTH_ICONS: Record<HealthStatus, { icon: IconName; tone: Tone }> = {
+  healthy: { icon: "server", tone: "success" },
+  degraded: { icon: "alert", tone: "warning" },
+  down: { icon: "arrowDown", tone: "danger" },
+  unknown: { icon: "help", tone: "neutral" },
+};
+
+function percentOf(count: number | undefined, total: number | undefined): string | undefined {
+  if (count === undefined || !total) return undefined;
+  return `${Math.round((count / total) * 100)}% of fleet`;
+}
+
+/** Access level per platform, as enforced by the worker's change policies. */
+export function AccessTag({ platform }: { platform: string }) {
+  if (platform === OS6_PLATFORM) return <span className="access-tag actionable">Actionable</span>;
+  if (platform === OS10_PLATFORM) {
+    return (
+      <span className="access-tag actionable" title="Dell OS10 safe L2 changes on eligible ethernet interfaces">
+        Actionable · safe L2
+      </span>
+    );
+  }
+  return <span className="view-only-tag">View only</span>;
+}
 // Most urgent first in device lists.
 const SEVERITY: Record<string, number> = { down: 0, degraded: 1, unknown: 2, healthy: 3 };
 
@@ -44,7 +69,10 @@ function FleetHealthPanel({
   return (
     <div className="panel fleet-panel">
       <div className="panel-header">
-        <h2>Fleet Health</h2>
+        <h2>
+          <Icon name="pulse" size={17} className="panel-title-icon" />
+          Fleet Health
+        </h2>
         <div className="fleet-panel-actions">
           {fleet?.check_running && <StatusBadge status="running" label="Check running" />}
           <button
@@ -54,6 +82,7 @@ function FleetHealthPanel({
             disabled={checkBusy || fleet?.check_running}
             title="Queue one read-only health sweep of all enabled switches"
           >
+            <Icon name="play" size={12} />
             Check now
           </button>
         </div>
@@ -93,15 +122,18 @@ function FleetHealthPanel({
 
             <div className="health-legend">
               {HEALTH_ORDER.map((status) => (
-                <div className="legend-item" key={status}>
-                  <span className="legend-label">
-                    <span className={`tone-dot dot-${status}`} aria-hidden="true" />
-                    {HEALTH_LABELS[status]}
-                  </span>
-                  <span className="legend-value">{fleet[status]}</span>
-                  <span className="legend-pct">
-                    {total > 0 ? `${Math.round((fleet[status] / total) * 100)}%` : "—"}
-                  </span>
+                <div className={`legend-item legend-${status}`} key={status}>
+                  <div className="legend-text">
+                    <span className="legend-label">
+                      <span className={`tone-dot dot-${status}`} aria-hidden="true" />
+                      {HEALTH_LABELS[status]}
+                    </span>
+                    <span className="legend-value">{fleet[status]}</span>
+                    <span className="legend-pct">
+                      {total > 0 ? `${Math.round((fleet[status] / total) * 100)}%` : "—"}
+                    </span>
+                  </div>
+                  <IconTile name={HEALTH_ICONS[status].icon} tone={HEALTH_ICONS[status].tone} />
                 </div>
               ))}
             </div>
@@ -133,7 +165,10 @@ function PlatformSummary({ devices, health }: { devices: Device[]; health: Map<n
   return (
     <div className="panel">
       <div className="panel-header">
-        <h2>Platforms</h2>
+        <h2>
+          <Icon name="layers" size={17} className="panel-title-icon" />
+          Platforms
+        </h2>
         <span className="count-tag">{platforms.length}</span>
       </div>
       <div className="platform-list">
@@ -142,23 +177,22 @@ function PlatformSummary({ devices, health }: { devices: Device[]; health: Map<n
           const healthy = list.filter((d) => health.get(d.id)?.status === "healthy").length;
           const enabled = list.filter((d) => d.enabled).length;
           return (
-            <div className="platform-row" key={platform}>
-              <div>
-                <span className="platform-tag">{platform}</span>{" "}
-                {platform === OS6_PLATFORM ? (
-                  <span className="access-tag actionable">Actionable</span>
-                ) : platform === OS10_PLATFORM ? (
-                  <span className="access-tag actionable" title="Dell OS10 safe L2 changes on eligible ethernet interfaces">
-                    Actionable · safe L2
-                  </span>
-                ) : null}
+            <Link className="platform-row" key={platform} to="/devices" title={`Open Devices (${platformLabel(platform)})`}>
+              <IconTile name="server" tone="info" />
+              <div className="platform-row-main">
+                <div className="platform-row-title">
+                  <span className="platform-row-name">{platformLabel(platform)}</span>
+                  <span className="platform-tag">{platform}</span>
+                  <AccessTag platform={platform} />
+                </div>
+                <div className="platform-row-meta">
+                  <span>{enabled} enabled</span>
+                  <span>{healthy} healthy</span>
+                </div>
               </div>
               <span className="platform-row-count">{list.length}</span>
-              <div className="platform-row-meta">
-                <span>{enabled} enabled</span>
-                <span>{healthy} healthy</span>
-              </div>
-            </div>
+              <Icon name="chevronRight" size={16} className="row-chevron" />
+            </Link>
           );
         })}
       </div>
@@ -168,6 +202,7 @@ function PlatformSummary({ devices, health }: { devices: Device[]; health: Map<n
 
 interface ComponentStatus {
   name: string;
+  icon: IconName;
   tone: Tone;
   detail: string;
   title: string;
@@ -189,18 +224,21 @@ function deriveComponents(
   return [
     {
       name: "API",
+      icon: "server",
       tone: apiOk ? "success" : "danger",
       detail: apiOk ? "Responding" : "Not responding",
       title: "Result of the dashboard's latest API poll",
     },
     {
       name: "PostgreSQL",
+      icon: "database",
       tone: dbOk === null ? "neutral" : dbOk ? "success" : "warning",
       detail: dbOk === null ? "Not confirmed yet" : dbOk ? "Reachable via API" : "Jobs/approvals query failed",
       title: "Inferred: the jobs and approvals lists are read directly from PostgreSQL",
     },
     {
       name: "Beat · Redis · Worker",
+      icon: "box",
       tone: !lastUpdated ? "neutral" : stale ? "warning" : "success",
       detail: !lastUpdated
         ? "No health sweep completed yet"
@@ -211,6 +249,7 @@ function deriveComponents(
     },
     {
       name: "Vault",
+      icon: "shield",
       tone: recentLogin ? "success" : "neutral",
       detail: recentLogin ? "Credentials in use (SSH login OK)" : "No recent device login to confirm",
       title: "Inferred: a successful health-check SSH login required Vault credentials",
@@ -313,6 +352,7 @@ export function Overview() {
         lastUpdated={lastRefreshedAt}
         actions={
           <button type="button" className="refresh-button" onClick={() => load()} disabled={refreshing}>
+            <Icon name="refresh" size={14} />
             {refreshing ? "Refreshing…" : "Refresh"}
           </button>
         }
@@ -333,39 +373,60 @@ export function Overview() {
       )}
 
       <div className="kpi-grid">
-        <KpiCard label="Total Devices" value={loading ? "—" : devices.length} tone="info" />
+        <KpiCard
+          label="Total Devices"
+          value={loading ? "—" : devices.length}
+          tone="info"
+          icon="server"
+          hint={fleet ? `${fleet.total} enabled` : undefined}
+        />
         <KpiCard
           label="Healthy"
           value={fleet ? fleet.healthy : "—"}
           tone="success"
+          icon="check"
           dim={!hasChecks}
-          hint={fleet && !hasChecks ? "Awaiting first check" : undefined}
+          hint={fleet && !hasChecks ? "Awaiting first check" : hasChecks ? percentOf(fleet?.healthy, fleet?.total) : undefined}
         />
         <KpiCard
           label="Degraded"
           value={fleet ? fleet.degraded : "—"}
           tone="warning"
+          icon="alert"
           emphasize={(fleet?.degraded ?? 0) > 0}
           dim={!hasChecks}
+          hint={hasChecks ? percentOf(fleet?.degraded, fleet?.total) : undefined}
         />
         <KpiCard
           label="Down"
           value={fleet ? fleet.down : "—"}
           tone="danger"
+          icon="alertCircle"
           emphasize={(fleet?.down ?? 0) > 0}
           dim={!hasChecks}
+          hint={hasChecks ? percentOf(fleet?.down, fleet?.total) : undefined}
         />
-        <KpiCard label="Unknown" value={fleet ? fleet.unknown : "—"} tone="neutral" dim={!hasChecks} />
+        <KpiCard
+          label="Unknown"
+          value={fleet ? fleet.unknown : "—"}
+          tone="neutral"
+          icon="help"
+          dim={!hasChecks}
+          hint={hasChecks ? percentOf(fleet?.unknown, fleet?.total) : undefined}
+        />
         <KpiCard
           label="Pending Approvals"
           value={loading ? "—" : pendingApprovals.length}
           tone="warning"
+          icon="fileCheck"
           emphasize={pendingApprovals.length > 0}
+          hint={loading ? undefined : `${pendingApprovals.length} awaiting review`}
         />
         <KpiCard
           label="Failed Jobs"
           value={loading ? "—" : failedJobs.length}
           tone="danger"
+          icon="gear"
           hint="All recorded jobs"
         />
       </div>
@@ -373,11 +434,14 @@ export function Overview() {
       <div className="components-strip" aria-label="System components">
         {components.map((component) => (
           <div className="component-chip" key={component.name} title={component.title}>
-            <span className="component-chip-name">
-              <span className={`tone-dot tone-${component.tone}`} aria-hidden="true" />
-              {component.name}
-            </span>
-            <span className="component-chip-detail">{component.detail}</span>
+            <IconTile name={component.icon} tone="neutral" />
+            <div className="component-chip-text">
+              <span className="component-chip-name">
+                <span className={`tone-dot tone-${component.tone}`} aria-hidden="true" />
+                {component.name}
+              </span>
+              <span className="component-chip-detail">{component.detail}</span>
+            </div>
           </div>
         ))}
       </div>
@@ -395,9 +459,12 @@ export function Overview() {
       <div className="panel-grid">
         <div className="panel">
           <div className="panel-header">
-            <h2>Recent Changes</h2>
-            <Link to="/approvals" className="panel-header-meta">
-              View approvals →
+            <h2>
+              <Icon name="clock" size={17} className="panel-title-icon" />
+              Recent Changes
+            </h2>
+            <Link to="/approvals" className="panel-header-meta panel-header-link">
+              View approvals <Icon name="arrowRight" size={13} />
             </Link>
           </div>
           <div className="panel-body">
@@ -407,20 +474,22 @@ export function Overview() {
               <EmptyState title="No changes recorded yet." hint="Run a precheck from Changes to start one." />
             ) : (
               approvals.slice(0, 6).map((approval) => (
-                <div className="list-row" key={approval.id}>
-                  <div className="list-row-top">
+                <Link className="list-row list-row-rich" key={approval.id} to="/approvals" title="Open Approvals">
+                  <IconTile name="server" tone="neutral" />
+                  <div className="list-row-main">
                     <span className="list-row-title">
                       {deviceHostnameById.get(approval.device_id) ?? `Device #${approval.device_id}`}
                     </span>
-                    <StatusBadge status={approval.status} />
+                    <div className="list-row-config" title={summarizeConfig(approval)}>
+                      {summarizeConfig(approval)}
+                    </div>
+                    <div className="list-row-meta">
+                      requested by {approval.requested_by} · <RelativeTime value={approval.created_at} />
+                    </div>
                   </div>
-                  <div className="list-row-config" title={summarizeConfig(approval)}>
-                    {summarizeConfig(approval)}
-                  </div>
-                  <div className="list-row-meta">
-                    requested by {approval.requested_by} · <RelativeTime value={approval.created_at} />
-                  </div>
-                </div>
+                  <StatusBadge status={approval.status} />
+                  <Icon name="chevronRight" size={16} className="row-chevron" />
+                </Link>
               ))
             )}
           </div>
@@ -428,9 +497,12 @@ export function Overview() {
 
         <div className="panel">
           <div className="panel-header">
-            <h2>Recent Failed Jobs</h2>
-            <Link to="/jobs" className="panel-header-meta">
-              View jobs →
+            <h2>
+              <Icon name="alert" size={17} className="panel-title-icon tone-text-danger" />
+              Recent Failed Jobs
+            </h2>
+            <Link to="/jobs" className="panel-header-meta panel-header-link">
+              View jobs <Icon name="arrowRight" size={13} />
             </Link>
           </div>
           <div className="panel-body">
@@ -440,21 +512,23 @@ export function Overview() {
               <EmptyState title="No failed jobs." />
             ) : (
               failedJobs.slice(0, 6).map((job) => (
-                <div className="list-row" key={job.id}>
-                  <div className="list-row-top">
+                <Link className="list-row list-row-rich" key={job.id} to="/jobs" title="Open Jobs for the full error">
+                  <IconTile name="server" tone="neutral" />
+                  <div className="list-row-main">
                     <span className="list-row-title">
                       {deviceHostnameById.get(job.device_id) ?? `Device #${job.device_id}`}
                     </span>
-                    <StatusBadge status={job.status} />
+                    <div className="list-row-config" title={job.error_message ?? undefined}>
+                      {humanize(job.job_type)}
+                      {job.error_message ? ` — ${truncateText(job.error_message, 90)}` : ""}
+                    </div>
+                    <div className="list-row-meta">
+                      <RelativeTime value={job.finished_at ?? job.started_at} />
+                    </div>
                   </div>
-                  <div className="list-row-config" title={job.error_message ?? undefined}>
-                    {humanize(job.job_type)}
-                    {job.error_message ? ` — ${truncateText(job.error_message, 90)}` : ""}
-                  </div>
-                  <div className="list-row-meta">
-                    <RelativeTime value={job.finished_at ?? job.started_at} />
-                  </div>
-                </div>
+                  <StatusBadge status={job.status} />
+                  <Icon name="chevronRight" size={16} className="row-chevron" />
+                </Link>
               ))
             )}
           </div>
@@ -463,7 +537,10 @@ export function Overview() {
 
       <div className="panel">
         <div className="panel-header">
-          <h2>Device Health</h2>
+          <h2>
+            <Icon name="server" size={17} className="panel-title-icon" />
+            Device Health
+          </h2>
           <span className="panel-header-meta">Most urgent first</span>
         </div>
         <div className="table-wrap" style={{ maxHeight: 420 }}>
@@ -491,17 +568,17 @@ export function Overview() {
                       key={device.id}
                       className={status === "down" ? "row-alert" : status === "degraded" ? "row-warn" : undefined}
                     >
-                      <td className="cell-primary">{device.hostname}</td>
+                      <td className="cell-primary">
+                        <Link className="device-link" to={`/devices/${device.id}`}>
+                          {device.hostname}
+                        </Link>
+                      </td>
                       <td className="mono secondary">{device.management_ip}</td>
                       <td>
                         <span className="platform-tag">{device.platform}</span>
                       </td>
                       <td>
-                        {device.platform === OS6_PLATFORM ? (
-                          <span className="access-tag actionable">Actionable</span>
-                        ) : (
-                          <span className="view-only-tag">View only</span>
-                        )}
+                        <AccessTag platform={device.platform} />
                       </td>
                       <td title={health?.last_error ?? undefined}>
                         <StatusBadge status={status} />

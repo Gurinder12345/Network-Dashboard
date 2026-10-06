@@ -1,7 +1,7 @@
 export type Tone = "success" | "warning" | "danger" | "info" | "neutral";
 
 // One mapping for every status in the product, so a color always means the same thing:
-// green = good/done, amber = attention/waiting, red = failed/down, blue = approved/in progress,
+// green = good/done, amber = attention/awaiting a person, red = failed/down, blue = queued/approved/in progress,
 // gray = unknown/cancelled/inactive.
 const STATUS_TONES: Record<string, Tone> = {
   healthy: "success",
@@ -13,7 +13,6 @@ const STATUS_TONES: Record<string, Tone> = {
 
   degraded: "warning",
   pending: "warning",
-  queued: "warning",
   warning: "warning",
   review: "warning",
 
@@ -22,6 +21,7 @@ const STATUS_TONES: Record<string, Tone> = {
   error: "danger",
   blocked: "danger",
 
+  queued: "info",
   approved: "info",
   applying: "info",
   running: "info",

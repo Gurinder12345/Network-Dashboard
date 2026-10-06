@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { downloadBackup } from "../api/client";
+import { Icon } from "./Icon";
 
 // The API streams the stored file as an attachment; it is handed straight to the browser's
 // save flow and never shown or kept in React state.
@@ -49,6 +50,7 @@ export function BackupDownloadButton({ backupId, label = "Download", ariaLabel, 
         onClick={handleDownload}
         aria-label={ariaLabel ?? `Download backup ${backupId}`}
       >
+        <Icon name="download" size={13} />
         {downloading ? "Downloading…" : label}
       </button>
       {error && (

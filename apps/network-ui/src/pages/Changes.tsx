@@ -113,8 +113,8 @@ function runLocalValidation(device: Device, configParents: string[], configLines
   return findings;
 }
 
-// status drives the shared badge color: failed=red, submitting/running=blue (pulsing),
-// queued/pending=amber, passed=green.
+// status drives the shared badge color: failed=red, submitting/running=blue (pulsing), queued=blue,
+// pending=amber, passed=green.
 function runSummary(run: PrecheckRun): { label: string; status: string } {
   switch (run.phase) {
     case "blocked":

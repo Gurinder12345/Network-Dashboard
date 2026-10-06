@@ -1,4 +1,6 @@
+import { Link } from "react-router-dom";
 import kendaLogo from "../assets/kenda-logo.png";
+import { Icon } from "../components/Icon";
 import { isHealthStale, useFleetHealth } from "../hooks/FleetHealthContext";
 import { formatRelative } from "../utils/format";
 
@@ -22,9 +24,10 @@ export function Header() {
             <img src={kendaLogo} alt="Kenda" width={92} height={18} />
           </span>
           <span className="brand-divider" aria-hidden="true" />
-          <span className="brand-name">
-            Network Management <span className="brand-sub">Platform</span>
+          <span className="brand-mark" aria-hidden="true">
+            <Icon name="grid" size={18} />
           </span>
+          <span className="brand-name">Network Management Platform</span>
         </div>
         <span className="env-tag" title="Lab environment">
           Lab
@@ -58,6 +61,17 @@ export function Header() {
             Health {fleet.last_updated ? formatRelative(fleet.last_updated) : "not checked yet"}
           </span>
         )}
+
+        {/* Attention indicator: degraded/down devices from the same health poll (no separate notification feed exists). */}
+        <Link
+          to="/devices"
+          className="header-icon-button"
+          title={attention > 0 ? `${attention} device(s) degraded or down` : "No devices need attention"}
+          aria-label={attention > 0 ? `${attention} device(s) need attention` : "No devices need attention"}
+        >
+          <Icon name="bell" size={17} />
+          {attention > 0 && <span className="header-icon-count">{attention}</span>}
+        </Link>
       </div>
     </header>
   );

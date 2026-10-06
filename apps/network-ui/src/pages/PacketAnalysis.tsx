@@ -4,6 +4,7 @@ import { deletePcapAnalysis, getPcapAnalysis, listPcapAnalyses, uploadPcapAnalys
 import type { PcapAnalysis, PcapFinding, PcapFlow, PcapMode, PcapResult, PcapStatus } from "../api/types";
 import { Banner, EmptyState, TableSkeleton } from "../components/Feedback";
 import { FilterChips } from "../components/FilterChips";
+import { Icon } from "../components/Icon";
 import { KpiCard } from "../components/KpiCard";
 import { Modal } from "../components/Modal";
 import { PageHeader } from "../components/PageHeader";
@@ -61,12 +62,25 @@ function fileProblem(file: File | null): string | null {
 
 function FilePicker({ label, file, onChange, id }: { label: string; file: File | null; onChange: (f: File | null) => void; id: string }) {
   const problem = fileProblem(file);
+  const [dragging, setDragging] = useState(false);
   return (
     <div className="pcap-file">
-      <label className="form-label" htmlFor={id}>{label}</label>
-      <input id={id} type="file" accept=".pcap,.pcapng" onChange={(e) => onChange(e.target.files?.[0] ?? null)} />
+      <span className="form-label">{label}</span>
+      {/* The native input stays the source of truth (keyboard + screen readers); the drop zone is its label.
+          A dropped file goes through the same validation as a picked one. */}
+      <input id={id} className="sr-only pcap-file-input" type="file" accept=".pcap,.pcapng"
+        onChange={(e) => onChange(e.target.files?.[0] ?? null)} />
+      <label htmlFor={id} className={`pcap-dropzone${dragging ? " dragging" : ""}${file ? " has-file" : ""}`}
+        onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => { e.preventDefault(); setDragging(false); onChange(e.dataTransfer.files?.[0] ?? null); }}>
+        <Icon name="upload" size={20} />
+        <span><strong>{file ? "Choose another file" : "Choose a capture"}</strong> or drag it here</span>
+        <span className="muted">.pcap / .pcapng</span>
+      </label>
       {file && (
         <div className="pcap-file-meta">
+          <Icon name="file" size={14} />
           <span className="mono">{file.name}</span> · {formatBytes(file.size)} · {file.name.toLowerCase().endsWith(".pcapng") ? "pcapng" : "pcap"}
         </div>
       )}
@@ -550,10 +564,17 @@ export default function PacketAnalysis() {
           </div>
           <div className="pcap-upload-actions">
             <button type="button" className="primary-button" disabled={!ready} onClick={analyze}>
+              {uploadFraction === null && <Icon name="play" size={12} />}
               {uploadFraction !== null ? `Uploading… ${Math.round(uploadFraction * 100)}%` : "Analyze"}
             </button>
             <span className="muted small-note">.pcap / .pcapng, up to {MAX_UPLOAD_MB} MB each. Files are deleted when the analysis finishes.</span>
           </div>
+          {uploadFraction !== null && (
+            <div className="upload-progress" role="progressbar" aria-label="Upload progress" aria-valuemin={0} aria-valuemax={100}
+              aria-valuenow={Math.round(uploadFraction * 100)}>
+              <span style={{ width: `${Math.round(uploadFraction * 100)}%` }} />
+            </div>
+          )}
           {uploadError && <Banner tone="danger" title="Upload rejected.">{uploadError}</Banner>}
         </div>
       </section>
