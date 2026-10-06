@@ -90,6 +90,15 @@ export function submitOs6Precheck(request: Os6PrecheckRequest): Promise<Os6Prech
   return postJson<Os6PrecheckSubmitted>("/api/v1/changes/os6/precheck", request);
 }
 
+// Platform-generic precheck (Dell OS6 / Dell OS10): the worker dispatches by platform.
+export function submitChangePrecheck(request: Os6PrecheckRequest): Promise<Os6PrecheckSubmitted> {
+  return postJson<Os6PrecheckSubmitted>("/api/v1/changes/precheck", request);
+}
+
+export function getChangePrecheck(requestId: string): Promise<Os6PrecheckStatus> {
+  return getJson<Os6PrecheckStatus>(`/api/v1/changes/precheck/${encodeURIComponent(requestId)}`);
+}
+
 export function getOs6Precheck(requestId: string): Promise<Os6PrecheckStatus> {
   return getJson<Os6PrecheckStatus>(`/api/v1/changes/os6/precheck/${encodeURIComponent(requestId)}`);
 }

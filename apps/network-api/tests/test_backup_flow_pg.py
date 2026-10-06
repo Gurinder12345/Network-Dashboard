@@ -64,6 +64,18 @@ class ManualBackupFlowTests(unittest.TestCase):
         cls.psycopg, cls.device_backup, cls.config_backup, cls.worker = psycopg, device_backup, config_backup, worker
         cls.client = TestClient(app)
 
+        # Modules may already have been imported by other test modules (reading the env at
+        # import time), so set the effective settings on the modules themselves.
+        from app import backup_download
+        from app.db import client as api_db
+        from db import client as worker_db
+
+        for module in (api_db, worker_db):
+            module.DB_HOST, module.DB_PORT, module.DB_NAME = url.hostname, str(url.port or 5432), url.path.lstrip("/")
+            module.DB_USER, module.DB_PASSWORD = url.username, url.password
+        config_backup.BACKUP_ROOT = cls.root
+        backup_download.BACKUP_ROOT = cls.root
+
     @classmethod
     def tearDownClass(cls):
         cls.tmp.cleanup()
@@ -71,6 +83,9 @@ class ManualBackupFlowTests(unittest.TestCase):
     def setUp(self):
         with self.psycopg.connect(DSN, autocommit=True) as conn:
             conn.execute(SCHEMA)
+            # Production schema after the job-deletion release (jobs.deleted_at / deleted_by).
+            with open(os.path.join(os.path.dirname(API_DIR), "..", "db", "migrations", "007_jobs_soft_delete.sql")) as handle:
+                conn.execute(handle.read())
         self.addCleanup(mock.patch.stopall)
         locks = {}
         cache = self.device_backup.cache

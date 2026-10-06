@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { getDevices, getOs6Precheck, submitOs6Precheck } from "../api/client";
-import { OS6_PLATFORM } from "../api/constants";
+import { getChangePrecheck, getDevices, submitChangePrecheck } from "../api/client";
+import { CHANGE_PLATFORMS, OS10_PLATFORM, OS6_PLATFORM } from "../api/constants";
+import { platformLabel } from "../utils/format";
 import type { Device, Os6PrecheckStatus } from "../api/types";
 import { CopyButton } from "../components/CopyButton";
 import { Banner, EmptyState } from "../components/Feedback";
@@ -51,8 +52,13 @@ function splitLines(value: string): string[] {
 }
 
 function isActionable(device: Device): boolean {
-  return device.platform === OS6_PLATFORM && device.enabled;
+  return CHANGE_PLATFORMS.includes(device.platform) && device.enabled;
 }
+
+// Mirrors (for early feedback only) the worker's Dell OS10 V1 allow-list. The worker is
+// authoritative: it rejects anything else during precheck and again before apply.
+const OS10_PARENT = /^interface\s+ethernet\s*\d+\/\d+\/\d+(:\d+)?$/i;
+const OS10_LINE = /^(no description|description\s+"?[A-Za-z0-9._-]{1,64}"?)$/i;
 
 function runLocalValidation(device: Device, configParents: string[], configLines: string[]): Finding[] {
   const findings: Finding[] = [];
@@ -60,7 +66,21 @@ function runLocalValidation(device: Device, configParents: string[], configLines
   if (!isActionable(device)) {
     findings.push({
       level: "error",
-      text: `${device.hostname} (${device.platform}) is view-only. Only enabled OS6 devices accept changes.`,
+      text: `${device.hostname} (${device.platform}) is view-only. Only enabled Dell OS6 / Dell OS10 devices accept changes.`,
+    });
+  }
+
+  if (device.platform === OS10_PLATFORM) {
+    if (configParents.length !== 1 || !OS10_PARENT.test(configParents[0])) {
+      findings.push({ level: "warning", text: "Dell OS10 V1 needs exactly one parent: interface ethernetX/Y/Z." });
+    }
+    configLines.forEach((line) => {
+      if (!OS10_LINE.test(line)) {
+        findings.push({
+          level: "warning",
+          text: `"${line}" — Dell OS10 V1 allows only "description <text>" (A-Z a-z 0-9 . _ -) or "no description"; the precheck will reject it.`,
+        });
+      }
     });
   }
 
@@ -241,7 +261,7 @@ function PrecheckResults({ run }: { run: PrecheckRun | null }) {
     return (
       <EmptyState
         title="No precheck yet."
-        hint="Select an OS6 device, enter the context and commands, then run a precheck."
+        hint="Select a Dell OS6 or Dell OS10 device, enter the context and commands, then run a precheck."
       />
     );
   }
@@ -363,7 +383,7 @@ export function Changes() {
       }
 
       try {
-        const status = await getOs6Precheck(requestId);
+        const status = await getChangePrecheck(requestId);
 
         if (status.state === "completed") {
           updateRun({ phase: "completed", status });
@@ -412,7 +432,7 @@ export function Changes() {
 
     try {
       // Only the device id and commands leave the browser; the worker resolves credentials from Vault.
-      const submitted = await submitOs6Precheck({
+      const submitted = await submitChangePrecheck({
         device_id: selectedDevice.id,
         config_parents: configParents,
         config_lines: configLines,
@@ -429,7 +449,7 @@ export function Changes() {
     <>
       <PageHeader
         title="Changes"
-        subtitle="Prepare a guarded OS6 configuration change. Prechecks are read-only; OS10 devices are view-only."
+        subtitle="Prepare a guarded configuration change (Dell OS6, or Dell OS10 interface descriptions). Prechecks are read-only."
       />
 
       {error && (
@@ -441,7 +461,7 @@ export function Changes() {
       <div className="changes-grid">
         <div className="panel">
           <div className="panel-header">
-            <h2>OS6 Change Request</h2>
+            <h2>Change Request</h2>
             <span className="count-tag">{actionableDevices.length} actionable</span>
           </div>
           <div className="change-form">
@@ -457,8 +477,15 @@ export function Changes() {
                 onChange={(event) => edit(setDeviceId)(event.target.value)}
               >
                 <option value="">{loading ? "Loading devices…" : "Select a device"}</option>
-                <optgroup label="OS6 — actionable">
-                  {actionableDevices.map((device) => (
+                <optgroup label="Dell OS6 — actionable">
+                  {actionableDevices.filter((device) => device.platform === OS6_PLATFORM).map((device) => (
+                    <option key={device.id} value={device.id}>
+                      {device.hostname} ({device.management_ip})
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Dell OS10 — interface description only">
+                  {actionableDevices.filter((device) => device.platform === OS10_PLATFORM).map((device) => (
                     <option key={device.id} value={device.id}>
                       {device.hostname} ({device.management_ip})
                     </option>
@@ -475,7 +502,8 @@ export function Changes() {
               </select>
               {selectedDevice && (
                 <span className="form-hint">
-                  {selectedDevice.platform} · {selectedDevice.management_ip}
+                  {platformLabel(selectedDevice.platform)} · {selectedDevice.management_ip}
+                  {selectedDevice.platform === OS10_PLATFORM && " · V1 policy: description / no description under one ethernet interface"}
                 </span>
               )}
             </div>
@@ -488,7 +516,7 @@ export function Changes() {
               <textarea
                 className="config-input mono"
                 rows={2}
-                placeholder={"interface Tw1/0/12"}
+                placeholder={selectedDevice?.platform === OS10_PLATFORM ? "interface ethernet1/1/<port>" : "interface Tw1/0/12"}
                 spellCheck={false}
                 value={parentsText}
                 disabled={running}
@@ -504,7 +532,7 @@ export function Changes() {
               <textarea
                 className="config-input mono"
                 rows={6}
-                placeholder={"description NETOPS-TEST\nswitchport access vlan 20"}
+                placeholder={selectedDevice?.platform === OS10_PLATFORM ? "description AUTOMATION-TEST" : "description NETOPS-TEST\nswitchport access vlan 20"}
                 spellCheck={false}
                 value={linesText}
                 disabled={running}

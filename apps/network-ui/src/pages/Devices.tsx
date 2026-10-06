@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { getBackups, getDevices } from "../api/client";
-import { HEALTH_SLOW_THRESHOLD_MS, OS6_PLATFORM } from "../api/constants";
+import { HEALTH_SLOW_THRESHOLD_MS, OS10_PLATFORM, OS6_PLATFORM } from "../api/constants";
 import type { Backup, Device, HealthStatus } from "../api/types";
 import { BackupDownloadButton } from "../components/BackupDownloadButton";
 import { Banner, EmptyState, StaleDataWarning, TableSkeleton } from "../components/Feedback";
@@ -309,6 +309,11 @@ export function Devices() {
                       <td>
                         {device.platform === OS6_PLATFORM ? (
                           <span className="access-tag actionable">Actionable</span>
+                        ) : device.platform === OS10_PLATFORM ? (
+                          <span className="access-tag actionable" title="Dell OS10 V1 change policy: interface descriptions only">
+                            Actionable
+                            <span className="cell-sub">description only</span>
+                          </span>
                         ) : (
                           <span className="view-only-tag">View only</span>
                         )}

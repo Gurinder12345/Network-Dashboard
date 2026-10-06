@@ -1,0 +1,25 @@
+! Version 10.5.4.0
+! Last configuration change at Oct  06 12:00:00 2026
+!
+hostname Kenda-Core-1
+!
+interface mgmt1/1/1
+ no shutdown
+ ip address dhcp
+!
+interface ethernet1/1/5
+ no shutdown
+ switchport access vlan 1
+ flowcontrol receive on
+!
+interface ethernet1/1/30:2
+ description UPLINK-DO-NOT-TOUCH
+ no shutdown
+ channel-group 10 mode active
+!
+interface ethernet1/1/31
+ shutdown
+ switchport access vlan 1
+!
+!
+end

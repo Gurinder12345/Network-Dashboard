@@ -149,6 +149,7 @@ export interface PrecheckCommandResult {
 }
 
 export interface Os6PrecheckResult {
+  platform?: string | null;
   status: "no_change_required" | "pending_approval" | string;
   target_host: string | null;
   ready_for_approval: boolean;

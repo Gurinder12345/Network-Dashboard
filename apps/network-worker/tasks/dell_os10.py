@@ -6,15 +6,19 @@ from nornir_netmiko.tasks import netmiko_send_command
 from vault.client import get_device_credentials
 from datetime import datetime, timezone
 import hashlib
+import os
+
+# Nornir inventory directory (overridable so tests can target a simulated device).
+INVENTORY_DIR = os.getenv("NORNIR_INVENTORY_DIR", "/app/inventory")
 
 def get_nornir(target_host):
     nr = InitNornir(
         inventory={
             "plugin": "SimpleInventory",
             "options": {
-                "host_file": "/app/inventory/hosts.yaml",
-                "group_file": "/app/inventory/groups.yaml",
-                "defaults_file": "/app/inventory/defaults.yaml",
+                "host_file": os.path.join(INVENTORY_DIR, "hosts.yaml"),
+                "group_file": os.path.join(INVENTORY_DIR, "groups.yaml"),
+                "defaults_file": os.path.join(INVENTORY_DIR, "defaults.yaml"),
             },
         }
     )
@@ -70,15 +74,36 @@ def run_show_command(target_host, command):
 
 
 
+def _failed_prep(prep):
+    """
+    If the first step (login + `terminal length 0`) failed, return a per-host failure with
+    the real exception. Otherwise Nornir would silently skip the failed host on the next
+    run and the caller would get an empty result instead of e.g. an authentication error.
+    """
+    if not prep.failed:
+        return None
+    output = {}
+    for hostname, multi_result in prep.items():
+        task_result = multi_result[0]
+        exc = task_result.exception
+        output[hostname] = {
+            "failed": True,
+            "result": f"{type(exc).__name__}: {exc}" if exc else str(task_result.result),
+        }
+    return output
+
+
 def get_running_config(target_host):
     nr = get_nornir(target_host)
 
     # Disable paging first
-    nr.run(
+    failed = _failed_prep(nr.run(
         task=netmiko_send_command,
         command_string="terminal length 0",
         read_timeout=30,
-    )
+    ))
+    if failed:
+        return failed
 
     result = nr.run(
         task=netmiko_send_command,
@@ -104,11 +129,13 @@ def get_running_config(target_host):
 def backup_running_config(target_host):
     nr = get_nornir(target_host)
 
-    nr.run(
+    failed = _failed_prep(nr.run(
         task=netmiko_send_command,
         command_string="terminal length 0",
         read_timeout=30,
-    )
+    ))
+    if failed:
+        return failed
 
     result = nr.run(
         task=netmiko_send_command,

@@ -7,7 +7,7 @@ import {
   getApprovals,
   getDevices,
 } from "../api/client";
-import { OS6_PLATFORM } from "../api/constants";
+import { CHANGE_PLATFORMS } from "../api/constants";
 import type { Approval, Device } from "../api/types";
 import { ConfigView } from "../components/ConfigView";
 import { Banner, EmptyState, TableSkeleton } from "../components/Feedback";
@@ -414,7 +414,7 @@ interface ApprovalActionProps {
 }
 
 function ApprovalAction({ approval, platform, busy, onApprove, onApply, onCancelChange }: ApprovalActionProps) {
-  if (platform !== undefined && platform !== OS6_PLATFORM) {
+  if (platform !== undefined && !CHANGE_PLATFORMS.includes(platform)) {
     return <span className="view-only-tag">View only</span>;
   }
 
@@ -750,7 +750,7 @@ export function Approvals() {
     <>
       <PageHeader
         title="Approvals"
-        subtitle="Change control: review, approve, apply or cancel OS6 changes."
+        subtitle="Change control: review, approve, apply or cancel Dell OS6 and Dell OS10 changes."
       />
 
       {error && (

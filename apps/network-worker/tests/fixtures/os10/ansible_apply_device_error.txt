@@ -1,0 +1,33 @@
+
+PLAY [Dell OS10 approved configuration change] *********************************
+
+TASK [Validate approved configuration payload] *********************************
+ok: [Kenda-Core-1] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [Enter configuration mode] ************************************************
+ok: [Kenda-Core-1]
+
+TASK [Enter configuration context] *********************************************
+ok: [Kenda-Core-1] => (item=interface ethernet1/1/5)
+
+TASK [Apply approved configuration commands] ***********************************
+[ERROR]: Task failed: Action failed: b'description AUTOMATION-TEST\r\n% Error: Command rejected by simulated device.\r\nKenda-Core-1(conf-if-eth1/1/5)# '
+Origin: /src/ansible/playbooks/os10_config_apply.yml:39:7
+
+37       loop: "{{ effective_parents }}"
+38
+39     - name: Apply approved configuration commands
+         ^ column 7
+
+failed: [Kenda-Core-1] (item=description AUTOMATION-TEST) => {"ansible_loop_var": "item", "changed": false, "item": "description AUTOMATION-TEST", "msg": "b'description AUTOMATION-TEST\\r\\n% Error: Command rejected by simulated device.\\r\\nKenda-Core-1(conf-if-eth1/1/5)# '"}
+
+PLAY RECAP *********************************************************************
+Kenda-Core-1               : ok=3    changed=0    unreachable=0    failed=1    skipped=0    rescued=0    ignored=0   
+
+[WARNING]: Deprecation warnings can be disabled by setting `deprecation_warnings=False` in ansible.cfg.
+[DEPRECATION WARNING]: Importing 'to_text' from 'ansible.module_utils._text' is deprecated. This feature will be removed from ansible-core version 2.24. Use ansible.module_utils.common.text.converters instead.
+[DEPRECATION WARNING]: Importing 'to_bytes' from 'ansible.module_utils._text' is deprecated. This feature will be removed from ansible-core version 2.24. Use ansible.module_utils.common.text.converters instead.
+[WARNING]: ansible-pylibssh not installed, falling back to paramiko

@@ -210,10 +210,19 @@ class WorkerTaskTests(unittest.TestCase):
         self.assertEqual(self.audit.call_args.kwargs["event_type"], "backup_failed")
 
     def test_precheck_backs_up_its_snapshot_before_approval(self):
+        # The OS6 precheck now runs through the shared workflow (changes/workflow.py) and the
+        # OS6 platform adapter, which still uses ansible.run_os6's reader and verifier.
+        import ansible.run_os6 as run_os6
+        from changes import workflow
+
         w = self.worker
-        mock.patch.object(w, "get_show_output", return_value=CONFIG).start()
-        mock.patch.object(w, "run_os6_config_check", return_value={"would_change": True}).start()
-        approval = mock.patch.object(w, "create_change_approval", return_value={"approval_id": "a", "status": "pending"}).start()
+        mock.patch.object(run_os6, "get_show_output", return_value=CONFIG).start()
+        mock.patch.object(run_os6, "run_os6_config_check",
+                          return_value={"would_change": True, "proposed_changes": ["vlan 200"]}).start()
+        mock.patch.object(workflow, "get_device_by_hostname",
+                          return_value={"id": 1, "hostname": "Kenda-HARO-IDF-A", "platform": "dell_os6"}).start()
+        mock.patch.object(workflow, "create_audit_event").start()
+        approval = mock.patch.object(workflow, "create_change_approval", return_value={"approval_id": "a", "status": "pending"}).start()
         backup = mock.patch.object(w, "backup_running_config_task", return_value={"status": "success", "job_id": JOB}).start()
 
         result = w.os6_change_precheck("Kenda-HARO-IDF-A", ["vlan 200"])

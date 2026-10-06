@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
 from app.celery_client import PUBLISH_RETRY_POLICY, celery_app
+from app.changes import SUPPORTED_CHANGE_PLATFORMS
 from app.db.approvals import (
     approve_pending_approval,
     cancel_open_approval,
@@ -21,8 +22,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/approvals", tags=["approvals"])
 
-OS6_PLATFORM = "dell_os6"
-APPLY_TASK = "network_worker.os6_apply_approved_change"
+# Shared worker task; it dispatches on the device platform (Dell OS6 / Dell OS10).
+APPLY_TASK = "network_worker.apply_approved_change"
 MAX_ERROR_LENGTH = 20000
 
 APPLY_STATE_MAP = {
@@ -65,8 +66,8 @@ def approve(approval_id: uuid.UUID, request: ApproveRequest):
 
     device = get_device_by_id(approval["device_id"])
 
-    if device is None or device["platform"] != OS6_PLATFORM:
-        raise HTTPException(status_code=422, detail="Only OS6 change approvals can be approved")
+    if device is None or device["platform"] not in SUPPORTED_CHANGE_PLATFORMS:
+        raise HTTPException(status_code=422, detail="Configuration changes are not supported for this device's platform")
 
     # The UPDATE only matches while still pending, so concurrent clicks cannot both succeed.
     updated = approve_pending_approval(approval_key, request.approved_by)
@@ -123,8 +124,8 @@ def apply(approval_id: uuid.UUID):
 
     device = get_device_by_id(approval["device_id"])
 
-    if device is None or device["platform"] != OS6_PLATFORM:
-        raise HTTPException(status_code=422, detail="Only OS6 changes can be applied")
+    if device is None or device["platform"] not in SUPPORTED_CHANGE_PLATFORMS:
+        raise HTTPException(status_code=422, detail="Configuration changes are not supported for this device's platform")
 
     if not device["enabled"]:
         raise HTTPException(status_code=422, detail=f"{device['hostname']} is disabled")

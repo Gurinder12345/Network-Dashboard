@@ -1,0 +1,83 @@
+
+PLAY [Dell OS10 approved configuration change] *********************************
+
+TASK [Validate approved configuration payload] *********************************
+ok: [Kenda-Core-1] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [Enter configuration mode] ************************************************
+ok: [Kenda-Core-1]
+
+TASK [Enter configuration context] *********************************************
+ok: [Kenda-Core-1] => (item=interface ethernet1/1/5)
+
+TASK [Apply approved configuration commands] ***********************************
+ok: [Kenda-Core-1] => (item=description AUTOMATION-TEST)
+
+TASK [Exit configuration mode] *************************************************
+ok: [Kenda-Core-1]
+
+TASK [Display apply result] ****************************************************
+ok: [Kenda-Core-1] => {
+    "config_apply": {
+        "changed": false,
+        "deprecations": [
+            {
+                "collection_name": "ansible.builtin",
+                "deprecator": {
+                    "resolved_name": "ansible.builtin",
+                    "type": null
+                },
+                "msg": "Importing 'to_text' from 'ansible.module_utils._text' is deprecated.",
+                "version": "2.24"
+            },
+            {
+                "collection_name": "ansible.builtin",
+                "deprecator": {
+                    "resolved_name": "ansible.builtin",
+                    "type": null
+                },
+                "msg": "Importing 'to_bytes' from 'ansible.module_utils._text' is deprecated.",
+                "version": "2.24"
+            }
+        ],
+        "failed": false,
+        "msg": "All items completed",
+        "results": [
+            {
+                "ansible_loop_var": "item",
+                "changed": false,
+                "deprecations": [
+                    {
+                        "collection_name": "ansible.builtin",
+                        "deprecator": {
+                            "resolved_name": "ansible.builtin",
+                            "type": null
+                        },
+                        "msg": "Importing 'to_text' from 'ansible.module_utils._text' is deprecated.",
+                        "version": "2.24"
+                    },
+                    {
+                        "collection_name": "ansible.builtin",
+                        "deprecator": {
+                            "resolved_name": "ansible.builtin",
+                            "type": null
+                        },
+                        "msg": "Importing 'to_bytes' from 'ansible.module_utils._text' is deprecated.",
+                        "version": "2.24"
+                    }
+                ],
+                "failed": false,
+                "item": "description AUTOMATION-TEST",
+                "stdout": "",
+                "stdout_lines": []
+            }
+        ]
+    }
+}
+
+PLAY RECAP *********************************************************************
+Kenda-Core-1               : ok=6    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+

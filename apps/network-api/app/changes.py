@@ -13,10 +13,15 @@ from app.db.devices import get_device_by_id
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/changes/os6", tags=["changes"])
+router = APIRouter(prefix="/api/v1/changes", tags=["changes"])
 
 OS6_PLATFORM = "dell_os6"
-PRECHECK_TASK = "network_worker.os6_change_precheck"
+# Platforms the shared worker change workflow supports. Platform-specific command policy
+# (e.g. the OS10 V1 allow-list) is enforced by the worker during precheck and again at apply.
+SUPPORTED_CHANGE_PLATFORMS = {"dell_os6": "Dell OS6", "dell_os10": "Dell OS10"}
+PRECHECK_TASK = "network_worker.change_precheck"
+# Legacy OS6-only route keeps its original task.
+OS6_PRECHECK_TASK = "network_worker.os6_change_precheck"
 
 MAX_PARENTS = 5
 MAX_LINES = 50
@@ -59,7 +64,7 @@ def _clean_commands(values, field_name, max_items):
     return cleaned
 
 
-class Os6PrecheckRequest(BaseModel):
+class ChangePrecheckRequest(BaseModel):
     device_id: int
     config_parents: list[str] = Field(default_factory=list)
     config_lines: list[str]
@@ -78,6 +83,10 @@ class Os6PrecheckRequest(BaseModel):
         return cleaned
 
 
+# Backwards-compatible name.
+Os6PrecheckRequest = ChangePrecheckRequest
+
+
 def _summarize_result(result):
     """Return only the precheck fields the UI needs from the worker result."""
     if not isinstance(result, dict):
@@ -90,6 +99,7 @@ def _summarize_result(result):
     return {
         "status": result.get("status"),
         "target_host": result.get("target_host"),
+        "platform": result.get("platform"),
         "ready_for_approval": result.get("ready_for_approval", False),
         "backup_required": result.get("backup_required", False),
         "dry_run": {
@@ -120,8 +130,7 @@ def _summarize_result(result):
     }
 
 
-@router.post("/precheck", status_code=202)
-def submit_os6_precheck(request: Os6PrecheckRequest):
+def _submit_precheck(request, allowed_platforms, task_name):
     try:
         device = get_device_by_id(request.device_id)
     except RuntimeError as exc:
@@ -130,19 +139,22 @@ def submit_os6_precheck(request: Os6PrecheckRequest):
     if device is None:
         raise HTTPException(status_code=404, detail=f"Device {request.device_id} not found")
 
-    if device["platform"] != OS6_PLATFORM:
+    if device["platform"] not in allowed_platforms:
+        supported = ", ".join(allowed_platforms)
         raise HTTPException(
             status_code=422,
-            detail=f"{device['hostname']} is {device['platform']}; only {OS6_PLATFORM} devices accept changes",
+            detail=f"{device['hostname']} is {device['platform']}; configuration changes are supported for {supported}",
         )
 
     if not device["enabled"]:
         raise HTTPException(status_code=422, detail=f"{device['hostname']} is disabled")
 
+    label = SUPPORTED_CHANGE_PLATFORMS.get(device["platform"], device["platform"])
+
     # The worker resolves credentials from Vault by hostname; the API never handles them.
     try:
         task = celery_app.send_task(
-            PRECHECK_TASK,
+            task_name,
             kwargs={
                 "target_host": device["hostname"],
                 "config_lines": request.config_lines,
@@ -152,7 +164,7 @@ def submit_os6_precheck(request: Os6PrecheckRequest):
             retry_policy=PUBLISH_RETRY_POLICY,
         )
     except Exception as exc:
-        logger.exception("Failed to enqueue OS6 precheck")
+        logger.exception("Failed to enqueue precheck")
         raise HTTPException(status_code=503, detail=f"Task queue unavailable: {exc}")
 
     try:
@@ -161,7 +173,7 @@ def submit_os6_precheck(request: Os6PrecheckRequest):
             device_id=device["id"],
             event_type="precheck_requested",
             message=(
-                f"OS6 precheck requested for {device['hostname']} "
+                f"{label} precheck requested for {device['hostname']} "
                 f"(request_id={task.id}, {len(request.config_lines)} line(s))"
             ),
         )
@@ -174,11 +186,25 @@ def submit_os6_precheck(request: Os6PrecheckRequest):
         "state": "queued",
         "device_id": device["id"],
         "hostname": device["hostname"],
+        "platform": device["platform"],
     }
 
 
+@router.post("/precheck", status_code=202)
+def submit_precheck(request: ChangePrecheckRequest):
+    """Platform-generic precheck (Dell OS6 / Dell OS10); the worker dispatches by platform."""
+    return _submit_precheck(request, tuple(SUPPORTED_CHANGE_PLATFORMS), PRECHECK_TASK)
+
+
+@router.post("/os6/precheck", status_code=202)
+def submit_os6_precheck(request: ChangePrecheckRequest):
+    """Legacy OS6-only route (unchanged behaviour)."""
+    return _submit_precheck(request, (OS6_PLATFORM,), OS6_PRECHECK_TASK)
+
+
 @router.get("/precheck/{request_id}")
-def get_os6_precheck(request_id: str):
+@router.get("/os6/precheck/{request_id}")
+def get_precheck(request_id: str):
     try:
         uuid.UUID(request_id)
     except ValueError:

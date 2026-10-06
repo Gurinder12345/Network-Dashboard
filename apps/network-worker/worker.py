@@ -16,6 +16,7 @@ from db.topology import list_inventory, list_lldp_identities
 from topology.discovery import discover_device, run_fleet_topology_discovery
 from telemetry.collector import collect_and_record, run_fleet_metrics
 from pcap.task import cleanup as cleanup_pcap, run_analysis as run_pcap_analysis
+from changes.workflow import run_apply as run_change_apply, run_precheck as run_change_precheck
 
 from ansible.run_os6 import run_os6_config_apply
 
@@ -130,217 +131,29 @@ if TELEMETRY_BEAT_ENABLED:
 
 
 
+# ---- Guarded configuration changes (shared workflow: changes/workflow.py) -----------
+# Generic tasks dispatch on the device's platform (dell_os6, dell_os10). The OS6 task
+# names stay registered (same behaviour, OS6 only) for callers and in-flight messages.
+
+@app.task(name="network_worker.change_precheck")
+def change_precheck(target_host, config_lines, config_parents=None):
+    return run_change_precheck(target_host, config_lines, config_parents, backup=backup_running_config_task)
+
+
+@app.task(name="network_worker.apply_approved_change")
+def apply_approved_change(approval_id, claimed_by_api=False):
+    return run_change_apply(approval_id, claimed_by_api=claimed_by_api)
+
+
 @app.task(name="network_worker.os6_change_precheck")
-def os6_change_precheck(
-    target_host,
-    config_lines,
-    config_parents=None,
-):
-
-
-    running_config_snapshot = get_show_output(
-        target_host,
-        "show running-config",)
-
-
-    dry_run = run_os6_config_check(
-        target_host,
-        config_lines,
-        config_parents,
-        running_config_snapshot=running_config_snapshot,
-    )
-
-    if not dry_run["would_change"]:
-        return {
-            "target_host": target_host,
-            "status": "no_change_required",
-            "dry_run": dry_run,
-            "backup_required": False,
-            "ready_for_approval": False,
-        }
-
-    device = get_device_by_hostname(target_host)
-
-    backup_result = backup_running_config_task(
-        target_host,config_snapshot=running_config_snapshot,
-    )
-
-    if backup_result.get("status") != "success":
-        raise RuntimeError(
-            f"Backup failed for {target_host}"
-        )
-
-    approval = create_change_approval(
-        device_id=device["id"],
-        backup_job_id=backup_result["job_id"],
-        config_lines=config_lines,
-        config_parents=config_parents,
-        requested_by="system",
-    )
-
-    return {
-        "target_host": target_host,
-        "status": "pending_approval",
-        "dry_run": dry_run,
-        "backup_required": True,
-        "backup": backup_result,
-        "approval": approval,
-        "config_parents": config_parents,
-        "ready_for_approval": True,
-    }
-
+def os6_change_precheck(target_host, config_lines, config_parents=None):
+    return run_change_precheck(target_host, config_lines, config_parents, backup=backup_running_config_task,
+                               expected_platform="dell_os6")
 
 
 @app.task(name="network_worker.os6_apply_approved_change")
 def os6_apply_approved_change(approval_id, claimed_by_api=False):
-    approval = get_change_approval(approval_id)
-
-    # The API claims approved -> applying atomically before enqueueing, so its
-    # tasks expect "applying". Direct callers still pass an "approved" record
-    # and are claimed below, as before.
-    expected_status = "applying" if claimed_by_api else "approved"
-
-    if approval["status"] != expected_status:
-        raise ValueError(
-            f"Approval {approval_id} is {approval['status']}, "
-            f"expected {expected_status}"
-        )
-
-    try:
-        device = get_device_by_id(
-            approval["device_id"]
-        )
-
-        if device["platform"] != "dell_os6":
-            raise ValueError(
-                f"{device['hostname']} is not a dell_os6 device"
-            )
-
-        backup_check = verify_backup_for_device(
-            device["id"],
-            approval["backup_job_id"],
-        )
-
-        if not backup_check["valid"]:
-            raise ValueError(
-                f"Backup verification failed: "
-                f"{backup_check['reason']}"
-            )
-
-        config_lines = approval["config_lines"]
-        config_parents = approval.get("config_parents")
-
-        if not config_lines:
-            raise ValueError(
-                "Approved configuration is empty"
-            )
-
-    except Exception as exc:
-        # An API-claimed approval is already "applying"; fail it instead of
-        # leaving it stuck. Nothing has been sent to the device at this point.
-        if claimed_by_api:
-            mark_approval_failed(approval_id)
-
-            create_audit_event(
-                job_id=approval["backup_job_id"],
-                device_id=approval["device_id"],
-                event_type="apply_failed",
-                message=(
-                    f"Approved configuration apply rejected before "
-                    f"device changes (approval_id={approval_id}): {exc}"
-                ),
-            )
-
-        raise
-
-    if not claimed_by_api:
-        # approved -> applying
-        mark_approval_applying(approval_id)
-
-    create_audit_event(
-        job_id=approval["backup_job_id"],
-        device_id=device["id"],
-        event_type="apply_started",
-        message=(
-            f"Approved configuration apply started for "
-            f"{device['hostname']} "
-            f"(approval_id={approval_id})"
-        ),
-    )
-
-    try:
-        result = run_os6_config_apply(
-            device["hostname"],
-            config_lines,
-            config_parents,
-        )
-
-        if result["returncode"] != 0:
-            raise RuntimeError(
-                f"Ansible apply failed for "
-                f"STDOUT:\n{result['stdout']}\n"
-                f"STDERR:\n{result['stderr']}"
-            )
-
-        # Post-check: verify approved config is now present
-        post_check = run_os6_config_check(
-            device["hostname"],
-            config_lines,
-            config_parents,
-        )
-
-        if post_check["would_change"]:
-            raise RuntimeError(
-                f"Post-check failed for "
-                f"{device['hostname']}: "
-                f"configuration is not present after apply"
-            )
-
-        # applying -> applied
-        mark_approval_applied(approval_id)
-
-        create_audit_event(
-            job_id=approval["backup_job_id"],
-            device_id=device["id"],
-            event_type="apply_completed",
-            message=(
-                f"Approved configuration apply completed for "
-                f"{device['hostname']} "
-                f"(approval_id={approval_id})"
-            ),
-        )
-
-        return {
-            "approval_id": approval_id,
-            "status": "applied",
-            "target_host": device["hostname"],
-            "approved_by": approval["approved_by"],
-            "backup_job_id": approval["backup_job_id"],
-            "config_lines": config_lines,
-            "ansible_result": result,
-            "config_parents": config_parents,
-            "post_check": post_check,
-        }
-
-    except Exception as exc:
-        # applying -> failed
-        mark_approval_failed(approval_id)
-
-        create_audit_event(
-            job_id=approval["backup_job_id"],
-            device_id=device["id"],
-            event_type="apply_failed",
-            message=(
-                f"Approved configuration apply failed for "
-                f"{device['hostname']} "
-                f"(approval_id={approval_id}): {exc}"
-            ),
-        )
-
-        raise
-
-
-
+    return run_change_apply(approval_id, claimed_by_api=claimed_by_api, expected_platform="dell_os6")
 
 
 @app.task(name="network_worker.ansible_os6_show_version")

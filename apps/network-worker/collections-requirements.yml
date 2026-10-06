@@ -1,3 +1,7 @@
 collections:
   - name: ansible.netcommon
   - name: dellemc.os6
+  # Connection plugins only (OS10 prompt/error detection for network_cli); writes still
+  # use the generic ansible.netcommon.cli_command, as for OS6.
+  - name: dellemc.os10
+    version: "1.2.7"
