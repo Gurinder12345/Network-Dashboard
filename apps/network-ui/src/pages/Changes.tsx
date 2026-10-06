@@ -3,12 +3,13 @@ import { Link } from "react-router-dom";
 import { getChangePrecheck, getDevices, submitChangePrecheck } from "../api/client";
 import { CHANGE_PLATFORMS, OS10_PLATFORM, OS6_PLATFORM } from "../api/constants";
 import { platformLabel } from "../utils/format";
-import type { Device, Os6PrecheckStatus } from "../api/types";
+import type { Device, Os10InterfaceState, Os6PrecheckResult, Os6PrecheckStatus } from "../api/types";
 import { CopyButton } from "../components/CopyButton";
 import { Banner, EmptyState } from "../components/Feedback";
 import { PageHeader } from "../components/PageHeader";
 import { StatusBadge } from "../components/StatusBadge";
 import { truncateId, truncateText } from "../utils/format";
+import { OS10_EXAMPLES, validateOs10Request } from "../utils/os10Policy";
 
 type FindingLevel = "error" | "warning" | "info";
 
@@ -55,11 +56,6 @@ function isActionable(device: Device): boolean {
   return CHANGE_PLATFORMS.includes(device.platform) && device.enabled;
 }
 
-// Mirrors (for early feedback only) the worker's Dell OS10 V1 allow-list. The worker is
-// authoritative: it rejects anything else during precheck and again before apply.
-const OS10_PARENT = /^interface\s+ethernet\s*\d+\/\d+\/\d+(:\d+)?$/i;
-const OS10_LINE = /^(no description|description\s+"?[A-Za-z0-9._-]{1,64}"?)$/i;
-
 function runLocalValidation(device: Device, configParents: string[], configLines: string[]): Finding[] {
   const findings: Finding[] = [];
 
@@ -70,19 +66,10 @@ function runLocalValidation(device: Device, configParents: string[], configLines
     });
   }
 
-  if (device.platform === OS10_PLATFORM) {
-    if (configParents.length !== 1 || !OS10_PARENT.test(configParents[0])) {
-      findings.push({ level: "warning", text: "Dell OS10 V1 needs exactly one parent: interface ethernetX/Y/Z." });
-    }
-    configLines.forEach((line) => {
-      if (!OS10_LINE.test(line)) {
-        findings.push({
-          level: "warning",
-          text: `"${line}" — Dell OS10 V1 allows only "description <text>" (A-Z a-z 0-9 . _ -) or "no description"; the precheck will reject it.`,
-        });
-      }
-    });
-  }
+  // Dell OS10: obvious policy violations block submission here; the worker re-checks
+  // everything and decides interface safety against the device.
+  const os10 = device.platform === OS10_PLATFORM;
+  if (os10) findings.push(...validateOs10Request(configParents, configLines));
 
   if (configLines.length === 0) {
     findings.push({ level: "error", text: "At least one configuration line is required." });
@@ -106,7 +93,7 @@ function runLocalValidation(device: Device, configParents: string[], configLines
   });
 
   configLines.forEach((line) => {
-    if (RISKY_COMMANDS.test(line)) {
+    if (!os10 && RISKY_COMMANDS.test(line)) {
       findings.push({
         level: "warning",
         text: `"${line}" is disruptive. Confirm the target is not a management or uplink interface.`,
@@ -114,7 +101,7 @@ function runLocalValidation(device: Device, configParents: string[], configLines
     }
   });
 
-  if (configParents.length === 0 && configLines.length > 0) {
+  if (!os10 && configParents.length === 0 && configLines.length > 0) {
     findings.push({ level: "info", text: "No parent context — lines apply at global configuration level." });
   }
 
@@ -141,6 +128,7 @@ function runSummary(run: PrecheckRun): { label: string; status: string } {
     case "failed":
       return { label: "Failed", status: "failed" };
     case "completed":
+      if (run.status?.result?.status === "rejected") return { label: "Rejected by safety policy", status: "failed" };
       return run.status?.result?.status === "no_change_required"
         ? { label: "Passed · no change required", status: "passed" }
         : { label: "Passed · approval pending", status: "pending" };
@@ -193,6 +181,22 @@ function DevicePrecheck({ run, elapsed }: { run: PrecheckRun; elapsed: number })
 
   return (
     <>
+      {result.status === "rejected" && (
+        <ul className="finding-list">
+          {(result.rejection_reasons ?? []).map((reason, index) => (
+            <li key={index} className="finding finding-error">
+              <span className="finding-level">rejected</span>
+              {reason}
+            </li>
+          ))}
+          <li className="finding finding-info">
+            Nothing was backed up, approved or sent to the device.
+          </li>
+        </ul>
+      )}
+
+      <Os10PrecheckDetail result={result} />
+
       <table className="data-table">
         <thead>
           <tr>
@@ -242,6 +246,124 @@ function DevicePrecheck({ run, elapsed }: { run: PrecheckRun; elapsed: number })
         <div className="finding finding-ok">
           All commands are already present on the device. No backup or approval was created.
         </div>
+      )}
+    </>
+  );
+}
+
+const STATE_LABELS: [keyof Os10InterfaceState, string][] = [
+  ["mode", "mode"],
+  ["access_vlan", "access / untagged VLAN"],
+  ["allowed_vlans", "allowed VLANs"],
+  ["admin", "admin"],
+  ["description", "description"],
+  ["lldp_neighbor", "LLDP neighbor"],
+  ["port_channel", "port-channel"],
+];
+
+function stateValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "none";
+  return String(value);
+}
+
+/** Dell OS10 safe-L2: current state, requested state, safety checks, plan, expected diff. */
+function Os10PrecheckDetail({ result }: { result: Os6PrecheckResult }) {
+  const dryRun = result.dry_run;
+  const current = dryRun.current_state;
+  if (!current) return null;
+  const requested = dryRun.requested_state ?? {};
+  const safety = dryRun.safety;
+
+  return (
+    <>
+      <div className="precheck-section-label">Interface {dryRun.interface}</div>
+      <table className="data-table">
+        <thead>
+          <tr>
+            <th>Field</th>
+            <th>Current</th>
+            <th>Requested</th>
+          </tr>
+        </thead>
+        <tbody>
+          {STATE_LABELS.map(([key, label]) => {
+            const requestedKey = key === "allowed_vlans" || key === "access_vlan" || key === "mode" || key === "admin"
+              || key === "description" ? key : null;
+            const change = requestedKey !== null && requestedKey in requested;
+            return (
+              <tr key={key}>
+                <td className="muted">{label}</td>
+                <td className="mono">{stateValue(current[key])}</td>
+                <td className="mono">{change ? stateValue(requested[requestedKey!]) : <span className="muted">—</span>}</td>
+              </tr>
+            );
+          })}
+          <tr>
+            <td className="muted">classification</td>
+            <td colSpan={2}>{current.classification}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      {safety && (
+        <>
+          <div className="precheck-section-label">Safety checks · {safety.status}</div>
+          <ul className="finding-list">
+            {safety.checks.map((check) => (
+              <li
+                key={check.name}
+                className={`finding ${check.status === "pass" ? "finding-ok" : check.status === "fail" ? "finding-error" : "finding-warning"}`}
+              >
+                <span className="finding-level">{check.status}</span>
+                {check.name}: {check.detail}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
+      {(dryRun.change_plan ?? []).length > 0 && (
+        <>
+          <div className="precheck-section-label">Change plan</div>
+          <ul className="finding-list">
+            {dryRun.change_plan!.map((step) => (
+              <li key={step} className="finding finding-info">
+                {step}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
+      {dryRun.expected_diff && dryRun.expected_diff.requested.length > 0 && (
+        <>
+          <div className="precheck-section-label">Expected diff</div>
+          <div className="precheck-diff">
+            <div>
+              <span className="form-label">Current</span>
+              <pre className="config-preview">{dryRun.expected_diff.current.join("\n")}</pre>
+            </div>
+            <div>
+              <span className="form-label">Requested</span>
+              <pre className="config-preview">{dryRun.expected_diff.requested.join("\n")}</pre>
+            </div>
+          </div>
+        </>
+      )}
+
+      {(dryRun.device_commands ?? []).length > 0 && (
+        <>
+          <div className="precheck-section-label">Device commands to approve</div>
+          <pre className="config-preview">
+            {[dryRun.interface ? `interface ${dryRun.interface}` : "", ...dryRun.device_commands!.map((c) => ` ${c}`)]
+              .filter(Boolean)
+              .join("\n")}
+          </pre>
+          <div className="precheck-note">
+            These exact commands are stored on the approval. Before applying, the worker re-reads the device, re-runs
+            the safety checks and sends only what is still needed; the post-check must confirm every command.
+          </div>
+        </>
       )}
     </>
   );
@@ -449,7 +571,7 @@ export function Changes() {
     <>
       <PageHeader
         title="Changes"
-        subtitle="Prepare a guarded configuration change (Dell OS6, or Dell OS10 interface descriptions). Prechecks are read-only."
+        subtitle="Prepare a guarded configuration change (Dell OS6, or Dell OS10 safe L2 on eligible ethernet interfaces). Prechecks are read-only."
       />
 
       {error && (
@@ -484,7 +606,7 @@ export function Changes() {
                     </option>
                   ))}
                 </optgroup>
-                <optgroup label="Dell OS10 — interface description only">
+                <optgroup label="Dell OS10 — safe L2 (eligible ethernet interfaces)">
                   {actionableDevices.filter((device) => device.platform === OS10_PLATFORM).map((device) => (
                     <option key={device.id} value={device.id}>
                       {device.hostname} ({device.management_ip})
@@ -503,8 +625,31 @@ export function Changes() {
               {selectedDevice && (
                 <span className="form-hint">
                   {platformLabel(selectedDevice.platform)} · {selectedDevice.management_ip}
-                  {selectedDevice.platform === OS10_PLATFORM && " · V1 policy: description / no description under one ethernet interface"}
                 </span>
+              )}
+              {selectedDevice?.platform === OS10_PLATFORM && (
+                <div className="finding finding-info os10-policy">
+                  <span className="finding-level">policy</span>
+                  Dell OS10 safe L2 policy: description, access/trunk mode, VLAN assignment, allowed VLANs, and guarded
+                  admin state (shutdown / no shutdown) on one eligible ethernet interface. Interfaces with an LLDP
+                  neighbor, port-channel members, VLT and management-path ports, routed ports and protected interfaces
+                  are rejected. Global configuration, native VLAN, MTU, routing, AAA, management, port-channel and VLAN
+                  creation/removal are not supported.
+                  <div className="os10-examples">
+                    {OS10_EXAMPLES.map((example) => (
+                      <button
+                        key={example.label}
+                        type="button"
+                        className="secondary-button small-button"
+                        disabled={running}
+                        title={example.lines.join("\n")}
+                        onClick={() => edit(setLinesText)(example.lines.join("\n"))}
+                      >
+                        {example.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
 
@@ -532,7 +677,11 @@ export function Changes() {
               <textarea
                 className="config-input mono"
                 rows={6}
-                placeholder={selectedDevice?.platform === OS10_PLATFORM ? "description AUTOMATION-TEST" : "description NETOPS-TEST\nswitchport access vlan 20"}
+                placeholder={
+                  selectedDevice?.platform === OS10_PLATFORM
+                    ? "switchport mode access\nswitchport access vlan 20"
+                    : "description NETOPS-TEST\nswitchport access vlan 20"
+                }
                 spellCheck={false}
                 value={linesText}
                 disabled={running}

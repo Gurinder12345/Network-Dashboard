@@ -9,7 +9,9 @@ End-to-end Dell OS10 change workflow with NO real switch:
 
 Also: failed backup, device-rejected write, post-check mismatch, cancellation before apply,
 concurrent apply/apply and cancel/apply races, duplicate apply, idempotent precheck, and a
-policy rejection. Celery transport is bypassed (queued tasks are executed directly) and
+policy rejection; and the safe-L2 flows (access VLAN, trunk conversion, allowed VLANs,
+shutdown, uplink / stored-topology / nonexistent-VLAN rejections, post-check mismatch,
+cancellation, apply race, state drift before apply) with the topology tables in PostgreSQL. Celery transport is bypassed (queued tasks are executed directly) and
 Vault is replaced by test-only credentials for the simulator.
 
 Skipped unless OS10_FLOW_PG_DSN is set and ansible + dellemc.os10 are installed (worker
@@ -35,6 +37,7 @@ HAVE_ANSIBLE = shutil.which("ansible-playbook") is not None and os.path.isdir(
     "/usr/share/ansible/collections/ansible_collections/dellemc/os10")
 
 SCHEMA = """
+DROP TABLE IF EXISTS topology_links, topology_discovery_state, device_lldp_identity CASCADE;
 DROP TABLE IF EXISTS audit_events, change_approvals, backups, jobs, devices CASCADE;
 CREATE TABLE devices (id bigserial PRIMARY KEY, hostname varchar NOT NULL, management_ip inet NOT NULL, platform varchar NOT NULL,
     enabled boolean NOT NULL DEFAULT true, credential_path varchar);
@@ -48,6 +51,10 @@ CREATE TABLE change_approvals (id uuid PRIMARY KEY, device_id bigint NOT NULL RE
 CREATE TABLE audit_events (id bigserial PRIMARY KEY, job_id uuid REFERENCES jobs(id), device_id bigint REFERENCES devices(id),
     event_type varchar NOT NULL, message text, created_at timestamptz NOT NULL DEFAULT now());
 INSERT INTO devices VALUES (12, 'Kenda-Core-1', '192.0.2.10', 'dell_os10', true, 'test/simulated');
+INSERT INTO devices VALUES (13, 'Kenda-Core-2', '192.0.2.20', 'dell_os10', true, 'test/simulated');
+"""
+TOPOLOGY_ROWS = """
+INSERT INTO device_lldp_identity (device_id, lldp_system_name, chassis_id) VALUES (13, 'kenda-core-02', 'e8:b5:d0:7a:5c:a3');
 """
 
 CHANGE = {"device_id": 12, "config_parents": ["interface ethernet 1/1/5"], "config_lines": ["description AUTOMATION-TEST"]}
@@ -72,7 +79,8 @@ class Os10ChangeFlowTests(unittest.TestCase):
             module.DB_HOST, module.DB_PORT, module.DB_NAME = url.hostname, str(url.port or 5432), url.path.lstrip("/")
             module.DB_USER, module.DB_PASSWORD = url.username, url.password
         cls.migrations = [open(os.path.join(REPO, "db", "migrations", name)).read()
-                          for name in ("002_approval_cancellation.sql", "007_jobs_soft_delete.sql")]
+                          for name in ("002_approval_cancellation.sql", "003_topology.sql", "004_device_lldp_identity.sql",
+                                       "007_jobs_soft_delete.sql")]
         cls.psycopg, cls.worker, cls.client = psycopg, worker, TestClient(app)
         cls.changes, cls.approval_actions = changes, approval_actions
         cls.tmp = tempfile.mkdtemp()
@@ -95,6 +103,7 @@ class Os10ChangeFlowTests(unittest.TestCase):
             conn.execute(SCHEMA)
             for migration in self.migrations:
                 conn.execute(migration)
+            conn.execute(TOPOLOGY_ROWS)
 
         self.addCleanup(mock.patch.stopall)
         self.device = FakeOS10()
@@ -147,8 +156,8 @@ class Os10ChangeFlowTests(unittest.TestCase):
         self.assertEqual(self.queued[-1][0], "network_worker.change_precheck")
         return self.run_queued()
 
-    def precheck_approve(self):
-        result = self.precheck()
+    def precheck_approve(self, change=CHANGE):
+        result = self.precheck(change)
         approval_id = result["approval"]["approval_id"]
         r = self.client.post(f"/api/v1/approvals/{approval_id}/approve", json={"approved_by": "reviewer"})
         self.assertEqual(r.status_code, 200, r.text)
@@ -277,11 +286,133 @@ class Os10ChangeFlowTests(unittest.TestCase):
 
     def test_policy_rejection(self):
         with self.assertRaisesRegex(ValueError, "Rejected by OS10 change policy"):
-            self.precheck({**CHANGE, "config_lines": ["shutdown"]})
+            self.precheck({**CHANGE, "config_lines": ["reload"]})
         self.assertEqual(self.sql("SELECT count(*) FROM change_approvals")[0][0], 0)
         self.assertEqual(self.sql("SELECT count(*) FROM jobs")[0][0], 0)
         self.assertEqual(self.events(), ["precheck_requested", "precheck_failed"])
         self.assertNotIn("show running-configuration", self.device.log)  # rejected before any device access
+
+
+    # ---- safe-L2 (V1.1) ------------------------------------------------------------------
+    def l2(self, interface, *lines):
+        return {"device_id": 12, "config_parents": [f"interface ethernet {interface}"], "config_lines": list(lines)}
+
+    def apply(self, approval_id):
+        r = self.client.post(f"/api/v1/approvals/{approval_id}/apply")
+        self.assertEqual(r.status_code, 202, r.text)
+        return self.run_queued()
+
+    def port(self, name="ethernet1/1/18"):
+        return self.device.interfaces[name]
+
+    def test_l2_a_access_vlan_lifecycle(self):
+        result = self.precheck(self.l2("1/1/18", "switchport access vlan 30"))
+        self.assertEqual(result["status"], "pending_approval")
+        self.assertEqual(result["dry_run"]["change_plan"], ["access VLAN: 20 → 30"])
+        self.assertEqual(self.sql("SELECT config_lines, config_parents FROM change_approvals")[0],
+                         (["switchport access vlan 30"], ["interface ethernet1/1/18"]))
+        approval_id = result["approval"]["approval_id"]
+        self.assertEqual(self.client.post(f"/api/v1/approvals/{approval_id}/approve", json={"approved_by": "reviewer"}).status_code, 200)
+        applied = self.apply(approval_id)
+        self.assertEqual((applied["status"], applied["sent_lines"]), ("applied", ["switchport access vlan 30"]))
+        self.assertEqual((self.approval_status()[1], self.port()["access_vlan"]), ("applied", 30))
+        writes = self.device.log[self.device.log.index("configure terminal"):]
+        self.assertEqual(writes[:4], ["configure terminal", "interface ethernet1/1/18", "switchport access vlan 30", "end"])
+        self.assertEqual(self.events(), ["precheck_requested", "backup_started", "backup_completed", "precheck_completed",
+                                         "approval_approved", "apply_requested", "apply_started", "apply_completed"])
+        self.assertEqual([(j["job_type"], j["status"]) for j in self.client.get("/api/v1/jobs").json()],
+                         [("config_backup", "success")])
+
+    def test_l2_b_trunk_conversion(self):
+        approval_id = self.precheck_approve(self.l2("1/1/18", "switchport mode trunk", "switchport trunk allowed vlan 30,40"))
+        self.apply(approval_id)
+        self.assertEqual((self.port()["mode"], self.port()["allowed"], self.port()["access_vlan"]), ("trunk", {30, 40}, 20))
+
+    def test_l2_c_allowed_vlan_update(self):
+        approval_id = self.precheck_approve(self.l2("1/1/19", "switchport trunk allowed vlan remove 10"))
+        self.assertEqual(self.sql("SELECT config_lines FROM change_approvals")[0][0], ["no switchport trunk allowed vlan 10"])
+        self.apply(approval_id)
+        self.assertEqual(self.port("ethernet1/1/19")["allowed"], {20})
+
+    def test_l2_e_shutdown_safe_port(self):
+        approval_id = self.precheck_approve(self.l2("1/1/18", "shutdown"))
+        self.apply(approval_id)
+        self.assertEqual(self.port()["admin"], "down")
+
+    def test_l2_f_shutdown_uplink_blocked(self):
+        result = self.precheck(self.l2("1/1/25", "shutdown"))
+        self.assertEqual(result["status"], "rejected")
+        self.assertEqual(result["rejection_reasons"], [
+            "shutdown rejected: ethernet1/1/25 is classified as an uplink (live LLDP: kenda-core-02 ethernet1/1/25 = "
+            "inventory device Kenda-Core-2)."])
+        self.assertEqual(self.sql("SELECT count(*) FROM change_approvals")[0][0], 0)
+        self.assertEqual(self.sql("SELECT count(*) FROM jobs")[0][0], 0)
+        self.assertEqual(self.events(), ["precheck_requested", "precheck_failed"])
+        self.assertNotIn("configure terminal", self.device.log)
+
+    def test_l2_stored_topology_blocks_shutdown(self):
+        with self.psycopg.connect(DSN, autocommit=True) as conn:
+            # Core-2 reported a link TO Core-1 ethernet1/1/18 (Core-1's own LLDP shows nothing there).
+            conn.execute("INSERT INTO topology_links (local_device_id, local_interface, remote_device_id, remote_system_name, "
+                         "remote_interface, first_seen_at, last_seen_at, active) VALUES (13, 'ethernet1/1/18', 12, "
+                         "'kenda-core-01', 'ethernet1/1/18', now(), now(), true)")
+        result = self.precheck(self.l2("1/1/18", "shutdown"))
+        self.assertEqual(result["status"], "rejected")
+        self.assertEqual(result["rejection_reasons"], [
+            "shutdown rejected: ethernet1/1/18 is classified as an uplink (stored topology: Kenda-Core-2 ethernet1/1/18 = "
+            "inventory device Kenda-Core-2)."])
+
+    def test_l2_stale_stored_link_is_ignored(self):
+        with self.psycopg.connect(DSN, autocommit=True) as conn:
+            conn.execute("INSERT INTO topology_links (local_device_id, local_interface, remote_system_name, first_seen_at, "
+                         "last_seen_at, active) VALUES (12, 'ethernet1/1/18', 'old-server', now() - interval '9 days', "
+                         "now() - interval '3 days', false)")
+        self.assertEqual(self.precheck(self.l2("1/1/18", "shutdown"))["status"], "pending_approval")
+
+    def test_l2_g_nonexistent_vlan(self):
+        result = self.precheck(self.l2("1/1/18", "switchport access vlan 200"))
+        self.assertEqual((result["status"], result["rejection_reasons"]), ("rejected", ["VLAN 200 does not exist on device."]))
+        self.assertEqual(self.sql("SELECT count(*) FROM backups")[0][0], 0)
+
+    def test_l2_h_postcheck_mismatch(self):
+        approval_id = self.precheck_approve(self.l2("1/1/18", "switchport access vlan 30"))
+        self.device.ignore_writes = True
+        with self.assertRaisesRegex(Exception, "Post-check failed"):
+            self.apply(approval_id)
+        self.assertEqual(self.approval_status()[1], "failed")
+        self.assertEqual(self.events()[-1], "apply_failed")
+
+    def test_l2_i_cancellation_before_apply(self):
+        approval_id = self.precheck_approve(self.l2("1/1/18", "shutdown"))
+        self.assertEqual(self.client.post(f"/api/v1/approvals/{approval_id}/cancel", json={"cancelled_by": "operator"}).status_code, 200)
+        self.assertEqual(self.client.post(f"/api/v1/approvals/{approval_id}/apply").status_code, 409)
+        self.assertNotIn("configure terminal", self.device.log)
+        self.assertEqual(self.port()["admin"], "up")
+
+    def test_l2_j_duplicate_apply_race(self):
+        approval_id = self.precheck_approve(self.l2("1/1/18", "shutdown"))
+        codes = []
+        threads = [threading.Thread(target=lambda: codes.append(self.client.post(f"/api/v1/approvals/{approval_id}/apply").status_code))
+                   for _ in range(4)]
+        [t.start() for t in threads]
+        [t.join() for t in threads]
+        self.assertEqual(sorted(codes), [202, 409, 409, 409])
+        self.run_queued()
+        self.assertEqual(self.device.log.count("configure terminal"), 1)
+        with self.assertRaisesRegex(ValueError, "is applied"):
+            self.worker.app.tasks["network_worker.apply_approved_change"](approval_id=approval_id, claimed_by_api=True)
+        self.assertEqual(self.device.log.count("configure terminal"), 1)
+
+    def test_l2_state_drift_blocks_apply(self):
+        approval_id = self.precheck_approve(self.l2("1/1/18", "shutdown"))
+        self.device.lldp["ethernet1/1/18"] = ("kenda-core-02", "ethernet1/1/18", "e8:b5:d0:7a:5c:a3")
+        with self.assertRaisesRegex(Exception, "Pre-apply safety check failed; nothing was sent: shutdown rejected: "
+                                               "ethernet1/1/18 is classified as an uplink"):
+            self.apply(approval_id)
+        self.assertNotIn("configure terminal", self.device.log)
+        self.assertEqual(self.approval_status()[1], "failed")
+        message = self.sql("SELECT message FROM audit_events WHERE event_type = 'apply_failed'")[0][0]
+        self.assertIn("Pre-apply safety check failed", message)
 
 
 if __name__ == "__main__":

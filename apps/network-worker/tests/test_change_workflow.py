@@ -45,15 +45,15 @@ class PolicyTests(unittest.TestCase):
 
     def test_dangerous_commands_are_rejected_with_reasons(self):
         cases = {
-            "shutdown": "shutdown", "no shutdown": "shutdown", "reload": "system", "reboot": "system",
+            "reload": "system", "reboot": "system",
             "write memory": "system", "delete startup-configuration": "system", "restore factory-defaults": "system",
             "username x password y role sysadmin": "credentials", "aaa authentication login default local": "aaa",
             "tacacs-server host 192.0.2.5": "aaa", "radius-server host 192.0.2.6": "aaa", "ip ssh server enable": "ssh",
             "ip route 0.0.0.0/0 192.0.2.1": "routing", "no router bgp 65000": "routing", "router ospf 1": "routing",
-            "no vlan 10": "vlan", "no switchport": "switchport", "switchport mode trunk": "switchport",
+            "no vlan 10": "vlan", "no switchport": "switchport", "switchport mode hybrid": "switchport",
             "channel-group 10 mode active": "port_channel", "spanning-tree mode rstp": "spanning_tree",
             "ip address 192.0.2.9/24": "ip_address", "ip vrf forwarding management": "management",
-            "mtu 9216": "not_allowed_v1", "description has spaces": "description",
+            "mtu 9216": "mtu", "description has spaces": "description",
         }
         for command, category in cases.items():
             with self.subTest(command=command):
@@ -178,7 +178,7 @@ class PrecheckTests(WorkflowTestCase):
 
     def test_policy_rejection_is_reported_before_any_device_access(self):
         with self.assertRaises(PolicyViolation):
-            workflow.run_precheck("Kenda-Core-1", ["shutdown"], PARENT, backup=self.backup)
+            workflow.run_precheck("Kenda-Core-1", ["reload"], PARENT, backup=self.backup)
         self.read.assert_not_called()
         self.assertEqual(self.events(), ["precheck_failed"])
 
@@ -292,7 +292,7 @@ class ApplyTests(WorkflowTestCase):
         self.failed.assert_not_called()  # status untouched: it is not this task's claim
 
     def test_tampered_stored_change_is_rejected_by_policy_at_apply(self):
-        self.approval(lines=["shutdown"])
+        self.approval(lines=["no switchport"])
         with self.assertRaises(PolicyViolation):
             workflow.run_apply(APPROVAL, claimed_by_api=True)
         self.write.assert_not_called()

@@ -82,6 +82,40 @@ class PrecheckRouteTests(unittest.TestCase):
             body = self.client.get(f"/api/v1/changes/precheck/{rid}").json()
             self.assertEqual((body["result"]["platform"], body["result"]["approval"]["status"]), ("dell_os10", "pending"))
 
+    def test_os10_safe_l2_detail_and_rejection_are_forwarded(self):
+        dry_run = {"would_change": False, "verification_method": "running-configuration", "already_present": [],
+                   "proposed_changes": [], "command_results": [{"command": "shutdown"}], "rejected": True,
+                   "rejection_reasons": ["shutdown rejected: ethernet1/1/25 is classified as an uplink (live LLDP: x)."],
+                   "interface": "ethernet1/1/25", "current_state": {"mode": "trunk"}, "requested_state": {"admin": "down"},
+                   "safety": {"status": "FAIL", "classification": "an uplink", "checks": []}, "change_plan": [],
+                   "expected_diff": {"current": ["interface ethernet1/1/25"], "requested": []}, "device_commands": [],
+                   "raw_device_output": "never forwarded"}
+        with mock.patch.object(changes, "AsyncResult") as result:
+            result.return_value.state = "SUCCESS"
+            result.return_value.result = {"status": "rejected", "platform": "dell_os10", "target_host": "Kenda-Core-1",
+                                          "rejection_reasons": dry_run["rejection_reasons"], "dry_run": dry_run}
+            body = self.client.get(f"/api/v1/changes/precheck/{uuid.uuid4()}").json()["result"]
+        self.assertEqual((body["status"], body["rejection_reasons"]), ("rejected", dry_run["rejection_reasons"]))
+        for key in ("interface", "current_state", "requested_state", "safety", "change_plan", "expected_diff", "device_commands"):
+            self.assertEqual(body["dry_run"][key], dry_run[key])
+        self.assertNotIn("raw_device_output", body["dry_run"])
+        self.assertIsNone(body["approval"])
+
+    def test_os6_result_shape_is_unchanged_apart_from_empty_os10_fields(self):
+        with mock.patch.object(changes, "AsyncResult") as result:
+            result.return_value.state = "SUCCESS"
+            result.return_value.result = {"status": "pending_approval", "platform": "dell_os6", "dry_run": {
+                "would_change": True, "proposed_changes": ["vlan 200"]}}
+            body = self.client.get(f"/api/v1/changes/precheck/{uuid.uuid4()}").json()["result"]
+        self.assertEqual((body["rejection_reasons"], body["dry_run"]["change_plan"], body["dry_run"]["safety"]), ([], [], None))
+        self.assertEqual(body["dry_run"]["proposed_changes"], ["vlan 200"])
+
+    def test_os10_l2_request_is_queued_verbatim_for_the_worker(self):
+        change = {"device_id": 12, "config_parents": ["interface ethernet1/1/18"],
+                  "config_lines": ["switchport mode trunk", "switchport trunk allowed vlan 30,40"]}
+        self.assertEqual(self.client.post("/api/v1/changes/precheck", json=change).status_code, 202)
+        self.assertEqual(self.send.call_args.kwargs["kwargs"]["config_lines"], change["config_lines"])
+
 
 class ApprovalRouteTests(unittest.TestCase):
     def setUp(self):

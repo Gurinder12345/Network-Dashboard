@@ -148,7 +148,9 @@ function PlatformSummary({ devices, health }: { devices: Device[]; health: Map<n
                 {platform === OS6_PLATFORM ? (
                   <span className="access-tag actionable">Actionable</span>
                 ) : platform === OS10_PLATFORM ? (
-                  <span className="view-only-tag">View only</span>
+                  <span className="access-tag actionable" title="Dell OS10 safe L2 changes on eligible ethernet interfaces">
+                    Actionable · safe L2
+                  </span>
                 ) : null}
               </div>
               <span className="platform-row-count">{list.length}</span>

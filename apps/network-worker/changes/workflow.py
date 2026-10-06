@@ -2,15 +2,19 @@
 Shared guarded-change workflow for every supported platform (Dell OS6, Dell OS10).
 
 Precheck (read-only):
-    device enabled -> platform adapter -> policy/normalize -> read running config ONCE
-    -> verify desired state -> [no change: done]
+    device enabled -> platform adapter -> policy/normalize -> read device state ONCE
+    (running config; OS10 L2 changes also LLDP in the same session)
+    -> plan: OS6 verifies the lines; OS10 classifies the interface, checks VLANs and
+       current mode, and derives the exact device commands
+    -> [rejected by safety: done, nothing stored] [no change: done]
     -> pre-change backup from that same snapshot (no backup => no approval => no write)
-    -> pending approval
+    -> pending approval (OS10: the planned device commands are what is approved)
 
 Apply (the API has already claimed approved -> applying atomically):
-    status check -> backup belongs to this device and succeeded -> policy re-check
-    -> [OS10: re-read; already in desired state => applied without writing]
-    -> Ansible write -> post-check reads the device again -> applied
+    status check -> backup belongs to this device and succeeded -> stored commands
+    re-validated -> [OS10: re-read; safety and preconditions re-checked against the
+    device as it is now; commands already in effect are skipped; nothing left => applied
+    without writing] -> Ansible write -> post-check reads the device again -> applied
     Any failure after the claim -> failed (+ audit apply_failed). Ansible's return code
     alone never marks a change applied: only a passing post-check does.
 
@@ -21,6 +25,8 @@ module with expected_platform="dell_os6".
 import logging
 import re
 
+from changes.os10 import VerificationError
+from changes.os10_safety import SafetyRejection
 from changes.platforms import platform_for
 from db.approvals import (
     create_change_approval,
@@ -69,6 +75,8 @@ def ansible_failure_summary(result):
 def _sanitized(stage, exc):
     if isinstance(exc, ChangeError):
         return str(exc)
+    if isinstance(exc, (VerificationError, SafetyRejection)):  # our own messages: no device output or secrets
+        return f"{stage}: {exc}"[:MAX_ERROR]
     return f"{stage}: {classify_backup_error(exc)}"
 
 
@@ -82,11 +90,26 @@ def run_precheck(target_host, config_lines, config_parents=None, *, backup, expe
         lines, parents = adapter.prepare(config_lines, config_parents)
 
         try:
-            snapshot = adapter.read_running_config(target_host)
+            state = adapter.read_device_state(target_host, lines)
         except Exception as exc:
             raise ChangeError(_sanitized("Could not read the running configuration", exc)) from None
+        snapshot = state["running_config"]
 
-        dry_run = adapter.verify(target_host, lines, parents, snapshot)
+        dry_run = adapter.plan(target_host, device, lines, parents, state)
+
+        if dry_run.get("rejected"):
+            reasons = dry_run["rejection_reasons"]
+            _audit(None, device["id"], "precheck_failed",
+                   f"Precheck for {target_host} ({adapter.label}) rejected by safety policy: {' '.join(reasons)}")
+            return {
+                "target_host": target_host,
+                "platform": adapter.name,
+                "status": "rejected",
+                "rejection_reasons": reasons,
+                "dry_run": dry_run,
+                "backup_required": False,
+                "ready_for_approval": False,
+            }
 
         if not dry_run["would_change"]:
             _audit(None, device["id"], "precheck_completed",
@@ -104,10 +127,12 @@ def run_precheck(target_host, config_lines, config_parents=None, *, backup, expe
         if backup_result.get("status") != "success":
             raise RuntimeError(f"Backup failed for {target_host}")
 
+        # OS10: the planned device commands are approved (and later re-validated) verbatim.
+        approved_lines = dry_run.get("device_commands") or lines
         approval = create_change_approval(
             device_id=device["id"],
             backup_job_id=backup_result["job_id"],
-            config_lines=lines,
+            config_lines=approved_lines,
             config_parents=parents,
             requested_by="system",
         )
@@ -127,6 +152,7 @@ def run_precheck(target_host, config_lines, config_parents=None, *, backup, expe
         "backup_required": True,
         "backup": backup_result,
         "approval": approval,
+        "config_lines": approved_lines,
         "config_parents": parents,
         "ready_for_approval": True,
     }
@@ -155,7 +181,7 @@ def run_apply(approval_id, claimed_by_api=False, expected_platform=None):
             raise ValueError("Approved configuration is empty")
 
         # Re-validate the stored change (defence in depth for OS10's allow-list).
-        config_lines, config_parents = adapter.prepare(approval["config_lines"], approval.get("config_parents"))
+        config_lines, config_parents = adapter.validate_approved(approval["config_lines"], approval.get("config_parents"))
 
     except Exception as exc:
         if claimed_by_api:
@@ -172,9 +198,12 @@ def run_apply(approval_id, claimed_by_api=False, expected_platform=None):
            f"Approved configuration apply started for {hostname} (approval_id={approval_id})")
 
     try:
+        to_send = config_lines
         if adapter.pre_apply_verify:
             try:
-                before = adapter.verify(hostname, config_lines, config_parents)
+                before = adapter.pre_apply(device, config_lines, config_parents)
+            except SafetyRejection as exc:
+                raise ChangeError(f"Pre-apply safety check failed; nothing was sent: {exc}"[:MAX_ERROR]) from None
             except Exception as exc:
                 raise ChangeError(_sanitized("Pre-apply read failed; nothing was sent", exc)) from None
             if not before["would_change"]:
@@ -184,8 +213,10 @@ def run_apply(approval_id, claimed_by_api=False, expected_platform=None):
                        f"(approval_id={approval_id}, verified by {before['verification_method']})")
                 return _apply_result(approval_id, approval, hostname, adapter, config_lines, config_parents,
                                      None, before, write_skipped=True)
+            # Only what is still needed, in the approved order.
+            to_send = before["proposed_changes"]
 
-        result = adapter.apply(hostname, config_lines, config_parents)
+        result = adapter.apply(hostname, to_send, config_parents)
         if result["returncode"] != 0:
             raise ChangeError(ansible_failure_summary(result))
 
@@ -203,7 +234,8 @@ def run_apply(approval_id, claimed_by_api=False, expected_platform=None):
         _audit(approval["backup_job_id"], device["id"], "apply_completed",
                f"Approved configuration apply completed for {hostname} (approval_id={approval_id}); "
                f"post-check confirmed {len(post_check['already_present'])} line(s) via {post_check['verification_method']}")
-        return _apply_result(approval_id, approval, hostname, adapter, config_lines, config_parents, result, post_check)
+        return _apply_result(approval_id, approval, hostname, adapter, config_lines, config_parents, result, post_check,
+                             sent_lines=to_send)
 
     except Exception as exc:
         mark_approval_failed(approval_id)  # applying -> failed
@@ -214,7 +246,7 @@ def run_apply(approval_id, claimed_by_api=False, expected_platform=None):
 
 
 def _apply_result(approval_id, approval, hostname, adapter, config_lines, config_parents, ansible_result, post_check,
-                  write_skipped=False):
+                  write_skipped=False, sent_lines=None):
     return {
         "approval_id": approval_id,
         "status": "applied",
@@ -227,4 +259,5 @@ def _apply_result(approval_id, approval, hostname, adapter, config_lines, config
         "ansible_result": ansible_result,
         "post_check": post_check,
         "write_skipped": write_skipped,
+        "sent_lines": [] if write_skipped else (sent_lines if sent_lines is not None else config_lines),
     }

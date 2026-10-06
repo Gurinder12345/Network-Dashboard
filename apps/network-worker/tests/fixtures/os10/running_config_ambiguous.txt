@@ -1,0 +1,41 @@
+! Version 10.5.4.0
+!
+hostname Kenda-Core-1
+!
+interface vlan1
+ no shutdown
+!
+interface vlan20
+ no shutdown
+!
+interface mgmt1/1/1
+ no shutdown
+ ip address 192.0.2.10/24
+!
+interface ethernet1/1/18
+ shutdown
+ no shutdown
+ switchport access vlan 20
+!
+interface ethernet1/1/19
+ no shutdown
+ switchport mode trunk
+ switchport access vlan 1
+ switchport access vlan 20
+ switchport trunk allowed vlan 10,20
+!
+interface ethernet1/1/21
+ no shutdown
+ switchport mode trunk
+ switchport access vlan 1
+ switchport trunk allowed vlan 10,abc
+!
+interface ethernet1/1/22
+ flowcontrol receive on
+!
+interface ethernet1/1/23
+ no shutdown
+ switchport access vlan 1
+ switchport port-security
+!
+end

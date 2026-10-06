@@ -1,4 +1,5 @@
 import logging
+import os
 
 import psycopg
 
@@ -205,3 +206,56 @@ def get_lldp_identity_by_chassis_id(chassis_id):
         return None
     rows = _query_identities("WHERE chassis_id = %s", (normalized,))
     return rows[0] if rows else None
+
+
+# Inactive links seen this recently still count as "something is connected here" for the
+# OS10 change safety check (a link that is down right now may come back).
+STORED_LINK_RECENT_HOURS = int(os.getenv("OS10_STORED_LINK_RECENT_HOURS", "24"))
+
+
+def list_links_for_interface(device_id, interface, recent_hours=None):
+    """
+    Stored LLDP links touching one interface of one device, from either end: links this
+    device discovered on the interface, and links other devices discovered TO it. Active
+    links, plus inactive ones seen within recent_hours. Returns neighbor dicts
+    (remote_system_name, remote_interface, remote_device_id, remote_hostname, source).
+    """
+    hours = STORED_LINK_RECENT_HOURS if recent_hours is None else recent_hours
+    interface = "".join(interface.lower().split())
+    conn = get_connection()
+
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT l.local_device_id, ld.hostname, l.local_interface,
+                       l.remote_device_id, rd.hostname, l.remote_system_name, l.remote_interface,
+                       l.remote_port_id, l.remote_chassis_id, l.active,
+                       l.local_device_id = %s AND lower(replace(l.local_interface, ' ', '')) = %s AS ours
+                FROM topology_links l
+                JOIN devices ld ON ld.id = l.local_device_id
+                LEFT JOIN devices rd ON rd.id = l.remote_device_id
+                WHERE (l.active OR l.last_seen_at > now() - make_interval(hours => %s))
+                  AND ((l.local_device_id = %s AND lower(replace(l.local_interface, ' ', '')) = %s)
+                    OR (l.remote_device_id = %s AND lower(replace(coalesce(l.remote_interface, ''), ' ', '')) = %s))
+                ORDER BY l.active DESC, l.last_seen_at DESC
+                """,
+                (device_id, interface, hours, device_id, interface, device_id, interface),
+            )
+            links = []
+            for row in cur.fetchall():
+                (local_id, local_host, local_intf, remote_id, remote_host, remote_name, remote_intf,
+                 remote_port, remote_chassis, active, ours) = row
+                state = "active" if active else "recently seen"
+                if ours:
+                    links.append({"remote_system_name": remote_name, "remote_interface": remote_intf,
+                                  "remote_port_id": remote_port, "remote_chassis_id": remote_chassis,
+                                  "remote_device_id": remote_id, "remote_hostname": remote_host,
+                                  "source": f"stored ({state})"})
+                else:
+                    links.append({"remote_system_name": local_host, "remote_interface": local_intf,
+                                  "remote_device_id": local_id, "remote_hostname": local_host,
+                                  "source": f"stored, reported by {local_host} ({state})"})
+            return links
+    finally:
+        conn.close()

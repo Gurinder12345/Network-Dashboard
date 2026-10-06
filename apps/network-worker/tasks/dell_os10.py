@@ -126,6 +126,52 @@ def get_running_config(target_host):
 
 
 
+def get_running_config_and_lldp(target_host):
+    """
+    Read-only, ONE SSH session: `show running-configuration` then `show lldp neighbors`
+    (safe-L2 change precheck / pre-apply). An LLDP failure does not fail the read; it is
+    reported as lldp_error and the caller treats the neighbor state as unknown.
+    """
+    nr = get_nornir(target_host)
+    try:
+        failed = _failed_prep(nr.run(
+            task=netmiko_send_command,
+            command_string="terminal length 0",
+            read_timeout=30,
+        ))
+        if failed:
+            return failed
+
+        config = nr.run(
+            task=netmiko_send_command,
+            command_string="show running-configuration",
+            use_timing=True,
+            read_timeout=120,
+        )
+        lldp = nr.run(
+            task=netmiko_send_command,
+            command_string="show lldp neighbors",
+            read_timeout=60,
+        )
+
+        output = {}
+        for hostname, multi_result in config.items():
+            task_result = multi_result[0]
+            if task_result.failed:
+                output[hostname] = {"failed": True, "result": str(task_result.result)}
+                continue
+            entry = {"failed": False, "running_config": str(task_result.result), "lldp": None, "lldp_error": None}
+            lldp_result = lldp.get(hostname)
+            if lldp_result is None or lldp_result[0].failed:
+                entry["lldp_error"] = "show lldp neighbors failed"
+            else:
+                entry["lldp"] = str(lldp_result[0].result)
+            output[hostname] = entry
+        return output
+    finally:
+        nr.close_connections()
+
+
 def backup_running_config(target_host):
     nr = get_nornir(target_host)
 

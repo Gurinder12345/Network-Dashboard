@@ -34,7 +34,7 @@ spec:
 
       containers:
         - name: network-ui
-          image: ghcr.io/gurinder12345/network-ui:v0.1.11
+          image: ghcr.io/gurinder12345/network-ui:v0.1.12
 
           imagePullPolicy: IfNotPresent
 

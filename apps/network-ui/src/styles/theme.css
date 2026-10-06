@@ -2791,3 +2791,27 @@ line.chart-gridline {
 .modal .detail-list {
   padding: var(--space-4);
 }
+
+/* Dell OS10 safe-L2 precheck detail */
+.os10-policy {
+  margin-top: 6px;
+  line-height: 1.5;
+}
+
+.os10-examples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.precheck-diff {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.precheck-diff .form-label {
+  display: block;
+  margin-bottom: 4px;
+}

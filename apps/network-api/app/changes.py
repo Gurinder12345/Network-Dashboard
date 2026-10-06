@@ -17,7 +17,8 @@ router = APIRouter(prefix="/api/v1/changes", tags=["changes"])
 
 OS6_PLATFORM = "dell_os6"
 # Platforms the shared worker change workflow supports. Platform-specific command policy
-# (e.g. the OS10 V1 allow-list) is enforced by the worker during precheck and again at apply.
+# (e.g. the OS10 safe-L2 allow-list and interface safety checks) is enforced by the worker
+# during precheck and again at apply.
 SUPPORTED_CHANGE_PLATFORMS = {"dell_os6": "Dell OS6", "dell_os10": "Dell OS10"}
 PRECHECK_TASK = "network_worker.change_precheck"
 # Legacy OS6-only route keeps its original task.
@@ -102,12 +103,23 @@ def _summarize_result(result):
         "platform": result.get("platform"),
         "ready_for_approval": result.get("ready_for_approval", False),
         "backup_required": result.get("backup_required", False),
+        # Dell OS10: exact policy/safety reasons when status is "rejected".
+        "rejection_reasons": result.get("rejection_reasons", []),
         "dry_run": {
             "would_change": dry_run.get("would_change"),
             "verification_method": dry_run.get("verification_method"),
             "already_present": dry_run.get("already_present", []),
             "proposed_changes": dry_run.get("proposed_changes", []),
             "command_results": dry_run.get("command_results", []),
+            # Dell OS10 safe-L2 precheck detail (absent for OS6): interface state, safety
+            # checks, the plan and the device commands an approval would store.
+            "interface": dry_run.get("interface"),
+            "current_state": dry_run.get("current_state"),
+            "requested_state": dry_run.get("requested_state"),
+            "safety": dry_run.get("safety"),
+            "change_plan": dry_run.get("change_plan", []),
+            "expected_diff": dry_run.get("expected_diff"),
+            "device_commands": dry_run.get("device_commands"),
         },
         "backup": (
             {

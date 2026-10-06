@@ -146,20 +146,55 @@ export interface PrecheckCommandResult {
   type: string;
   verification_method: string;
   desired_state_present: boolean;
+  current_value?: string | number | null;
+}
+
+// Dell OS10 safe-L2 precheck detail (absent / null for Dell OS6).
+export interface Os10InterfaceState {
+  interface: string;
+  description: string | null;
+  admin: string;
+  mode: string;
+  access_vlan: number | null;
+  allowed_vlans: string | null;
+  port_channel: string | null;
+  lldp_neighbor: string;
+  protected: boolean;
+  classification: string;
+}
+
+export interface SafetyCheck {
+  name: string;
+  status: "pass" | "fail" | "unknown" | string;
+  detail: string;
+}
+
+export interface Os10Safety {
+  status: "PASS" | "FAIL" | string;
+  classification: string;
+  checks: SafetyCheck[];
 }
 
 export interface Os6PrecheckResult {
   platform?: string | null;
-  status: "no_change_required" | "pending_approval" | string;
+  status: "no_change_required" | "pending_approval" | "rejected" | string;
   target_host: string | null;
   ready_for_approval: boolean;
   backup_required: boolean;
+  rejection_reasons?: string[];
   dry_run: {
     would_change: boolean | null;
     verification_method: string | null;
     already_present: string[];
     proposed_changes: string[];
     command_results: PrecheckCommandResult[];
+    interface?: string | null;
+    current_state?: Os10InterfaceState | null;
+    requested_state?: Record<string, string | number | null> | null;
+    safety?: Os10Safety | null;
+    change_plan?: string[];
+    expected_diff?: { current: string[]; requested: string[] } | null;
+    device_commands?: string[] | null;
   };
   backup: { job_id: string | null; status: string | null; checksum: string | null; storage_path: string | null } | null;
   approval: { approval_id: string | null; status: string | null } | null;
