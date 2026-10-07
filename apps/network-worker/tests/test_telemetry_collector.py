@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from netmiko.exceptions import NetmikoAuthenticationException, NetmikoTimeoutException  # noqa: E402
 
@@ -24,9 +25,12 @@ OS6 = {"id": 1, "hostname": "Kenda-HARO-IDF-A", "management_ip": "10.0.0.31", "p
 FULL = {"cpu_percent": 12.5, "memory_percent": 41.0, "memory_used_mb": 820.0, "memory_total_mb": 2000.0, "uptime_seconds": 86400}
 
 
+from fakes import fake_redis  # noqa: E402
+
 class CollectorTestCase(unittest.TestCase):
     def setUp(self):
         self.addCleanup(mock.patch.stopall)
+        fake_redis.install(self)  # in-memory device coordination
         mock.patch.dict(parsers.TELEMETRY_COMMANDS, {"dell_os6": ("show test-cpu", "show test-mem")}, clear=True).start()
         self.parser = mock.Mock(return_value=dict(FULL))
         mock.patch.dict(parsers.PARSERS, {"dell_os6": self.parser}, clear=True).start()
@@ -152,6 +156,7 @@ class RecordTests(CollectorTestCase):
 class FleetTests(unittest.TestCase):
     def setUp(self):
         self.addCleanup(mock.patch.stopall)
+        fake_redis.install(self)  # in-memory device coordination
         self.devices = [{**OS6, "id": i, "hostname": f"sw{i}"} for i in range(10)]
         mock.patch.object(collector, "list_enabled_devices", return_value=self.devices).start()
         self.lock = mock.MagicMock()

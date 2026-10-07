@@ -16,6 +16,7 @@ import logging
 import os
 from datetime import datetime, timezone
 
+from coordination import device_ops as coord
 from db.devices import get_device_by_id
 from db.jobs import (
     create_audit_event,
@@ -42,6 +43,18 @@ SUPPORTED_PLATFORMS = tuple(COLLECTORS)
 
 class UnsupportedPlatformError(ValueError):
     pass
+
+
+class DeviceBusyError(RuntimeError):
+    """Device coordination refused the backup (change in progress, busy, Redis down). User-facing."""
+
+
+def busy_message(acq, hostname):
+    if acq.status == "unavailable":
+        return "Device coordination unavailable (Redis); backup not started"
+    if acq.change_active:
+        return f"Configuration change in progress on {hostname}; backup not started"
+    return f"Device busy ({(acq.holder or {}).get('operation', 'another operation')}) on {hostname}; backup not started"
 
 
 class BackupStorageError(OSError):
@@ -154,6 +167,9 @@ def classify_backup_error(exc):
     if isinstance(exc, BackupStorageError):
         return "Backup storage error"
 
+    if isinstance(exc, DeviceBusyError):
+        return str(exc)
+
     if type(exc).__module__.startswith("hvac"):
         return "Credential lookup failed"
 
@@ -192,13 +208,19 @@ def run_manual_backup(device_id, job_id):
         if device["platform"] not in SUPPORTED_PLATFORMS:
             raise UnsupportedPlatformError(f"Unsupported platform for backup: {device['platform']}")
 
-        result = perform_config_backup(
-            hostname,
-            device["id"],
-            device["platform"],
-            job_id,
-            source="manual",
-        )
+        # Read-only, but SSH-heavy: take the device slot (priority 1, short wait; telemetry and
+        # topology yield). Never during an approved change; fail closed without Redis.
+        acq = coord.acquire_device_operation(device["id"], "backup", owner=f"backup-job:{job_id}", hostname=hostname)
+        if not acq.acquired:
+            raise DeviceBusyError(busy_message(acq, hostname))
+        with acq.lease:
+            result = perform_config_backup(
+                hostname,
+                device["id"],
+                device["platform"],
+                job_id,
+                source="manual",
+            )
 
     except Exception as exc:
         reason = classify_backup_error(exc)

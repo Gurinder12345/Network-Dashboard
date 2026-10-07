@@ -11,6 +11,7 @@ import { FilterChips } from "../components/FilterChips";
 import { PageHeader } from "../components/PageHeader";
 import { RelativeTime } from "../components/RelativeTime";
 import { StatusBadge } from "../components/StatusBadge";
+import { OperationTag } from "../components/OperationTag";
 import { usePolling } from "../hooks/usePolling";
 import { formatResponseTime, truncateText } from "../utils/format";
 
@@ -319,6 +320,7 @@ export function Devices() {
                       </td>
                       <td title={reachability(device) ?? undefined}>
                         <StatusBadge status={status} />
+                        <OperationTag operation={device} />
                       </td>
                       <td>
                         <ResponseCell ms={device.response_time_ms} />

@@ -29,6 +29,11 @@ DEVICES = [
 for d in DEVICES:
     d.update(health_status="healthy", last_check_at=ago(seconds=20), last_success_at=ago(seconds=20), response_time_ms=900,
              tcp_reachable=True, ssh_reachable=True, cli_reachable=True, last_error=None)
+    d.update(operation_state="normal", active_change_id=None, change_started_at=None, polling_suppressed=False,
+             current_operation=None, health_grace=False)
+# Device coordination: an approved change is executing on Kenda-Core-1 (health stays healthy).
+DEVICES[1].update(operation_state="change_in_progress", active_change_id="a0000000-0000-4000-8000-000000000184",
+                  change_started_at=ago(seconds=40), polling_suppressed=True, current_operation="apply")
 
 MULTI = [{"order": 0, "parent": "interface ethernet1/1/18", "commands": ["description APP-SERVER", "switchport mode trunk"]},
          {"order": 1, "parent": "interface ethernet1/1/19", "commands": ["switchport access vlan 50"]},

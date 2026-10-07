@@ -378,3 +378,33 @@ def set_execution_result(approval_id, execution_result):
 
     finally:
         conn.close()
+
+
+def release_apply_claim(approval_id):
+    """
+    applying -> approved when the worker could not obtain the device (busy / coordination
+    unavailable) BEFORE any apply attempt started. Never touches an approval whose
+    execution already began (execution_result set).
+    """
+    conn = get_connection()
+
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE change_approvals
+                SET status = 'approved'
+                WHERE id = %s
+                  AND status = 'applying'
+                  AND execution_result IS NULL
+                RETURNING id
+                """,
+                (approval_id,),
+            )
+            released = cur.fetchone() is not None
+
+        conn.commit()
+        return released
+
+    finally:
+        conn.close()

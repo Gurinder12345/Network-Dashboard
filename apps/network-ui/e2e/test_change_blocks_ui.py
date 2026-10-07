@@ -200,5 +200,16 @@ class ChangeBlocksUiTests(unittest.TestCase):
         expect(row.locator(".config-preview")).to_have_text("! Block 1\ninterface Tw1/0/3\n description OLD-CHANGE")
 
 
+    # ---- device coordination -------------------------------------------------------------------
+    def test_change_in_progress_is_shown_next_to_unchanged_health(self):
+        page = self.page
+        page.goto(f"{BASE}/devices")
+        core = page.locator("tbody tr", has_text="Kenda-Core-1")
+        expect(core.locator(".badge")).to_contain_text("healthy")
+        expect(core.locator(".operation-tag")).to_contain_text("Change in progress")
+        expect(core.locator(".operation-tag")).to_contain_text("#a0000000")
+        expect(page.locator("tbody tr", has_text="Kenda-HARO-IDF-A").locator(".operation-tag")).to_have_count(0)
+        self.assertIn("polling are paused", core.locator(".operation-tag").get_attribute("title"))
+
 if __name__ == "__main__":
     unittest.main()

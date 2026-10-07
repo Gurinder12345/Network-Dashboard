@@ -41,7 +41,7 @@ spec:
       containers:
         - name: network-beat
           # Same image as network-worker, so the schedule always matches the deployed tasks.
-          image: ghcr.io/gurinder12345/network-worker:v0.15.21
+          image: ghcr.io/gurinder12345/network-worker:v0.15.22
 
           imagePullPolicy: IfNotPresent
 

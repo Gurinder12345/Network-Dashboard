@@ -71,6 +71,14 @@ class SimulatedFlow:
             mock.patch.object(module, "get_device_credentials", side_effect=creds).start()
 
         p = lambda name, **kw: mock.patch.object(workflow, name, **kw).start()
+        from fakes import fake_redis
+
+        fake_redis.install(self)  # in-memory device coordination
+        # Pre-apply backup and post-change health write to PostgreSQL / probe the real
+        # management IP; both are covered by test_coordination.py and the API PG flow.
+        p("_pre_apply_backup", return_value={"status": "success", "job_id": "pre-1"})
+        p("_post_change_health", return_value={"ok": True, "status": "healthy"})
+        p("release_apply_claim", return_value=True)
         self.dev = {"id": 12, "hostname": self.HOST, "platform": self.PLATFORM, "management_ip": "192.0.2.10"}
         p("get_device_by_hostname", return_value=self.dev)
         p("get_device_by_id", return_value=self.dev)

@@ -3435,3 +3435,21 @@ line.chart-gridline {
   font-size: var(--fs-sm);
   min-width: 420px;
 }
+
+/* Device operation state (change in progress): informational, never alarming */
+.operation-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 6px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--tone-info-border);
+  background: var(--tone-info-bg);
+  color: var(--tone-info);
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}

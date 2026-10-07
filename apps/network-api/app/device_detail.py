@@ -20,7 +20,7 @@ from app.backup_download import download_filename, file_available
 from app.db.backups import latest_backup_for_device
 from app.db.devices import get_device_by_id
 from app.db.metrics import latest_metrics, metric_history
-from app.health import UNKNOWN_HEALTH, health_by_device
+from app.health import NORMAL_OPERATION, UNKNOWN_HEALTH, health_by_device, operation_states
 
 
 router = APIRouter(prefix="/api/v1/devices", tags=["devices"])
@@ -130,6 +130,8 @@ def device_detail(device_id: int):
         "site": None,
         "role": None,
         "health": {k: v for k, v in health.items() if k != "device_id"},
+        # Optional operational metadata (change in progress, current device operation).
+        "operation": operation_states([device_id]).get(device_id, NORMAL_OPERATION),
         "telemetry": telemetry,
         "latest_backup": backup,
     }

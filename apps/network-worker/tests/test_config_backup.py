@@ -13,6 +13,7 @@ import unittest
 from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from tasks import config_backup as cb  # noqa: E402
 
@@ -25,8 +26,11 @@ def ok_result(host, config=CONFIG):
                    "checksum": hashlib.sha256(config.encode()).hexdigest(), "config": config}}
 
 
+from fakes import fake_redis  # noqa: E402
+
 class CoreTestCase(unittest.TestCase):
     def setUp(self):
+        fake_redis.install(self)  # in-memory device coordination
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.db = {
@@ -182,6 +186,7 @@ class WorkerTaskTests(unittest.TestCase):
 
     def setUp(self):
         self.addCleanup(mock.patch.stopall)
+        fake_redis.install(self)  # in-memory device coordination
         w = self.worker
         mock.patch.object(w, "get_device_by_hostname", return_value={
             "id": 1, "hostname": "Kenda-HARO-IDF-A", "platform": "dell_os6"}).start()

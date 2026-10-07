@@ -142,6 +142,15 @@ class ChangeFlowTests(unittest.TestCase):
         self.backup_root = tempfile.mkdtemp(dir=self.tmp)
         mock.patch.object(config_backup, "BACKUP_ROOT", self.backup_root).start()
 
+        # Device coordination in memory (slot, change-in-progress); the post-change health
+        # probe targets the unroutable test management IP, so it is stubbed (covered by
+        # tests/test_coordination.py in the worker).
+        from changes import workflow
+        from fakes import fake_redis
+
+        self.coord_redis = fake_redis.install(self)
+        mock.patch.object(workflow, "_post_change_health", return_value={"ok": True, "status": "healthy"}).start()
+
         # Celery transport bypass: remember what the API queued, run it on demand.
         self.queued = []
         for module in (self.changes, self.approval_actions):
@@ -211,6 +220,7 @@ class ChangeFlowTests(unittest.TestCase):
         view = self.approval_view(approval_id)
         execution = view["execution_result"]
         self.assertEqual((view["status"], execution["outcome"], execution["execution"]), ("applied", "applied", "success"))
+        self.assertEqual(execution["post_change_health"], {"ok": True, "status": "healthy"})
         self.assertEqual([b["status"] for b in execution["blocks"]], ["applied"] * len(blocks))
         self.assertEqual(execution["verification"][0]["command"], "show vlan")
         jobs = {(j["job_type"], j["status"]) for j in self.client.get("/api/v1/jobs").json()}
@@ -218,8 +228,13 @@ class ChangeFlowTests(unittest.TestCase):
         events = self.events()
         self.assertEqual(events[:6], ["precheck_requested", "backup_started", "backup_completed", "precheck_completed",
                                       "change_created", "approval_approved"])
-        self.assertEqual(events[6:], ["apply_requested", "apply_started"] + ["apply_block_completed"] * len(blocks)
-                         + ["postcheck_completed", "apply_completed"])
+        # Fresh pre-apply backup under the change's own device slot, then the blocks.
+        self.assertEqual(events[6:], ["apply_requested", "apply_started", "backup_started", "backup_completed"]
+                         + ["apply_block_completed"] * len(blocks) + ["postcheck_completed", "apply_completed"])
+        self.assertEqual(self.sql("SELECT count(*) FROM backups")[0][0], 2)  # precheck snapshot + pre-apply
+        self.assertEqual(view["execution_result"]["pre_apply_backup"]["status"], "success")
+        self.assertIsNone(self.coord_redis.get("device:%d:operation" % view["device_id"]))  # released
+        self.assertIsNone(self.coord_redis.get("device:%d:change-in-progress" % view["device_id"]))
         self.assertNotIn(self.password, " ".join(r[0] or "" for r in self.sql("SELECT message FROM audit_events")))
         return view
 
@@ -359,6 +374,33 @@ class ChangeFlowTests(unittest.TestCase):
         self.apply(approval_id)
         self.assertEqual(self.os6.interfaces["Tw1/0/4"]["description"], "LEGACY")
 
+    # ---- device coordination (real PostgreSQL + API) ------------------------------------------
+    def test_apply_on_busy_device_is_deferred_not_failed(self):
+        from coordination import device_ops as coord
+
+        approval_id = self.precheck_approve({"device_id": 12, "blocks": OS10_BLOCKS[:1]})
+        holder = coord.acquire_device_operation(12, "backup", owner="manual-backup", wait_seconds=0)
+        with mock.patch.dict(coord.OPERATIONS["apply"], {"wait": 1}):
+            with self.assertRaisesRegex(Exception, "Apply not started: Kenda-Core-1 is busy \\(backup\\)"):
+                self.apply(approval_id)
+        self.assertEqual(self.approval_status()[1], "approved")  # retryable, not failed
+        self.assertNotIn("configure terminal", self.os10.log)
+        self.assertEqual(self.events()[-1], "apply_deferred")
+        holder.lease.release()
+        self.assertEqual(self.apply(approval_id)["status"], "applied")  # retry succeeds once free
+
+    def test_precheck_refused_during_active_change(self):
+        from coordination import device_ops as coord
+
+        change = coord.acquire_device_operation(1, "apply", wait_seconds=0)
+        coord.set_change_in_progress(change.lease, "other-change", "job", 300)
+        with self.assertRaisesRegex(Exception, "Precheck not started: a configuration change is in progress"):
+            self.precheck({"device_id": 1, "blocks": OS6_BLOCKS})
+        self.assertNotIn("show running-config", self.os6.log)
+        coord.clear_change_in_progress(change.lease)
+        change.lease.release()
+
 
 if __name__ == "__main__":
     unittest.main()
+

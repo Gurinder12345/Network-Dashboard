@@ -9,6 +9,13 @@ Never changes configuration, never changes device health, never creates jobs or 
 events (routine polling would flood both). One unreachable device never blocks the fleet:
 collection runs in a bounded thread pool and every per-device failure is recorded as a
 `failed` sample with NULL metrics.
+
+Device coordination (coordination/device_ops.py), telemetry = priority 3: before opening
+SSH it takes the device's operation slot without waiting. If the device is busy (another
+operation holds it, or a higher-priority operation is waiting) or a configuration change
+is in progress, the device is SKIPPED for this run: no sample row, no failure, no health
+impact; the next 60 s run catches up. No backlog is ever queued. If Redis coordination is
+unavailable, collection is skipped (never unlimited concurrent SSH).
 """
 
 import logging
@@ -19,6 +26,7 @@ from datetime import datetime, timezone
 
 from netmiko.exceptions import NetmikoAuthenticationException
 
+from coordination import device_ops as coord
 from db.health import list_enabled_devices
 from db.metrics import insert_metric, last_success_at
 from health.cache import FleetLock, cache_device_metrics
@@ -141,9 +149,25 @@ def latest_payload(sample, last_success):
     }
 
 
+def skipped_sample(device, acq):
+    """A device skipped because of coordination: nothing is written anywhere."""
+    status = ("skipped_change" if acq.change_active else
+              "skipped_unavailable" if acq.status == "unavailable" else "skipped_busy")
+    coord.count("collector_skipped")
+    logger.info("%s collector=telemetry device_id=%s host=%s reason=%s",
+                "collector_skipped_change" if status == "skipped_change" else "collector_skipped_busy",
+                device["id"], device["hostname"], acq.reason)
+    return {"device_id": device["id"], "hostname": device["hostname"], "status": status, "reason": acq.reason,
+            "collected_at": _now(), "duration_ms": 0}
+
+
 def collect_and_record(device):
     """Collect, store in PostgreSQL, then refresh the Redis latest value. Returns the sample."""
-    sample = collect_device(device)
+    acq = coord.acquire_device_operation(device["id"], "telemetry", hostname=device["hostname"])
+    if not acq.acquired:
+        return skipped_sample(device, acq)
+    with acq.lease:
+        sample = collect_device(device)
     insert_metric(sample)
 
     last_success = sample["collected_at"] if sample["status"] != "failed" else last_success_at(device["id"])
@@ -171,7 +195,8 @@ def run_fleet_metrics(trigger="schedule"):
         logger.info("metrics_collection_started trigger=%s devices_total=%s concurrency=%s",
                     trigger, len(devices), METRICS_CONCURRENCY)
 
-        counts = {"success": 0, "partial": 0, "failed": 0}
+        counts = {"success": 0, "partial": 0, "failed": 0, "skipped_busy": 0, "skipped_change": 0,
+                  "skipped_unavailable": 0}
         not_recorded = 0
         durations = {}
 
@@ -183,7 +208,8 @@ def run_fleet_metrics(trigger="schedule"):
                 try:
                     sample = future.result()
                     counts[sample["status"]] += 1
-                    durations.setdefault(device["platform"], []).append(sample["duration_ms"])
+                    if not sample["status"].startswith("skipped"):
+                        durations.setdefault(device["platform"], []).append(sample["duration_ms"])
                 except Exception as exc:
                     not_recorded += 1
                     logger.warning("metrics_not_recorded device_id=%s host=%s error=%s",
@@ -201,8 +227,9 @@ def run_fleet_metrics(trigger="schedule"):
 
     logger.info(
         "metrics_collection_completed trigger=%s devices_total=%s success=%s partial=%s failed=%s "
-        "not_recorded=%s duration_ms=%s avg_duration_ms=%s lock=%s",
+        "skipped_busy=%s skipped_change=%s skipped_unavailable=%s not_recorded=%s duration_ms=%s avg_duration_ms=%s lock=%s",
         trigger, summary["devices_total"], counts["success"], counts["partial"], counts["failed"],
+        counts["skipped_busy"], counts["skipped_change"], counts["skipped_unavailable"],
         not_recorded, summary["duration_ms"], summary["avg_duration_ms"],
         {True: "held", None: "redis_unavailable"}[lock.acquired],
     )

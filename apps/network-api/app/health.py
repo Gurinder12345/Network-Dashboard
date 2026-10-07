@@ -22,6 +22,10 @@ logger = logging.getLogger("network_api.health")
 router = APIRouter(prefix="/api/v1/health", tags=["health"])
 
 DEVICE_KEY = "health:device:{device_id}"
+# Device operation coordination (written by the worker: coordination/device_ops.py).
+OPERATION_KEY = "device:{device_id}:operation"
+CHANGE_KEY = "device:{device_id}:change-in-progress"
+GRACE_KEY = "device:{device_id}:health-grace"
 FLEET_SUMMARY_KEY = "health:fleet:summary"
 FLEET_LOCK_KEY = "health:fleet:lock"
 MANUAL_COOLDOWN_KEY = "health:manual:cooldown"
@@ -96,10 +100,48 @@ def health_by_device(device_ids):
     return result
 
 
+def operation_states(device_ids):
+    """
+    Optional operational metadata per device (never changes health.status):
+      operation_state    normal | change_in_progress
+      active_change_id   approval id of the change executing on the device (or None)
+      change_started_at  when that change took the device
+      polling_suppressed telemetry/topology are skipping the device (change in progress)
+      current_operation  operation holding the device slot now (health, telemetry, ...)
+      health_grace       a health failure is inside the change grace window
+    Redis unavailable -> all "normal"/None (the API never guesses).
+    """
+    device_ids = list(device_ids)
+    keys = []
+    for device_id in device_ids:
+        keys += [CHANGE_KEY.format(device_id=device_id), OPERATION_KEY.format(device_id=device_id),
+                 GRACE_KEY.format(device_id=device_id)]
+    values = cache.mget_json(keys) if device_ids else []
+    states = {}
+    for index, device_id in enumerate(device_ids):
+        change, operation, grace = values[index * 3:index * 3 + 3] if values else (None, None, None)
+        change = change if isinstance(change, dict) else None
+        operation = operation if isinstance(operation, dict) else None
+        states[device_id] = {
+            "operation_state": "change_in_progress" if change else "normal",
+            "active_change_id": change.get("change_id") if change else None,
+            "change_started_at": change.get("started_at") if change else None,
+            "polling_suppressed": bool(change),
+            "current_operation": operation.get("operation") if operation else None,
+            "health_grace": bool(change) and grace is not None,
+        }
+    return states
+
+
+NORMAL_OPERATION = {"operation_state": "normal", "active_change_id": None, "change_started_at": None,
+                    "polling_suppressed": False, "current_operation": None, "health_grace": False}
+
+
 def devices_with_health():
     """GET /api/v1/devices payload: inventory plus flattened health fields."""
     devices = cached_devices()
     health = health_by_device(device["id"] for device in devices)
+    operations = operation_states(device["id"] for device in devices)
 
     merged = []
 
@@ -116,6 +158,7 @@ def devices_with_health():
                 "ssh_reachable": h["ssh_reachable"],
                 "cli_reachable": h["cli_reachable"],
                 "last_error": h["last_error"],
+                **operations.get(device["id"], NORMAL_OPERATION),
             }
         )
 
@@ -140,6 +183,7 @@ def _summarize(entries):
 def _health_entries():
     devices = cached_devices()
     health = health_by_device(device["id"] for device in devices)
+    operations = operation_states(device["id"] for device in devices)
 
     return [
         {
@@ -149,6 +193,7 @@ def _health_entries():
             "platform": device["platform"],
             "enabled": device["enabled"],
             **{k: v for k, v in health.get(device["id"], UNKNOWN_HEALTH).items() if k != "device_id"},
+            **operations.get(device["id"], NORMAL_OPERATION),
         }
         for device in devices
     ]

@@ -51,7 +51,7 @@ class ManualBackupFlowTests(unittest.TestCase):
         cls.tmp = tempfile.TemporaryDirectory()
         cls.root = os.path.realpath(cls.tmp.name)
         os.environ["BACKUP_ROOT"] = cls.root
-        sys.path[:0] = [API_DIR, WORKER_DIR]
+        sys.path[:0] = [API_DIR, WORKER_DIR, os.path.join(WORKER_DIR, "tests")]
 
         import psycopg
         from fastapi.testclient import TestClient
@@ -87,6 +87,9 @@ class ManualBackupFlowTests(unittest.TestCase):
             with open(os.path.join(os.path.dirname(API_DIR), "..", "db", "migrations", "007_jobs_soft_delete.sql")) as handle:
                 conn.execute(handle.read())
         self.addCleanup(mock.patch.stopall)
+        from fakes import fake_redis
+
+        fake_redis.install(self)  # in-memory device coordination (the backup takes the device slot)
         locks = {}
         cache = self.device_backup.cache
         mock.patch.object(cache, "claim", side_effect=lambda k, t, value="1": False if k in locks else not locks.update({k: value})).start()

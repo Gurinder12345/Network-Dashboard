@@ -1,6 +1,16 @@
 export type HealthStatus = "healthy" | "degraded" | "down" | "unknown";
 
-export interface Device {
+/** Optional device-operation metadata (never replaces health status). */
+export interface DeviceOperation {
+  operation_state?: "normal" | "change_in_progress";
+  active_change_id?: string | null;
+  change_started_at?: string | null;
+  polling_suppressed?: boolean;
+  current_operation?: string | null;
+  health_grace?: boolean;
+}
+
+export interface Device extends DeviceOperation {
   id: number;
   hostname: string;
   management_ip: string;
@@ -17,7 +27,7 @@ export interface Device {
   last_error: string | null;
 }
 
-export interface DeviceHealthEntry {
+export interface DeviceHealthEntry extends DeviceOperation {
   device_id: number;
   hostname: string;
   management_ip: string;
@@ -386,6 +396,7 @@ export interface DeviceDetail {
   site: string | null;
   role: string | null;
   health: DeviceHealthSummary;
+  operation?: DeviceOperation;
   telemetry: DeviceTelemetry;
   latest_backup: {
     backup_id: number;

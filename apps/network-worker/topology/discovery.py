@@ -7,6 +7,11 @@ parse -> correlate with inventory -> persist. Nothing else runs on the switch.
 Failure safety: if collection or parsing fails for a device, its existing links are left
 exactly as they were (not deactivated) and only the failed attempt is recorded. Device
 health is never touched by topology discovery.
+
+Device coordination (coordination/device_ops.py), topology = priority 5 (lowest): the
+device's operation slot is taken without waiting; a busy device (or one with a change in
+progress, or with coordination unavailable) is skipped for this sweep -- no failure is
+recorded, existing links stay, and the next 5-minute run catches up.
 """
 
 import logging
@@ -15,6 +20,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 
+from coordination import device_ops as coord
 from db.health import list_enabled_devices
 from db.jobs import create_audit_event
 from db.topology import (
@@ -71,10 +77,25 @@ def _audit(device_id, event_type, message):
 
 
 def discover_device(device, inventory, identities=None):
-    """Discover one device. Never raises: returns a result dict with success/failure."""
+    """Discover one device. Never raises: returns a result dict with success/failure/skipped."""
     started = time.monotonic()
     attempted_at = _now()
     result = {"device_id": device["id"], "hostname": device["hostname"], "success": False}
+
+    acq = coord.acquire_device_operation(device["id"], "topology", hostname=device["hostname"])
+    if not acq.acquired:
+        skipped = ("skipped_change" if acq.change_active else
+                   "skipped_unavailable" if acq.status == "unavailable" else "skipped_busy")
+        coord.count("collector_skipped")
+        logger.info("%s collector=topology device_id=%s host=%s reason=%s",
+                    "collector_skipped_change" if skipped == "skipped_change" else "collector_skipped_busy",
+                    device["id"], device["hostname"], acq.reason)
+        return {**result, "skipped": skipped, "reason": acq.reason}
+    with acq.lease:
+        return _discover_locked(device, inventory, identities, started, attempted_at, result)
+
+
+def _discover_locked(device, inventory, identities, started, attempted_at, result):
 
     try:
         command, output = collect_lldp_output(device)
@@ -159,12 +180,16 @@ def run_fleet_topology_discovery(trigger="schedule"):
                                     "error": _safe_error(f"{type(exc).__name__}: {exc}")})
 
     ok = [r for r in results if r["success"]]
+    skipped = [r for r in results if r.get("skipped")]
     summary = {
         "skipped": False,
         "trigger": trigger,
         "checked": len(results),
         "successful": len(ok),
-        "failed": len(results) - len(ok),
+        "failed": len(results) - len(ok) - len(skipped),
+        "skipped_busy": sum(1 for r in skipped if r["skipped"] == "skipped_busy"),
+        "skipped_change": sum(1 for r in skipped if r["skipped"] == "skipped_change"),
+        "skipped_unavailable": sum(1 for r in skipped if r["skipped"] == "skipped_unavailable"),
         "neighbors_seen": sum(r["neighbors_seen"] for r in ok),
         "managed_links": sum(r["managed_links"] for r in ok),
         "unmanaged_neighbors": sum(r["unmanaged_neighbors"] for r in ok),
@@ -172,7 +197,7 @@ def run_fleet_topology_discovery(trigger="schedule"):
         "new_links": sum(r["new_links"] for r in ok),
         "deactivated_links": sum(r["deactivated_links"] for r in ok),
         "failed_devices": [{"device_id": r["device_id"], "hostname": r["hostname"], "error": r.get("error")}
-                           for r in results if not r["success"]],
+                           for r in results if not r["success"] and not r.get("skipped")],
         "elapsed_ms": int((time.monotonic() - started) * 1000),
         "finished_at": _now().isoformat(),
     }
@@ -190,9 +215,10 @@ def run_fleet_topology_discovery(trigger="schedule"):
                f"{summary['deactivated_links']} no longer seen, {summary['failed']} failed")
 
     logger.info(
-        "topology_discovery_completed trigger=%s checked=%s successful=%s failed=%s neighbors=%s "
-        "managed=%s unmanaged=%s new=%s deactivated=%s elapsed_ms=%s",
-        trigger, summary["checked"], summary["successful"], summary["failed"], summary["neighbors_seen"],
+        "topology_discovery_completed trigger=%s checked=%s successful=%s failed=%s skipped_busy=%s "
+        "skipped_change=%s neighbors=%s managed=%s unmanaged=%s new=%s deactivated=%s elapsed_ms=%s",
+        trigger, summary["checked"], summary["successful"], summary["failed"], summary["skipped_busy"],
+        summary["skipped_change"], summary["neighbors_seen"],
         summary["managed_links"], summary["unmanaged_neighbors"], summary["new_links"],
         summary["deactivated_links"], summary["elapsed_ms"],
     )

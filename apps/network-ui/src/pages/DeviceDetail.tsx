@@ -10,6 +10,7 @@ import { KpiCard } from "../components/KpiCard";
 import { MetricChart } from "../components/MetricChart";
 import { RelativeTime } from "../components/RelativeTime";
 import { StatusBadge } from "../components/StatusBadge";
+import { OperationTag } from "../components/OperationTag";
 import { usePolling } from "../hooks/usePolling";
 import { isActive, useDeviceBackups } from "../hooks/useDeviceBackups";
 import {
@@ -265,6 +266,7 @@ export default function DeviceDetail() {
             {!detail.enabled && " · Disabled"}
           </div>
           <StatusBadge status={health.status} title={health.last_error ?? undefined} />
+          <OperationTag operation={detail.operation} />
         </div>
         <div className="detail-header-actions">
           <span className="last-refreshed">

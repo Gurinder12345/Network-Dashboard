@@ -25,6 +25,7 @@ COPY topology ./topology
 COPY telemetry ./telemetry
 COPY pcap ./pcap
 COPY changes ./changes
+COPY coordination ./coordination
 COPY ansible ./ansible
 COPY collections-requirements.yml .
 

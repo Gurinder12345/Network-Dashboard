@@ -16,11 +16,13 @@ from unittest import mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
+sys.path.insert(0, HERE)
 
 from ansible.blocks_runner import parse_marker  # noqa: E402
 from changes import blocks as B  # noqa: E402
 from changes import execution as exe  # noqa: E402
 from changes import platforms, verify, workflow  # noqa: E402
+from fakes import fake_redis  # noqa: E402
 
 FIX = os.path.join(HERE, "fixtures", "os10")
 
@@ -276,7 +278,11 @@ class ExecutionTests(unittest.TestCase):
 class WorkflowTestCase(unittest.TestCase):
     def setUp(self):
         self.addCleanup(mock.patch.stopall)
+        self.redis = fake_redis.install(self)  # in-memory device coordination
         p = lambda name, **kw: mock.patch.object(workflow, name, **kw).start()
+        self.pre_apply_backup = p("_pre_apply_backup", return_value={"status": "success", "job_id": "pre-1"})
+        self.post_health = p("_post_change_health", return_value={"ok": True, "status": "healthy"})
+        p("release_apply_claim", return_value=True)
         self.device_by_host = p("get_device_by_hostname", return_value=dict(OS10_DEVICE))
         self.device_by_id = p("get_device_by_id", return_value=dict(OS10_DEVICE))
         self.create_approval = p("create_change_approval", return_value={"approval_id": APPROVAL, "status": "pending"})
@@ -443,7 +449,10 @@ class ApplyTests(WorkflowTestCase):
         workflow.run_apply(APPROVAL, claimed_by_api=True)
         self.assertEqual([b["status"] for b in self.begun[0]["blocks"]], ["applying"] * 4)
         self.assertEqual(self.results[0]["job_id"], "job-1")
-        self.assertEqual(self.results[1]["execution"], "success")
+        self.assertEqual(self.results[1]["pre_apply_backup"], {"status": "success", "job_id": "pre-1"})  # backup first
+        self.assertEqual(self.results[1]["execution"], "applying")
+        self.assertEqual(self.results[2]["execution"], "success")
+        self.assertEqual(self.results[-1]["post_change_health"], {"ok": True, "status": "healthy"})
 
     def test_partial_apply_is_reported_block_by_block(self):
         self.approval(blocks=MULTI)

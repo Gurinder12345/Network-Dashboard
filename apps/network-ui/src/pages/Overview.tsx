@@ -9,6 +9,7 @@ import { KpiCard } from "../components/KpiCard";
 import { PageHeader } from "../components/PageHeader";
 import { RelativeTime } from "../components/RelativeTime";
 import { StatusBadge, type Tone } from "../components/StatusBadge";
+import { OperationTag } from "../components/OperationTag";
 import { isHealthStale, useFleetHealth } from "../hooks/FleetHealthContext";
 import { formatRelative, formatResponseTime, humanize, platformLabel, truncateText } from "../utils/format";
 
@@ -581,6 +582,7 @@ export function Overview() {
                       </td>
                       <td title={health?.last_error ?? undefined}>
                         <StatusBadge status={status} />
+                        <OperationTag operation={health} />
                       </td>
                       <td className="cell-num">
                         {formatResponseTime(health?.response_time_ms ?? device.response_time_ms ?? null)}

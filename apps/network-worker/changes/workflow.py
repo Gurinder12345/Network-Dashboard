@@ -15,12 +15,22 @@ Precheck (read-only, all-or-nothing):
 
 Apply (the API has already claimed approved -> applying atomically):
     status check -> backup belongs to this device and succeeded -> structural re-check
+    -> EXCLUSIVE device slot (coordination; waits for the current holder, collectors
+    yield; busy/unavailable -> approval back to approved, nothing sent)
+    -> change-in-progress state (health grace, collectors skip)
     -> execution claim (execution_result recorded once; a duplicate/redelivered task stops)
-    -> one config_apply job -> blocks sent strictly in order in one session, stopping at
-    the first rejected command -> per-block status persisted (applied / failed /
+    -> one config_apply job -> fresh pre-apply running-config backup under the same slot
+    (no backup => nothing sent) -> blocks sent strictly in order in one session, stopping
+    at the first rejected command -> per-block status persisted (applied / failed /
     not_attempted) -> post-check: running config re-read, semantic verification where
-    supported, operator verification commands -> applied, or failed (partial apply is
-    reported block by block; nothing is rolled back automatically)
+    supported, operator verification commands -> immediate post-change health check
+    -> applied, or failed (partial apply is reported block by block; nothing is rolled
+    back automatically) -> finally: change state cleared, slot released (owner-checked;
+    both also expire by TTL if the worker dies).
+
+Coordination TTLs are refreshed by the owner at each phase boundary with that phase's
+own budget (no background thread), so a crashed worker frees the device within one
+phase budget.
 """
 
 import logging
@@ -41,8 +51,10 @@ from changes.blocks import (
 from changes.os10 import VerificationError
 from changes.platforms import platform_for
 from changes.verify import NOT_AVAILABLE, NOT_PRESENT, VERIFIED, precheck_block_issues, semantic_status, verify_blocks
+from coordination import device_ops as coord
 from db.approvals import (
     begin_execution,
+    release_apply_claim,
     create_change_approval,
     get_change_approval,
     mark_approval_applied,
@@ -53,11 +65,37 @@ from db.approvals import (
 )
 from db.devices import get_device_by_hostname, get_device_by_id
 from db.jobs import create_audit_event, create_job, mark_job_failed, mark_job_success
-from tasks.config_backup import classify_backup_error
+from tasks.config_backup import classify_backup_error, perform_config_backup
 
 logger = logging.getLogger("network_worker.changes")
 
 MAX_ERROR = 600
+
+# Per-phase coordination budgets (slot + change-in-progress TTL), from existing timeouts:
+#   pre-apply backup  running-config read: OS10 read_timeout 120 s; OS6 up to 3 attempts
+#   apply             ansible/blocks_runner.py timeout: 180 s + 3 s per step (max 3600 s)
+#   postcheck         running-config read + 120 s per verification command
+#   health            one lightweight check (worst ~57 s)
+PHASE_BACKUP_SECONDS = 600
+PHASE_POSTCHECK_SECONDS = 600
+PHASE_HEALTH_SECONDS = 120
+PHASE_MARGIN_SECONDS = 60
+
+
+def _apply_phase_seconds(blocks):
+    from ansible.blocks_runner import BASE_TIMEOUT_SECONDS, MAX_TIMEOUT_SECONDS, PER_STEP_SECONDS
+
+    steps = sum(len(b["commands"]) + (3 if b["parent"] else 2) for b in blocks)
+    return min(MAX_TIMEOUT_SECONDS, int(BASE_TIMEOUT_SECONDS + PER_STEP_SECONDS * steps)) + PHASE_MARGIN_SECONDS
+
+
+def _busy_text(acq, hostname):
+    if acq.status == "unavailable":
+        return "device coordination is unavailable (Redis)"
+    holder = acq.holder or {}
+    if acq.change_active:
+        return f"a configuration change is in progress on {hostname}"
+    return f"{hostname} is busy ({holder.get('operation', 'another operation')})"
 
 
 class ChangeError(RuntimeError):
@@ -162,10 +200,17 @@ def run_precheck(target_host, config_lines=None, config_parents=None, *, backup,
                                   else blocks_from_legacy(config_lines, config_parents))
         verify_cmds = normalize_verification_commands(verification_commands)
 
+        # SSH-heavy read: take the device slot (priority 1; waits for a collector to finish,
+        # new telemetry/topology yield). Fail closed if busy or coordination is unavailable.
+        acq = coord.acquire_device_operation(device["id"], "precheck", hostname=target_host)
+        if not acq.acquired:
+            raise ChangeError(f"Precheck not started: {_busy_text(acq, target_host)}; try again shortly")
         try:
             state = adapter.read_device_state(target_host, blocks)
         except Exception as exc:
             raise ChangeError(_sanitized("Could not read the running configuration", exc)) from None
+        finally:
+            acq.lease.release()
         snapshot = state["running_config"]
 
         report = _precheck_report(adapter, blocks, state, verify_cmds)
@@ -275,6 +320,56 @@ def run_apply(approval_id, claimed_by_api=False, expected_platform=None):
         _fail_before_device(approval_id, approval, claimed_by_api, exc)
         raise
 
+    hostname = device["hostname"]
+    acq = coord.acquire_device_operation(device["id"], "apply", owner=f"change:{approval_id}",
+                                         ttl_seconds=PHASE_BACKUP_SECONDS + PHASE_MARGIN_SECONDS, hostname=hostname)
+    if not acq.acquired:
+        reason = _busy_text(acq, hostname)
+        returned = claimed_by_api and release_apply_claim(approval_id)
+        _audit(approval["backup_job_id"], device["id"], "apply_deferred",
+               f"Apply for approval {approval_id} not started: {reason}; nothing was sent"
+               + ("; approval returned to approved" if returned else ""))
+        raise ChangeError(f"Apply not started: {reason}. Nothing was sent"
+                          + ("; the approval is back to approved - apply again shortly." if returned else "."))
+
+    lease = acq.lease
+    try:
+        coord.set_change_in_progress(lease, approval_id, None, PHASE_BACKUP_SECONDS + PHASE_MARGIN_SECONDS)
+        return _apply_locked(approval_id, approval, claimed_by_api, device, adapter, blocks, verify_cmds, lease)
+    finally:
+        coord.clear_change_in_progress(lease)
+        lease.release()
+
+
+def _pre_apply_backup(device, approval_id):
+    """Fresh running-config backup taken under the change's own slot (no second lock)."""
+    job_id = create_job(device_id=device["id"], job_type="config_backup", requested_by="pre-apply")
+    try:
+        result = perform_config_backup(device["hostname"], device["id"], device["platform"], job_id,
+                                       source=f"pre_apply approval={approval_id}")
+    except Exception as exc:
+        reason = classify_backup_error(exc)
+        mark_job_failed(job_id, reason)
+        _audit(job_id, device["id"], "backup_failed",
+               f"Pre-apply backup failed for {device['hostname']}: {reason} (approval_id={approval_id})")
+        raise ChangeError(f"Pre-apply backup failed ({reason}); nothing was sent") from None
+    return {"status": "success", "job_id": job_id, "backup_id": result["backup_id"], "checksum": result["checksum"]}
+
+
+def _post_change_health(device, lease):
+    """One lightweight health check while still owning the device (before releasing it)."""
+    from health.checks import check_and_record
+
+    try:
+        row = check_and_record(device, lease=lease)
+    except Exception as exc:
+        return {"ok": False, "status": None, "error": _sanitized("Post-change health check failed", exc)}
+    ok = bool(row.get("tcp_reachable") and row.get("ssh_reachable") and row.get("cli_reachable"))
+    return {"ok": ok, "status": row.get("status"), "response_time_ms": row.get("response_time_ms"),
+            "error": None if ok else (row.get("last_error") or "post-change health check failed")}
+
+
+def _apply_locked(approval_id, approval, claimed_by_api, device, adapter, blocks, verify_cmds, lease):
     if not claimed_by_api:
         mark_approval_applying(approval_id)  # approved -> applying
 
@@ -291,11 +386,26 @@ def run_apply(approval_id, claimed_by_api=False, expected_platform=None):
     job_id = create_job(device_id=device["id"], job_type="config_apply", requested_by=approval.get("approved_by") or "system")
     record["job_id"] = job_id
     set_execution_result(approval_id, record)
+    coord.set_change_in_progress(lease, approval_id, job_id, PHASE_BACKUP_SECONDS + PHASE_MARGIN_SECONDS)
     _audit(approval["backup_job_id"], device["id"], "apply_started",
            f"Approved configuration apply started for {hostname} (approval_id={approval_id}, job {job_id}): "
            f"{len(blocks)} block(s), {command_count(blocks)} command(s)")
 
+    def phase(seconds):
+        if not coord.refresh_change(lease, seconds):
+            record["coordination_warning"] = "device slot expired during the change; other operations may have run"
+
     try:
+        try:
+            record["pre_apply_backup"] = _pre_apply_backup(device, approval_id)
+        except ChangeError as exc:
+            record["blocks"] = exe.initial_blocks(blocks, "not_attempted")
+            record.update(execution="failed", outcome="failed", finished_at=_now(), error=str(exc))
+            set_execution_result(approval_id, record)
+            raise
+        set_execution_result(approval_id, record)
+
+        phase(_apply_phase_seconds(blocks))
         try:
             steps, run = adapter.apply_blocks(hostname, blocks)
             execution = exe.interpret(blocks, steps, run)
@@ -324,8 +434,18 @@ def run_apply(approval_id, claimed_by_api=False, expected_platform=None):
 
         post, outputs = (None, [])
         if execution["outcome"] != "failed" or any(b["status"] == "applied" for b in execution["blocks"]):
+            phase(PHASE_POSTCHECK_SECONDS + 120 * len(verify_cmds) + PHASE_MARGIN_SECONDS)
             post, outputs = _post_check(adapter, hostname, blocks, execution, verify_cmds)
         record.update(post_check=post, verification=outputs, semantic=post["semantic"] if post else None)
+
+        # Immediate lightweight health verification before the device is released. A failure
+        # is surfaced separately and never changes the change result; nothing is undone.
+        phase(PHASE_HEALTH_SECONDS)
+        record["post_change_health"] = _post_change_health(device, lease)
+        if not record["post_change_health"]["ok"]:
+            _audit(approval["backup_job_id"], device["id"], "post_change_health_warning",
+                   f"Post-change health check for {hostname} failed (approval_id={approval_id}): "
+                   f"{record['post_change_health']['error']}")
 
         outcome, message = _final_outcome(hostname, execution, post)
         record.update(outcome=outcome, finished_at=_now(), error=message if outcome != "applied" else None)
