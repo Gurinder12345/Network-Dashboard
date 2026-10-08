@@ -1,7 +1,7 @@
 """
 Local mock API + static server for the UI browser tests (synthetic data only; never
 contacts a device or the real API). Serves the production build (dist/) and the API
-routes the Changes and Approvals pages use. Records POSTed precheck bodies at
+routes the Changes, Approvals, Devices and Overview pages use. Records POSTed precheck bodies at
 GET /__requests so tests can assert exactly what the browser sent.
 
     python e2e/mock_api.py dist 58095
@@ -103,9 +103,35 @@ PRECHECK = {"request_id": "11111111-1111-4111-8111-111111111111", "state": "comp
 
 FLEET = {"total": 2, "healthy": 2, "degraded": 0, "down": 0, "unknown": 0, "last_updated": ago(seconds=20),
          "check_running": False, "devices": []}
+# Overview widgets: latest telemetry per device, topology (managed + one unmanaged neighbor),
+# one backup, one failure audit event.
+TELEMETRY = {1: {"cpu_percent": 12.5, "memory_percent": 40.0, "uptime_seconds": 90061, "stale": False},
+             12: {"cpu_percent": 93.0, "memory_percent": 61.0, "uptime_seconds": 3600, "stale": False}}
+for i, t in TELEMETRY.items():
+    t.update(device_id=i, hostname="x", status="ok", memory_used_mb=None, memory_total_mb=None, collected_at=ago(seconds=30),
+             last_success_at=ago(seconds=30), error=None, interval_seconds=60, stale_after_seconds=180)
+TOPOLOGY = {"last_discovery_at": ago(minutes=3), "last_attempt_at": ago(minutes=3), "managed_devices": 2, "active_links": 1,
+            "unmanaged_neighbors": 1, "failing_devices": 0, "down_devices": 0, "discovery_running": False, "last_run": None,
+            "nodes": [{"id": f"d{d['id']}", "device_id": d["id"], "hostname": d["hostname"], "management_ip": d["management_ip"],
+                       "platform": d["platform"], "managed": True, "health_status": "healthy", "response_time_ms": 900,
+                       "neighbor_count": 1, "topology_last_seen_at": ago(minutes=3)} for d in DEVICES]
+                     + [{"id": "u1", "device_id": None, "hostname": "lab-ap", "management_ip": None, "platform": None, "managed": False,
+                         "health_status": "unknown", "response_time_ms": None, "neighbor_count": 1, "topology_last_seen_at": ago(minutes=3)}],
+            "links": [{"id": "l1", "source": "d12", "target": "d1", "source_interface": "ethernet1/1/1", "target_interface": "Te1/0/1",
+                       "protocol": "lldp", "first_seen_at": ago(days=1), "last_seen_at": ago(minutes=3), "active": True,
+                       "observed_bidirectionally": True, "relationship": "managed"}]}
+BACKUPS = [{"id": 7, "job_id": None, "device_id": 1, "backup_type": "running-config", "job_type": "manual_backup",
+            "storage_path": "/backups/Kenda-HARO-IDF-A/x.cfg", "checksum": "ab" * 32, "created_at": ago(hours=2),
+            "hostname": "Kenda-HARO-IDF-A", "file_available": True}]
+AUDIT = [{"id": 1, "job_id": None, "device_id": 12, "event_type": "apply_block_failed",
+          "message": "Block 2 failed: % Error: VLAN 50 does not exist.", "created_at": ago(minutes=2)},
+         {"id": 2, "job_id": None, "device_id": 1, "event_type": "precheck_succeeded", "message": "ok", "created_at": ago(minutes=1)}]
+
 ROUTES = {"/api/v1/devices": DEVICES, "/api/v1/health/devices": FLEET, "/api/v1/approvals": APPROVALS, "/api/v1/jobs": [],
-          "/api/v1/backups": [], "/api/v1/audit": []}
+          "/api/v1/backups": BACKUPS, "/api/v1/audit": AUDIT, "/api/v1/topology": TOPOLOGY}
 RECEIVED = []
+GETS = []      # API GET paths, in order (GET /__gets)
+FAILING = set()  # API paths that answer 500 (POST /__fail {"path": ...}; POST /__reset)
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -127,7 +153,15 @@ class Handler(SimpleHTTPRequestHandler):
         path = urlparse(self.path).path
         if path == "/__requests":
             return self.send_json(RECEIVED)
+        if path == "/__gets":
+            return self.send_json(GETS)
         if path.startswith("/api/"):
+            GETS.append(path)
+            if path in FAILING:
+                return self.send_json({"detail": "simulated failure"}, 500)
+            if path.endswith("/metrics/latest"):
+                device_id = int(path.split("/")[4])
+                return self.send_json(TELEMETRY[device_id]) if device_id in TELEMETRY else self.send_json({"detail": "x"}, 404)
             if path in ROUTES:
                 return self.send_json(ROUTES[path])
             if path.startswith("/api/v1/changes/precheck/"):
@@ -141,6 +175,13 @@ class Handler(SimpleHTTPRequestHandler):
         path = urlparse(self.path).path
         length = int(self.headers.get("Content-Length") or 0)
         body = json.loads(self.rfile.read(length) or b"{}")
+        if path == "/__fail":
+            FAILING.add(body["path"])
+            return self.send_json({})
+        if path == "/__reset":
+            FAILING.clear()
+            GETS.clear()
+            return self.send_json({})
         if path == "/api/v1/changes/precheck":
             RECEIVED.append(body)
             return self.send_json({"request_id": PRECHECK["request_id"], "state": "queued", "device_id": body.get("device_id"),

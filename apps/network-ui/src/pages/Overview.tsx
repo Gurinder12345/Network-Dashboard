@@ -1,17 +1,49 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { getApprovals, getDevices, getJobs, requestHealthCheck } from "../api/client";
+import {
+  getApprovals,
+  getAuditEvents,
+  getBackups,
+  getDeviceMetricsLatest,
+  getDevices,
+  getJobs,
+  getTopology,
+  requestHealthCheck,
+} from "../api/client";
 import { OS10_PLATFORM, OS6_PLATFORM } from "../api/constants";
-import type { Approval, Device, DeviceHealthEntry, FleetHealth, HealthStatus, Job } from "../api/types";
+import type {
+  Approval,
+  AuditEvent,
+  Backup,
+  Device,
+  DeviceHealthEntry,
+  DeviceTelemetry,
+  FleetHealth,
+  HealthStatus,
+  Job,
+  TopologyGraph,
+} from "../api/types";
+import { Donut } from "../components/charts";
+import {
+  BackupStatusCard,
+  COLORS,
+  ChangeActivity,
+  DeviceStatusTable,
+  HealthTrendCard,
+  PlatformDistribution,
+  RecentIncidents,
+  TopologyPreview,
+  UtilizationCard,
+  type Loadable,
+} from "../components/overview/Widgets";
 import { Banner, EmptyState, StaleDataWarning, TableSkeleton } from "../components/Feedback";
 import { Icon, IconTile, type IconName } from "../components/Icon";
 import { KpiCard } from "../components/KpiCard";
 import { PageHeader } from "../components/PageHeader";
 import { RelativeTime } from "../components/RelativeTime";
 import { StatusBadge, type Tone } from "../components/StatusBadge";
-import { OperationTag } from "../components/OperationTag";
 import { isHealthStale, useFleetHealth } from "../hooks/FleetHealthContext";
-import { formatRelative, formatResponseTime, humanize, platformLabel, truncateText } from "../utils/format";
+import { formatRelative, formatResponseTime, humanize, truncateText } from "../utils/format";
 
 const CHECK_NOW_COOLDOWN_MS = 20000;
 
@@ -45,8 +77,6 @@ export function AccessTag({ platform }: { platform: string }) {
   }
   return <span className="view-only-tag">View only</span>;
 }
-// Most urgent first in device lists.
-const SEVERITY: Record<string, number> = { down: 0, degraded: 1, unknown: 2, healthy: 3 };
 
 function summarizeConfig(approval: Approval): string {
   const items = [...(approval.config_parents ?? []), ...(approval.config_lines ?? [])];
@@ -95,7 +125,20 @@ function FleetHealthPanel({
             <span className="skeleton" style={{ height: 12 }} />
           </>
         ) : (
-          <>
+          <div className="fleet-layout">
+            <Donut
+              segments={HEALTH_ORDER.map((status) => ({
+                key: status,
+                label: HEALTH_LABELS[status],
+                value: fleet[status],
+                color: COLORS[status],
+              }))}
+              centerValue={total}
+              centerLabel="enabled"
+              ariaLabel={`Fleet health: ${HEALTH_ORDER.map((s) => `${fleet[s]} ${s}`).join(", ")}`}
+              size={120}
+            />
+            <div className="fleet-detail">
             <div className="fleet-headline">
               <span className="fleet-headline-value">
                 {fleet.healthy}
@@ -137,7 +180,8 @@ function FleetHealthPanel({
                 </div>
               ))}
             </div>
-          </>
+            </div>
+          </div>
         )}
 
         <div className="fleet-footer">
@@ -150,51 +194,6 @@ function FleetHealthPanel({
           {fleet && !fleet.last_updated && <span>No health checks have completed yet.</span>}
           {checkMessage && <span className="fleet-message">{checkMessage}</span>}
         </div>
-      </div>
-    </div>
-  );
-}
-
-function PlatformSummary({ devices, health }: { devices: Device[]; health: Map<number, DeviceHealthEntry> }) {
-  const platforms = useMemo(() => {
-    const groups = new Map<string, Device[]>();
-    devices.forEach((device) => groups.set(device.platform, [...(groups.get(device.platform) ?? []), device]));
-    return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b));
-  }, [devices]);
-
-  return (
-    <div className="panel">
-      <div className="panel-header">
-        <h2>
-          <Icon name="layers" size={17} className="panel-title-icon" />
-          Platforms
-        </h2>
-        <span className="count-tag">{platforms.length}</span>
-      </div>
-      <div className="platform-list">
-        {platforms.length === 0 && <EmptyState title="No devices" />}
-        {platforms.map(([platform, list]) => {
-          const healthy = list.filter((d) => health.get(d.id)?.status === "healthy").length;
-          const enabled = list.filter((d) => d.enabled).length;
-          return (
-            <Link className="platform-row" key={platform} to="/devices" title={`Open Devices (${platformLabel(platform)})`}>
-              <IconTile name="server" tone="info" />
-              <div className="platform-row-main">
-                <div className="platform-row-title">
-                  <span className="platform-row-name">{platformLabel(platform)}</span>
-                  <span className="platform-tag">{platform}</span>
-                  <AccessTag platform={platform} />
-                </div>
-                <div className="platform-row-meta">
-                  <span>{enabled} enabled</span>
-                  <span>{healthy} healthy</span>
-                </div>
-              </div>
-              <span className="platform-row-count">{list.length}</span>
-              <Icon name="chevronRight" size={16} className="row-chevron" />
-            </Link>
-          );
-        })}
       </div>
     </div>
   );
@@ -269,6 +268,35 @@ export function Overview() {
   const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
   const [checkBusy, setCheckBusy] = useState(false);
   const [checkMessage, setCheckMessage] = useState<string | null>(null);
+  // Widget data loaded independently (one request each on load / Refresh; no extra polling).
+  const [backups, setBackups] = useState<Loadable<Backup[]>>({ data: null, error: null, loading: true });
+  const [audit, setAudit] = useState<Loadable<AuditEvent[]>>({ data: null, error: null, loading: true });
+  const [topology, setTopology] = useState<Loadable<TopologyGraph>>({ data: null, error: null, loading: true });
+  const [metrics, setMetrics] = useState<Loadable<Map<number, DeviceTelemetry>>>({ data: null, error: null, loading: true });
+
+  const loadWidgets = useCallback(async (deviceList: Device[]) => {
+    const settle = <T,>(promise: Promise<T>, set: (value: Loadable<T>) => void) =>
+      promise.then(
+        (data) => set({ data, error: null, loading: false }),
+        (err) => set({ data: null, error: err instanceof Error ? err.message : "Request failed", loading: false }),
+      );
+    // Latest stored telemetry per enabled device (Redis-backed reads; never polls switches).
+    const enabled = deviceList.filter((d) => d.enabled);
+    const metricsPromise = Promise.allSettled(enabled.map((d) => getDeviceMetricsLatest(d.id))).then((results) => {
+      const map = new Map<number, DeviceTelemetry>();
+      results.forEach((r, i) => {
+        if (r.status === "fulfilled") map.set(enabled[i].id, r.value);
+      });
+      if (map.size === 0 && results.some((r) => r.status === "rejected")) throw new Error("Telemetry unavailable");
+      return map;
+    });
+    await Promise.all([
+      settle(getBackups(), (v) => setBackups((prev) => (v.error && prev.data ? { ...prev, error: v.error, loading: false } : v))),
+      settle(getAuditEvents(), (v) => setAudit((prev) => (v.error && prev.data ? { ...prev, error: v.error, loading: false } : v))),
+      settle(getTopology(), (v) => setTopology((prev) => (v.error && prev.data ? { ...prev, error: v.error, loading: false } : v))),
+      settle(metricsPromise, (v) => setMetrics((prev) => (v.error && prev.data ? { ...prev, error: v.error, loading: false } : v))),
+    ]);
+  }, []);
 
   const load = useCallback(async () => {
     setRefreshing(true);
@@ -287,6 +315,7 @@ export function Overview() {
       setError(null);
       setDbOk(true);
       setLastRefreshedAt(new Date());
+      void loadWidgets(devicesData);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load dashboard data");
       setDbOk((previous) => (previous === null ? null : false));
@@ -294,7 +323,7 @@ export function Overview() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [refreshHealth]);
+  }, [refreshHealth, loadWidgets]);
 
   useEffect(() => {
     load();
@@ -329,16 +358,6 @@ export function Overview() {
 
   const pendingApprovals = useMemo(() => approvals.filter((a) => a.status === "pending"), [approvals]);
   const failedJobs = useMemo(() => jobs.filter((job) => job.status === "failed"), [jobs]);
-
-  const sortedDevices = useMemo(
-    () =>
-      [...devices].sort((a, b) => {
-        const sa = SEVERITY[healthByDevice.get(a.id)?.status ?? a.health_status ?? "unknown"] ?? 9;
-        const sb = SEVERITY[healthByDevice.get(b.id)?.status ?? b.health_status ?? "unknown"] ?? 9;
-        return sa - sb || a.hostname.localeCompare(b.hostname);
-      }),
-    [devices, healthByDevice],
-  );
 
   const components = deriveComponents(fleet, fleetError === null && lastSuccessAt !== null, dbOk);
   const healthStale = fleet ? isHealthStale(fleet.last_updated) : false;
@@ -446,14 +465,31 @@ export function Overview() {
         ))}
       </div>
 
-      <div className="overview-grid">
+      <div className="dash-row dash-row-fleet">
         <FleetHealthPanel
           fleet={fleet}
           onCheckNow={handleCheckNow}
           checkBusy={checkBusy}
           checkMessage={checkMessage}
         />
-        <PlatformSummary devices={devices} health={healthByDevice} />
+        <HealthTrendCard />
+        <PlatformDistribution devices={devices} health={healthByDevice} loading={loading} />
+      </div>
+
+      <div className="dash-row">
+        <UtilizationCard kind="cpu" devices={devices} metrics={metrics} />
+        <UtilizationCard kind="memory" devices={devices} metrics={metrics} />
+        <ChangeActivity approvals={approvals} loading={loading} />
+      </div>
+
+      <div className="dash-row">
+        <RecentIncidents
+          fleet={fleet}
+          audit={audit}
+          deviceName={(id) => (id === null ? "Platform" : deviceHostnameById.get(id) ?? `Device #${id}`)}
+        />
+        <TopologyPreview topology={topology} />
+        <BackupStatusCard devices={devices} backups={backups} jobs={jobs} />
       </div>
 
       <div className="panel-grid">
@@ -535,76 +571,14 @@ export function Overview() {
         </div>
       </div>
 
-      <div className="panel">
-        <div className="panel-header">
-          <h2>
-            <Icon name="server" size={17} className="panel-title-icon" />
-            Device Health
-          </h2>
-          <span className="panel-header-meta">Most urgent first</span>
-        </div>
-        <div className="table-wrap" style={{ maxHeight: 420 }}>
-          {loading ? (
-            <TableSkeleton rows={5} columns={6} />
-          ) : (
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Hostname</th>
-                  <th>Management IP</th>
-                  <th>Platform</th>
-                  <th>Access</th>
-                  <th>Health</th>
-                  <th>Response</th>
-                  <th>Last Check</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedDevices.map((device) => {
-                  const health = healthByDevice.get(device.id);
-                  const status = health?.status ?? device.health_status ?? "unknown";
-                  return (
-                    <tr
-                      key={device.id}
-                      className={status === "down" ? "row-alert" : status === "degraded" ? "row-warn" : undefined}
-                    >
-                      <td className="cell-primary">
-                        <Link className="device-link" to={`/devices/${device.id}`}>
-                          {device.hostname}
-                        </Link>
-                      </td>
-                      <td className="mono secondary">{device.management_ip}</td>
-                      <td>
-                        <span className="platform-tag">{device.platform}</span>
-                      </td>
-                      <td>
-                        <AccessTag platform={device.platform} />
-                      </td>
-                      <td title={health?.last_error ?? undefined}>
-                        <StatusBadge status={status} />
-                        <OperationTag operation={health} />
-                      </td>
-                      <td className="cell-num">
-                        {formatResponseTime(health?.response_time_ms ?? device.response_time_ms ?? null)}
-                      </td>
-                      <td>
-                        <RelativeTime value={health?.last_check_at ?? device.last_check_at ?? null} />
-                      </td>
-                    </tr>
-                  );
-                })}
-                {devices.length === 0 && (
-                  <tr>
-                    <td colSpan={7}>
-                      <EmptyState title="No devices found." />
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </div>
+      <DeviceStatusTable
+        devices={devices}
+        health={healthByDevice}
+        metrics={metrics}
+        loading={loading}
+        accessTag={(platform) => <AccessTag platform={platform} />}
+        responseTime={formatResponseTime}
+      />
     </>
   );
 }

@@ -7,6 +7,7 @@ import type {
   BackupRequested,
   Device,
   DeviceDetail,
+  DeviceTelemetry,
   FleetHealth,
   HealthCheckRequested,
   Job,
@@ -223,6 +224,11 @@ export function requestTopologyDiscovery(): Promise<HealthCheckRequested> {
 // Device detail + telemetry: reads stored data only; never starts switch polling.
 export function getDeviceDetail(deviceId: number): Promise<DeviceDetail> {
   return getJson<DeviceDetail>(`/api/v1/devices/${deviceId}`);
+}
+
+// Newest stored telemetry sample for one device (Redis, then PostgreSQL); never polls the switch.
+export function getDeviceMetricsLatest(deviceId: number): Promise<DeviceTelemetry> {
+  return getJson<DeviceTelemetry>(`/api/v1/devices/${deviceId}/metrics/latest`);
 }
 
 export function getDeviceMetrics(deviceId: number, range: MetricsRange): Promise<MetricsHistory> {

@@ -211,5 +211,79 @@ class ChangeBlocksUiTests(unittest.TestCase):
         expect(page.locator("tbody tr", has_text="Kenda-HARO-IDF-A").locator(".operation-tag")).to_have_count(0)
         self.assertIn("polling are paused", core.locator(".operation-tag").get_attribute("title"))
 
+    # ---- overview dashboard (restyle) ----------------------------------------------------------
+    def control(self, path, body=None):
+        request = urllib.request.Request(f"{BASE}{path}", data=json.dumps(body or {}).encode(), method="POST",
+                                         headers={"Content-Type": "application/json"})
+        urllib.request.urlopen(request).read()
+
+    def open_overview(self):
+        self.control("/__reset")
+        self.addCleanup(self.control, "/__reset")
+        self.page.goto(f"{BASE}/")
+        expect(self.page.locator(".panel", has_text="Device Status").locator("tbody tr")).to_have_count(2, timeout=10000)
+
+    def widget(self, title):
+        return self.page.locator("section.widget", has=self.page.locator("h2", has_text=title))
+
+    def test_overview_widgets_show_only_real_data(self):
+        self.open_overview()
+        page = self.page
+        expect(self.widget("Health Trend")).to_contain_text("Historical fleet health not yet available")
+        cpu = self.widget("CPU Utilization").locator(".bar-row")
+        expect(cpu).to_have_count(2)  # two devices with telemetry, nothing padded to "top 5"
+        expect(cpu.first).to_contain_text("Kenda-Core-1")
+        expect(cpu.first).to_contain_text("93.0%")
+        expect(cpu.first.locator(".bar-fill")).to_have_class("bar-fill bar-danger")  # existing 90% critical threshold
+        expect(self.widget("Platform Distribution").locator(".donut-legend li")).to_have_count(2)
+        incidents = self.widget("Recent Incidents").locator(".incident-row")
+        expect(incidents).to_have_count(1)  # only the failure event; precheck_succeeded is not an incident
+        expect(incidents.first).to_contain_text("Change block failed")
+        topology = self.widget("Topology Preview")
+        expect(topology.locator(".mini-node")).to_have_count(2)  # managed switches only (unmanaged lab-ap hidden)
+        expect(topology.get_by_role("link", name="View full topology")).to_have_attribute("href", "/topology")
+        backup = self.widget("Backup Status")
+        expect(backup.locator(".backup-list li", has_text="Kenda-HARO-IDF-A")).to_contain_text("Success")
+        expect(backup.locator(".backup-list li", has_text="Kenda-Core-1")).to_contain_text("Never")
+        row = page.locator(".panel", has_text="Device Status").locator("tbody tr", has_text="Kenda-Core-1")
+        expect(row.locator(".metric-cell").first).to_have_text("93%")
+        expect(row.locator(".operation-tag")).to_contain_text("Change in progress")
+        expect(row.get_by_role("link", name="Open Kenda-Core-1")).to_have_attribute("href", "/devices/12")
+
+    def test_overview_reads_telemetry_once_per_device_and_never_polls(self):
+        self.open_overview()
+        self.page.wait_for_timeout(1500)
+        gets = json.loads(urllib.request.urlopen(f"{BASE}/__gets").read())
+        latest = sorted(p for p in gets if p.endswith("/metrics/latest"))
+        self.assertEqual(latest, ["/api/v1/devices/1/metrics/latest", "/api/v1/devices/12/metrics/latest"])
+        for path in ("/api/v1/topology", "/api/v1/backups", "/api/v1/audit"):
+            self.assertEqual(gets.count(path), 1, path)
+
+    def test_one_failing_widget_source_does_not_blank_the_page(self):
+        self.control("/__reset")
+        self.control("/__fail", {"path": "/api/v1/topology"})
+        self.addCleanup(self.control, "/__reset")
+        self.page.goto(f"{BASE}/")
+        expect(self.widget("Topology Preview")).to_contain_text("Data unavailable", timeout=10000)
+        expect(self.widget("CPU Utilization").locator(".bar-row")).to_have_count(2)
+        expect(self.page.locator(".panel", has_text="Device Status").locator("tbody tr")).to_have_count(2)
+
+    def test_navigation_and_branding_are_preserved(self):
+        page = self.page
+        page.goto(f"{BASE}/")
+        groups = page.locator(".app-sidebar .nav-group")
+        expect(groups.locator(".nav-section-label")).to_have_text(["Monitor", "Change control", "Records", "Automation"],
+                                                                  ignore_case=True)
+        links = page.locator(".app-sidebar a.nav-link")
+        expect(links.locator(".nav-label")).to_have_text(
+            ["Overview", "Devices", "Topology", "Changes", "Approvals", "Jobs", "Backups", "Audit", "Scripts", "Packet Analysis"])
+        hrefs = [links.nth(i).get_attribute("href") for i in range(links.count())]
+        self.assertEqual(hrefs, ["/", "/devices", "/topology", "/changes", "/approvals", "/jobs", "/backups", "/audit",
+                                 "/scripts", "/packet-analysis"])
+        expect(page.locator(".app-header .brand-name")).to_have_text("Network Management Platform")
+        expect(page.locator(".app-header .env-tag")).to_have_text("Lab")
+        self.assertIn("kenda-logo", page.locator(".app-header .brand-logo img").get_attribute("src"))
+
+
 if __name__ == "__main__":
     unittest.main()
