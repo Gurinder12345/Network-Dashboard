@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { getBackups, getDeviceDetail, getDeviceMetrics, getJobs } from "../api/client";
 import type { Backup, DeviceDetail as Detail, DeviceTelemetry, Job, MetricSample, MetricsHistory, MetricsRange } from "../api/types";
@@ -6,6 +6,7 @@ import { BackupDownloadButton } from "../components/BackupDownloadButton";
 import { BackupNotice } from "../components/BackupNotice";
 import { Banner, EmptyState, StaleDataWarning, TableSkeleton } from "../components/Feedback";
 import { FilterChips } from "../components/FilterChips";
+import { InterfacesTab } from "../components/interfaces/InterfacesTab";
 import { KpiCard } from "../components/KpiCard";
 import { MetricChart } from "../components/MetricChart";
 import { RelativeTime } from "../components/RelativeTime";
@@ -23,6 +24,7 @@ import {
   humanize,
   platformLabel,
 } from "../utils/format";
+import { evidenceRows, healthReasonLabel } from "../utils/health";
 import { LEVEL_TONE, METRIC_THRESHOLDS, metricLevel, type MetricKind } from "../utils/thresholds";
 
 const DETAIL_POLL_MS = 20000; // latest telemetry + health
@@ -47,7 +49,6 @@ const TABS = [
 type TabId = (typeof TABS)[number]["id"];
 
 const PLANNED: Record<string, string> = {
-  interfaces: "Interface detail integration is planned.",
   vlans: "VLAN detail integration is planned.",
   stp: "Spanning-tree detail integration is planned.",
 };
@@ -125,6 +126,7 @@ export default function DeviceDetail() {
 
   const [backups, setBackups] = useState<Backup[] | null>(null);
   const [jobs, setJobs] = useState<Job[] | null>(null);
+  const [refreshToken, setRefreshToken] = useState(0);
 
   const validId = Number.isInteger(deviceId) && deviceId > 0;
 
@@ -179,16 +181,22 @@ export default function DeviceDetail() {
     void loadRecords();
   }, [loadDetail, loadRecords]);
 
+  // CPU/memory history is only needed (and fetched) while the Overview tab shows its charts.
+  const onOverview = tab === "overview";
   useEffect(() => {
-    void loadHistory();
-  }, [loadHistory]);
+    if (onOverview) void loadHistory();
+  }, [loadHistory, onOverview]);
 
   usePolling(loadDetail, DETAIL_POLL_MS);
-  usePolling(loadHistory, HISTORY_POLL_MS);
+  usePolling(
+    useCallback(() => (onOverview ? loadHistory() : undefined), [loadHistory, onOverview]),
+    HISTORY_POLL_MS,
+  );
 
   function refresh() {
+    setRefreshToken((n) => n + 1);
     void loadDetail();
-    void loadHistory();
+    if (onOverview) void loadHistory();
     void loadRecords();
   }
 
@@ -201,6 +209,8 @@ export default function DeviceDetail() {
         : null,
     [],
   );
+  const cpuValue = useCallback((s: MetricSample) => s.cpu_percent, []);
+  const memoryValue = useCallback((s: MetricSample) => s.memory_percent, []);
   const tableRows = useMemo(() => (history ? [...history.data.samples].reverse() : []), [history]);
 
   if (!validId || notFound) {
@@ -371,7 +381,7 @@ export default function DeviceDetail() {
                     {history ? (
                       <MetricChart
                         label={kind === "cpu" ? "CPU" : "Memory"}
-                        valueKey={kind === "cpu" ? "cpu_percent" : "memory_percent"}
+                        value={kind === "cpu" ? cpuValue : memoryValue}
                         samples={history.data.samples}
                         windowSeconds={windowSeconds}
                         stepSeconds={step}
@@ -427,12 +437,14 @@ export default function DeviceDetail() {
                 <dd><RelativeTime value={health.last_check_at} /></dd>
                 <dt>Last success</dt>
                 <dd><RelativeTime value={health.last_success_at} /></dd>
-                <dt>Reachability</dt>
-                <dd>
-                  {health.tcp_reachable === null
-                    ? "—"
-                    : `TCP ${health.tcp_reachable ? "ok" : "fail"} · SSH ${health.ssh_reachable ? "ok" : "fail"} · CLI ${health.cli_reachable ? "ok" : "fail"}`}
-                </dd>
+                <dt>Reason</dt>
+                <dd>{healthReasonLabel(health.health_reason) ?? "—"}</dd>
+                {evidenceRows(health).map(([label, value]) => (
+                  <Fragment key={label}>
+                    <dt>{label}</dt>
+                    <dd>{value}</dd>
+                  </Fragment>
+                ))}
                 <dt>Last error</dt>
                 <dd className="mono">{health.last_error ?? "—"}</dd>
                 <dt>Last backup</dt>
@@ -441,6 +453,8 @@ export default function DeviceDetail() {
             </div>
           </>
         )}
+
+        {tab === "interfaces" && <InterfacesTab deviceId={detail.id} refreshToken={refreshToken} />}
 
         {tab in PLANNED && (
           <div className="panel">

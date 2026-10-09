@@ -1,9 +1,29 @@
 """
 Lightweight, read-only device health checks.
 
-Per device: TCP/22 -> SSH login -> one "show version". Nothing else is run: no configs,
-backups, prechecks or inventory collection. Timeouts are deliberately short so one dead
-switch cannot stall the fleet sweep.
+Per device: one ICMP echo (supplemental) -> TCP/22 -> SSH login -> one "show version".
+Nothing else is run: no configs, backups, prechecks or inventory collection. Timeouts are
+deliberately short so one dead switch cannot stall the fleet sweep.
+
+Evidence (stored per check; DB/API column names kept for compatibility):
+  icmp_reachable  ICMP echo reply (True/False; None = ICMP could not be attempted)
+  tcp_reachable   TCP port 22 accepted a connection (TCP/22 only, not "device reachable")
+  ssh_reachable   SSH session established AND authenticated
+  cli_reachable   the verification command returned usable output
+
+Classification (classify), with a stable reason code in health_reason:
+  healthy   TCP/22 + SSH + CLI ok (ICMP not required: it may be blocked)      ok
+            ... but slower than HEALTH_SLOW_THRESHOLD_MS -> degraded           slow_response
+  degraded  ping replies, TCP/22 closed/filtered                               ssh_management_unavailable
+            TCP/22 open, SSH login rejected / timed out / session error        ssh_authentication_failed |
+                                                                               ssh_timeout | ssh_session_failed
+            SSH ok, verification command failed                                cli_verification_failed
+  down      no TCP/22 AND no ICMP reply on HEALTH_DOWN_AFTER_FAILURES
+            consecutive checks (unreachable_count); the first such check is
+            degraded                                                           network_unreachable
+            (ICMP unavailable in the pod: TCP/22 alone, the previous rule)     tcp22_unreachable
+A device that answers ping never becomes "down", and management failures (auth, CLI)
+never count towards "down" (consecutive_failures keeps counting every failed check).
 
 Device coordination (coordination/device_ops.py), health = priority 2:
   * takes the device's operation slot (waits up to COORD_HEALTH_WAIT_SECONDS, during which
@@ -29,9 +49,12 @@ from netmiko import ConnectHandler
 from netmiko.dell.dell_dnos6 import DellDNOS6SSH
 from netmiko.exceptions import NetmikoAuthenticationException
 
+from netmiko.exceptions import NetmikoTimeoutException
+
 from coordination import device_ops as coord
 from db.health import fleet_health_summary, list_enabled_devices, record_health
 from health.cache import FleetLock, cache_device_health, cache_fleet_summary
+from health.icmp import icmp_echo
 from vault.client import get_device_credentials
 
 
@@ -124,24 +147,31 @@ def _open_session(device, credentials):
 
 def probe_device(device, tcp_only=False):
     """Run the checks and return raw observations. Never writes anything."""
-    started = time.monotonic()
     probe = {
+        "icmp_reachable": None,
         "tcp_reachable": False,
         "ssh_reachable": False,
         "cli_reachable": False,
         "response_time_ms": None,
         "error": None,
+        "failure": None,  # reason code of the first failed management stage
     }
 
     if device["platform"] not in SUPPORTED_PLATFORMS:
         probe["error"] = f"Unsupported platform for health check: {device['platform']}"
+        probe["failure"] = "unsupported_platform"
         return probe
 
+    # Supplemental, ~1 s worst case; not part of the response time below.
+    probe["icmp_reachable"] = icmp_echo(device["management_ip"])
+
+    started = time.monotonic()
     tcp_ok, tcp_error = _tcp_reachable(device["management_ip"])
     probe["tcp_reachable"] = tcp_ok
 
     if not tcp_ok:
         probe["error"] = tcp_error
+        probe["failure"] = "tcp22_unreachable"
         probe["response_time_ms"] = int((time.monotonic() - started) * 1000)
         return probe
 
@@ -169,12 +199,20 @@ def probe_device(device, tcp_only=False):
             probe["cli_reachable"] = True
         else:
             probe["error"] = "CLI health command returned no usable output"
+            probe["failure"] = "cli_verification_failed"
 
     except NetmikoAuthenticationException:
         probe["error"] = "SSH authentication failed"
+        probe["failure"] = "ssh_authentication_failed"
     except Exception as exc:
         stage = "CLI command" if probe["ssh_reachable"] else "SSH session"
         probe["error"] = _safe_error(f"{stage} failed: {type(exc).__name__}: {exc}", secrets)
+        if probe["ssh_reachable"]:
+            probe["failure"] = "cli_verification_failed"
+        elif isinstance(exc, (NetmikoTimeoutException, socket.timeout, TimeoutError)):
+            probe["failure"] = "ssh_timeout"
+        else:
+            probe["failure"] = "ssh_session_failed"
     finally:
         if session is not None:
             try:
@@ -187,47 +225,74 @@ def probe_device(device, tcp_only=False):
     return probe
 
 
+def _unreachable_streak(previous):
+    """Previous network-unreachable streak (falls back to the old counter before migration 010)."""
+    if not previous:
+        return 0
+    if previous.get("unreachable_count") is not None:
+        return previous["unreachable_count"]
+    if previous.get("tcp_reachable") is False:
+        return previous.get("consecutive_failures") or 0
+    return 0
+
+
 def classify(probe, previous, now):
     """
-    healthy  : TCP + SSH + CLI succeed within SLOW_THRESHOLD_MS
-    degraded : reachable but SSH/CLI failed or slow; or the first TCP failure
-    down     : TCP/22 unreachable on DOWN_AFTER_FAILURES consecutive checks
+    Explicit, evidence-based classification (see the module docstring for the table).
+    Pure function: `probe` from probe_device, `previous` the stored row (or None).
     """
     prev_status = previous["status"] if previous else None
     prev_failures = previous["consecutive_failures"] if previous else 0
     prev_success = previous["last_success_at"] if previous else None
     prev_change = previous["last_status_change_at"] if previous else None
 
-    cli_ok = probe["tcp_reachable"] and probe["ssh_reachable"] and probe["cli_reachable"]
+    icmp = probe.get("icmp_reachable")  # True / False / None (not tested)
+    tcp22 = probe["tcp_reachable"]
+    management_ok = tcp22 and probe["ssh_reachable"] and probe["cli_reachable"]
     error = probe["error"]
+    unreachable = 0
 
-    if cli_ok:
+    if management_ok:
         failures = 0
         last_success = now
         if probe["response_time_ms"] is not None and probe["response_time_ms"] > SLOW_THRESHOLD_MS:
-            status = "degraded"
+            status, reason = "degraded", "slow_response"
             error = f"Slow response: {probe['response_time_ms']} ms (threshold {SLOW_THRESHOLD_MS} ms)"
         else:
-            status = "healthy"
-            error = None
+            status, reason, error = "healthy", "ok", None
     else:
         failures = prev_failures + 1
         last_success = prev_success
-        if not probe["tcp_reachable"] and failures >= DOWN_AFTER_FAILURES:
-            status = "down"
+        if not tcp22 and icmp is True:
+            # The device answers on the network; only the SSH management plane is unavailable.
+            status, reason = "degraded", "ssh_management_unavailable"
+            error = f"Reachable by ICMP, SSH management unavailable ({error or 'TCP/22 unreachable'})"
+        elif not tcp22:
+            # No TCP/22 and no ICMP reply (or ICMP not testable): network-unreachable streak.
+            unreachable = _unreachable_streak(previous) + 1
+            reason = "network_unreachable" if icmp is False else "tcp22_unreachable"
+            status = "down" if unreachable >= DOWN_AFTER_FAILURES else "degraded"
+            evidence = "no ICMP reply and TCP/22 unreachable" if icmp is False else "TCP/22 unreachable (ICMP not available)"
+            error = f"{evidence}: {error}" if status == "down" else \
+                f"{evidence} ({unreachable} of {DOWN_AFTER_FAILURES} checks before down): {error}"
         else:
+            # TCP/22 answered: management problem only, never "down".
             status = "degraded"
+            reason = probe.get("failure") or ("cli_verification_failed" if probe["ssh_reachable"] else "ssh_session_failed")
 
     return {
         "status": status,
         "last_check_at": now,
         "last_success_at": last_success,
         "response_time_ms": probe["response_time_ms"],
-        "tcp_reachable": probe["tcp_reachable"],
+        "icmp_reachable": icmp,
+        "tcp_reachable": tcp22,
         "ssh_reachable": probe["ssh_reachable"],
         "cli_reachable": probe["cli_reachable"],
         "last_error": _safe_error(error),
+        "health_reason": reason,
         "consecutive_failures": failures,
+        "unreachable_count": unreachable,
         "last_status_change_at": now if status != prev_status else prev_change,
     }
 
@@ -248,11 +313,14 @@ def classify_during_change(probe, previous, now, change, grace_started, now_epoc
             "last_check_at": now,
             "last_success_at": previous.get("last_success_at"),
             "response_time_ms": previous.get("response_time_ms"),
+            "icmp_reachable": probe.get("icmp_reachable"),
             "tcp_reachable": True,
             "ssh_reachable": previous.get("ssh_reachable"),
             "cli_reachable": previous.get("cli_reachable"),
             "last_error": previous.get("last_error"),
+            "health_reason": previous.get("health_reason"),
             "consecutive_failures": previous.get("consecutive_failures") or 0,
+            "unreachable_count": 0,
             "last_status_change_at": previous.get("last_status_change_at"),
         }
 
@@ -322,23 +390,30 @@ def check_and_record(device, lease=None):
 
     if prev_status != current["status"]:
         logger.warning(
-            "device_health_transition device_id=%s host=%s from=%s to=%s reason=%s",
+            "device_health_transition device_id=%s host=%s from=%s to=%s reason=%s detail=%s",
             device["id"],
             device["hostname"],
             prev_status,
             current["status"],
+            current.get("health_reason") or "ok",
             current["last_error"] or "ok",
         )
 
     logger.info(
-        "device_health_check_completed device_id=%s host=%s status=%s response_ms=%s tcp=%s ssh=%s cli=%s mode=%s change=%s",
+        "device_health_check_completed device_id=%s hostname=%s status=%s reason=%s icmp_reachable=%s "
+        "tcp22_reachable=%s ssh_authenticated=%s cli_verified=%s response_ms=%s consecutive_failures=%s "
+        "unreachable_count=%s mode=%s change=%s",
         device["id"],
         device["hostname"],
         current["status"],
-        current["response_time_ms"],
+        current.get("health_reason"),
+        current.get("icmp_reachable"),
         current["tcp_reachable"],
         current["ssh_reachable"],
         current["cli_reachable"],
+        current["response_time_ms"],
+        current["consecutive_failures"],
+        current.get("unreachable_count"),
         mode,
         change.get("change_id") if change else None,
     )

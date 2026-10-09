@@ -14,16 +14,14 @@ import { StatusBadge } from "../components/StatusBadge";
 import { OperationTag } from "../components/OperationTag";
 import { usePolling } from "../hooks/usePolling";
 import { formatResponseTime, truncateText } from "../utils/format";
+import { evidenceSummary, healthReasonLabel } from "../utils/health";
 
 const ALL = "all";
 const HEALTH_POLL_MS = 20000;
 const HEALTH_STATES: HealthStatus[] = ["healthy", "degraded", "down", "unknown"];
 
 function reachability(device: Device): string | null {
-  if (device.tcp_reachable === null) return null;
-
-  const mark = (ok: boolean | null) => (ok ? "ok" : "fail");
-  return `TCP ${mark(device.tcp_reachable)} · SSH ${mark(device.ssh_reachable)} · CLI ${mark(device.cli_reachable)}`;
+  return evidenceSummary(device);
 }
 
 /** Response time against the worker's slow threshold (the only threshold health defines). */
@@ -53,11 +51,12 @@ function HealthIssueCell({ device }: { device: Device }) {
   if (!device.last_error || (status !== "degraded" && status !== "down")) {
     return <span className="muted">—</span>;
   }
+  const reason = healthReasonLabel(device.health_reason);
 
   return (
     <details className="error-details">
-      <summary className={`${status === "down" ? "error-summary" : "message-summary"} mono`}>
-        {truncateText(device.last_error, 48)}
+      <summary className={`${status === "down" ? "error-summary" : "message-summary"}${reason ? "" : " mono"}`}>
+        {reason ?? truncateText(device.last_error, 48)}
       </summary>
       <pre className="error-full">
         {device.last_error}

@@ -44,10 +44,12 @@ UNKNOWN_HEALTH = {
     "last_check_at": None,
     "last_success_at": None,
     "response_time_ms": None,
-    "tcp_reachable": None,
+    "icmp_reachable": None,
+    "tcp_reachable": None,  # TCP/22 only
     "ssh_reachable": None,
     "cli_reachable": None,
     "last_error": None,
+    "health_reason": None,
     "consecutive_failures": 0,
     "last_status_change_at": None,
 }
@@ -76,7 +78,8 @@ def health_by_device(device_ids):
         if value is None:
             misses.append(device_id)
         else:
-            result[device_id] = value
+            # Rows cached by an older worker have no evidence fields: same shape, None values.
+            result[device_id] = {"icmp_reachable": None, "health_reason": None, **value}
 
     if misses:
         rows = get_health_rows(misses)
@@ -154,10 +157,12 @@ def devices_with_health():
                 "last_check_at": h["last_check_at"],
                 "last_success_at": h["last_success_at"],
                 "response_time_ms": h["response_time_ms"],
+                "icmp_reachable": h.get("icmp_reachable"),
                 "tcp_reachable": h["tcp_reachable"],
                 "ssh_reachable": h["ssh_reachable"],
                 "cli_reachable": h["cli_reachable"],
                 "last_error": h["last_error"],
+                "health_reason": h.get("health_reason"),
                 **operations.get(device["id"], NORMAL_OPERATION),
             }
         )

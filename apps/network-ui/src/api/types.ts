@@ -21,10 +21,15 @@ export interface Device extends DeviceOperation {
   last_check_at: string | null;
   last_success_at: string | null;
   response_time_ms: number | null;
+  /** ICMP echo reply (null = not tested). Supplemental: may be blocked by the network. */
+  icmp_reachable?: boolean | null;
+  /** TCP port 22 only. */
   tcp_reachable: boolean | null;
   ssh_reachable: boolean | null;
   cli_reachable: boolean | null;
   last_error: string | null;
+  /** Stable reason code for the status (ok, ssh_management_unavailable, ...). */
+  health_reason?: string | null;
 }
 
 export interface DeviceHealthEntry extends DeviceOperation {
@@ -37,10 +42,15 @@ export interface DeviceHealthEntry extends DeviceOperation {
   last_check_at: string | null;
   last_success_at: string | null;
   response_time_ms: number | null;
+  /** ICMP echo reply (null = not tested). Supplemental: may be blocked by the network. */
+  icmp_reachable?: boolean | null;
+  /** TCP port 22 only. */
   tcp_reachable: boolean | null;
   ssh_reachable: boolean | null;
   cli_reachable: boolean | null;
   last_error: string | null;
+  /** Stable reason code for the status (ok, ssh_management_unavailable, ...). */
+  health_reason?: string | null;
   consecutive_failures: number;
   last_status_change_at: string | null;
 }
@@ -381,10 +391,15 @@ export interface DeviceHealthSummary {
   last_check_at: string | null;
   last_success_at: string | null;
   response_time_ms: number | null;
+  /** ICMP echo reply (null = not tested). Supplemental: may be blocked by the network. */
+  icmp_reachable?: boolean | null;
+  /** TCP port 22 only. */
   tcp_reachable: boolean | null;
   ssh_reachable: boolean | null;
   cli_reachable: boolean | null;
   last_error: string | null;
+  /** Stable reason code for the status (ok, ssh_management_unavailable, ...). */
+  health_reason?: string | null;
 }
 
 export interface DeviceDetail {
@@ -582,4 +597,104 @@ export interface PcapAnalysis {
   expires_at: string;
   files_deleted_at: string | null;
   result?: PcapResult | null;
+}
+
+// ---- Interface Monitoring V1 (GET /api/v1/devices/{id}/interfaces) ----------------------------
+export type InterfaceStatus = "up" | "down" | "admin_down" | "unknown";
+
+export interface InterfaceItem {
+  id: number;
+  name: string;
+  canonical_name: string;
+  description: string | null;
+  type: "ethernet" | "port_channel" | "management" | "other";
+  /** Evidence-based only: LLDP neighbor is a managed switch, a LAG, or "uplink" in the description. */
+  role: "inter_switch" | "uplink" | "lag" | null;
+  admin_status: "up" | "down" | null;
+  oper_status: "up" | "down" | null;
+  status: InterfaceStatus;
+  speed_bps: number | null;
+  duplex: "full" | "half" | null;
+  mode: "access" | "trunk" | "general" | "routed" | null;
+  access_vlan: number | null;
+  native_vlan: number | null;
+  allowed_vlans: string | null;
+  port_channel: string | null;
+  mtu: number | null;
+  last_state_change: string | null;
+  rx_bytes: number | null;
+  tx_bytes: number | null;
+  rx_packets: number | null;
+  tx_packets: number | null;
+  rx_errors: number | null;
+  tx_errors: number | null;
+  crc_errors: number | null;
+  input_discards: number | null;
+  output_discards: number | null;
+  /** Latest interval; null = no valid counter delta (first sample, reset, unknown speed). */
+  rx_utilization_pct: number | null;
+  tx_utilization_pct: number | null;
+  errors_delta: number | null;
+  crc_delta: number | null;
+  discards_delta: number | null;
+  /** Error/CRC counters increased in the latest interval (never from lifetime totals). */
+  erroring: boolean;
+}
+
+export interface InterfaceSummary {
+  total: number;
+  up: number;
+  down: number;
+  admin_down: number;
+  unknown: number;
+  erroring: number;
+  trunks: number;
+  access_ports: number;
+}
+
+export interface InterfaceAttempt {
+  at?: string;
+  status: string;
+  reason?: string;
+  error?: string;
+  stage?: string;
+  problems?: string[];
+}
+
+export interface DeviceInterfaces {
+  device_id: number;
+  hostname: string;
+  platform: string;
+  source: "cache" | "database";
+  status: "ok" | "stale" | "not_collected";
+  collected_at: string | null;
+  age_seconds: number | null;
+  stale: boolean;
+  stale_after_seconds: number;
+  poll_interval_seconds: number;
+  collection_status: "success" | "partial" | null;
+  problems: string[];
+  last_attempt: InterfaceAttempt | null;
+  summary: InterfaceSummary | null;
+  interfaces: InterfaceItem[];
+}
+
+export interface InterfaceSample {
+  collected_at: string;
+  rx_utilization_pct: number | null;
+  tx_utilization_pct: number | null;
+  errors_delta: number | null;
+  crc_delta: number | null;
+  discards_delta: number | null;
+}
+
+export interface InterfaceHistory {
+  device_id: number;
+  interface_id: number;
+  range: MetricsRange | null;
+  from: string;
+  to: string;
+  interval_seconds: number;
+  truncated: boolean;
+  samples: InterfaceSample[];
 }

@@ -1,41 +1,55 @@
 from db.client import get_connection
 
 
-HEALTH_COLUMNS = """
-    device_id,
-    status,
-    last_check_at,
-    last_success_at,
-    response_time_ms,
-    tcp_reachable,
-    ssh_reachable,
-    cli_reachable,
-    last_error,
-    consecutive_failures,
-    last_status_change_at
-"""
+import logging
+import time
+
+logger = logging.getLogger("network_worker.health")
+
+BASE_COLUMNS = (
+    "device_id",
+    "status",
+    "last_check_at",
+    "last_success_at",
+    "response_time_ms",
+    "tcp_reachable",  # TCP/22 only
+    "ssh_reachable",  # SSH session established and authenticated
+    "cli_reachable",  # verification command returned usable output
+    "last_error",
+    "consecutive_failures",
+    "last_status_change_at",
+)
+# Migration 010. Written/read only when present, so health keeps working if the image
+# is deployed before the migration.
+EVIDENCE_COLUMNS = ("icmp_reachable", "health_reason", "unreachable_count")
+TIME_COLUMNS = {"last_check_at", "last_success_at", "last_status_change_at"}
+HEALTH_COLUMNS = ", ".join(BASE_COLUMNS)
+
+_EVIDENCE_RECHECK_SECONDS = 300
+_evidence = {"available": None, "checked_at": 0.0}
 
 
 def _iso(value):
     return value.isoformat() if value else None
 
 
-def _row_to_health(row, iso=True):
-    fmt = _iso if iso else (lambda value: value)
+def _row_to_health(row, iso=True, columns=BASE_COLUMNS):
+    return {name: (_iso(value) if iso and name in TIME_COLUMNS else value) for name, value in zip(columns, row)}
 
-    return {
-        "device_id": row[0],
-        "status": row[1],
-        "last_check_at": fmt(row[2]),
-        "last_success_at": fmt(row[3]),
-        "response_time_ms": row[4],
-        "tcp_reachable": row[5],
-        "ssh_reachable": row[6],
-        "cli_reachable": row[7],
-        "last_error": row[8],
-        "consecutive_failures": row[9],
-        "last_status_change_at": fmt(row[10]),
-    }
+
+def _columns(cur):
+    """Base columns plus the migration-010 evidence columns when they exist (cached)."""
+    now = time.monotonic()
+    if _evidence["available"] is None or (not _evidence["available"] and now - _evidence["checked_at"] > _EVIDENCE_RECHECK_SECONDS):
+        cur.execute(
+            "SELECT count(*) FROM information_schema.columns WHERE table_name = 'device_health' AND column_name = ANY(%s)",
+            (list(EVIDENCE_COLUMNS),),
+        )
+        _evidence["available"] = cur.fetchone()[0] == len(EVIDENCE_COLUMNS)
+        _evidence["checked_at"] = now
+        if not _evidence["available"]:
+            logger.warning("device_health_evidence_columns_missing hint=apply migration 010; writing original columns only")
+    return BASE_COLUMNS + (EVIDENCE_COLUMNS if _evidence["available"] else ())
 
 
 def list_enabled_devices():
@@ -84,63 +98,29 @@ def record_health(device_id, classify):
 
     try:
         with conn.cursor() as cur:
-            cur.execute(
-                f"SELECT {HEALTH_COLUMNS} FROM device_health WHERE device_id = %s FOR UPDATE",
-                (device_id,),
-            )
+            columns = _columns(cur)
+            names = ", ".join(columns)
+            cur.execute(f"SELECT {names} FROM device_health WHERE device_id = %s FOR UPDATE", (device_id,))
 
             row = cur.fetchone()
-            previous = _row_to_health(row) if row else None
+            previous = _row_to_health(row, columns=columns) if row else None
 
-            new = classify(_row_to_health(row, iso=False) if row else None)
+            new = classify(_row_to_health(row, iso=False, columns=columns) if row else None)
 
+            written = columns[1:]
             cur.execute(
                 f"""
-                INSERT INTO device_health (
-                    device_id,
-                    status,
-                    last_check_at,
-                    last_success_at,
-                    response_time_ms,
-                    tcp_reachable,
-                    ssh_reachable,
-                    cli_reachable,
-                    last_error,
-                    consecutive_failures,
-                    last_status_change_at,
-                    updated_at
-                )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                INSERT INTO device_health (device_id, {", ".join(written)}, updated_at)
+                VALUES (%s, {", ".join(["%s"] * len(written))}, NOW())
                 ON CONFLICT (device_id) DO UPDATE SET
-                    status = EXCLUDED.status,
-                    last_check_at = EXCLUDED.last_check_at,
-                    last_success_at = EXCLUDED.last_success_at,
-                    response_time_ms = EXCLUDED.response_time_ms,
-                    tcp_reachable = EXCLUDED.tcp_reachable,
-                    ssh_reachable = EXCLUDED.ssh_reachable,
-                    cli_reachable = EXCLUDED.cli_reachable,
-                    last_error = EXCLUDED.last_error,
-                    consecutive_failures = EXCLUDED.consecutive_failures,
-                    last_status_change_at = EXCLUDED.last_status_change_at,
+                    {", ".join(f"{c} = EXCLUDED.{c}" for c in written)},
                     updated_at = NOW()
-                RETURNING {HEALTH_COLUMNS}
+                RETURNING {names}
                 """,
-                (
-                    device_id,
-                    new["status"],
-                    new["last_check_at"],
-                    new["last_success_at"],
-                    new["response_time_ms"],
-                    new["tcp_reachable"],
-                    new["ssh_reachable"],
-                    new["cli_reachable"],
-                    new["last_error"],
-                    new["consecutive_failures"],
-                    new["last_status_change_at"],
-                ),
+                (device_id, *[new.get(c) for c in written]),
             )
 
-            current = _row_to_health(cur.fetchone())
+            current = _row_to_health(cur.fetchone(), columns=columns)
 
         conn.commit()
 

@@ -12,6 +12,7 @@ import type {
   TopologyGraph,
 } from "../../api/types";
 import { formatRelative, formatUptime, platformLabel, truncateText } from "../../utils/format";
+import { healthReasonLabel } from "../../utils/health";
 import { METRIC_THRESHOLDS, metricLevel, type MetricKind } from "../../utils/thresholds";
 import { BarList, Donut, StackedColumns, type BarRow } from "../charts";
 import { EmptyState, TableSkeleton } from "../Feedback";
@@ -315,7 +316,9 @@ export function RecentIncidents({
       deviceId: d.device_id,
       summary: d.last_error ?? `Device ${d.status}`,
       status: d.status,
-      label: d.status === "down" ? "Device down" : "Device degraded",
+      label: `${d.status === "down" ? "Device down" : "Device degraded"}${
+        healthReasonLabel(d.health_reason) ? ` · ${healthReasonLabel(d.health_reason)}` : ""
+      }`,
     }));
   const events: Incident[] = (audit.data ?? [])
     .filter((e) => e.event_type in INCIDENT_EVENTS)
@@ -615,6 +618,9 @@ export function DeviceStatusTable({
                     <td title={h?.last_error ?? undefined}>
                       <StatusBadge status={status} />
                       <OperationTag operation={h ?? device} />
+                      {(status === "degraded" || status === "down") && healthReasonLabel(h?.health_reason ?? device.health_reason) && (
+                        <span className="cell-sub">{healthReasonLabel(h?.health_reason ?? device.health_reason)}</span>
+                      )}
                     </td>
                     <td><MetricCell kind="cpu" value={sample?.cpu_percent} /></td>
                     <td><MetricCell kind="memory" value={sample?.memory_percent} /></td>
