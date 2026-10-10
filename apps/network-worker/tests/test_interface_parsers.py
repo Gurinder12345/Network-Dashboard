@@ -140,6 +140,114 @@ class Os6Tests(unittest.TestCase):
         self.assertIsNone(by_name(parse_interfaces("dell_os6", {**self.outputs, OS6_COUNTERS: broken}))["gi1/0/1"]["rx_bytes"])
 
 
+def load_real_os6():
+    return {c: read(os.path.join(FIXTURES, f"os6_real_{c.replace(' ', '_')}.txt")) for c in INTERFACE_COMMANDS["dell_os6"]}
+
+
+class RealOs6Tests(unittest.TestCase):
+    """Regression tests on the REAL Kenda-HARO-SW-01 capture (N-series 6.x)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.result = parse_interfaces("dell_os6", load_real_os6())
+        cls.ports = by_name(cls.result)
+
+    def test_28_interfaces_no_join_errors(self):
+        self.assertEqual(self.result["status"], "success")
+        self.assertEqual(self.result["problems"], [])
+        self.assertEqual(len(self.result["interfaces"]), 28)
+        expected = {f"gi1/0/{n}" for n in range(1, 25)} | {f"te1/0/{n}" for n in range(1, 5)}
+        self.assertEqual(set(self.ports), expected)  # Po1-Po64 placeholders (not in status) are not inventory
+        # Every port joined with all four commands: configuration (admin/MTU), counters, errors.
+        for name, item in self.ports.items():
+            self.assertEqual(item["admin_status"], "up", name)
+            self.assertEqual(item["mtu"], 1518, name)
+            self.assertIsNotNone(item["rx_packets"], name)
+            self.assertIsNotNone(item["crc_errors"], name)
+
+    def test_packet_counters_parse_and_bytes_stay_null(self):
+        gi1 = self.ports["gi1/0/1"]
+        self.assertEqual((gi1["rx_packets"], gi1["tx_packets"]), (2382916330, 3685701163))
+        te1 = self.ports["te1/0/1"]
+        self.assertEqual((te1["rx_packets"], te1["tx_packets"]), (7797518408, 4652577882))
+        self.assertEqual((self.ports["gi1/0/4"]["rx_packets"], self.ports["gi1/0/4"]["tx_packets"]), (0, 0))  # a real zero
+        for name, item in self.ports.items():
+            # The switch reports no octet counters for physical ports: None, never derived from packets.
+            self.assertIsNone(item["rx_bytes"], name)
+            self.assertIsNone(item["tx_bytes"], name)
+
+    def test_error_counters(self):
+        gi18 = self.ports["gi1/0/18"]
+        self.assertEqual((gi18["crc_errors"], gi18["rx_errors"], gi18["tx_errors"], gi18["output_discards"]), (8, 9, 0, 27954))
+        self.assertEqual(self.ports["te1/0/3"]["crc_errors"], 2)
+        self.assertEqual(self.ports["gi1/0/1"]["output_discards"], 4847244)
+        for item in self.ports.values():
+            self.assertIsNone(item["input_discards"])  # not reported by this command: None, not 0
+
+    def test_status_admin_oper_speed_duplex(self):
+        gi1, gi3, te3, te4 = (self.ports[n] for n in ("gi1/0/1", "gi1/0/3", "te1/0/3", "te1/0/4"))
+        self.assertEqual((gi1["oper_status"], gi1["speed_bps"], gi1["duplex"]), ("up", 10**9, "full"))
+        self.assertEqual((gi3["oper_status"], gi3["speed_bps"], gi3["duplex"]), ("down", None, None))  # "Unknown" / "N/A"
+        self.assertEqual((te3["oper_status"], te3["speed_bps"]), ("up", 10**10))
+        self.assertEqual((te4["oper_status"], te4["speed_bps"]), ("down", 10**9))
+        self.assertEqual(self.ports["gi1/0/6"]["speed_bps"], 10**8)
+        statuses = [i["oper_status"] for i in self.ports.values()]
+        self.assertEqual((statuses.count("up"), statuses.count("down")), (16, 12))
+
+    def test_access_vlans(self):
+        self.assertEqual((self.ports["gi1/0/2"]["mode"], self.ports["gi1/0/2"]["access_vlan"]), ("access", 10))
+        self.assertEqual((self.ports["gi1/0/3"]["mode"], self.ports["gi1/0/3"]["access_vlan"]), ("access", 66))
+        access = [n for n, i in self.ports.items() if i["mode"] == "access"]
+        self.assertEqual(len(access), 23)
+        for name in access:
+            self.assertIsNone(self.ports[name]["native_vlan"])
+            self.assertIsNone(self.ports[name]["allowed_vlans"])
+
+    def test_trunks_only_where_the_switch_says_so(self):
+        trunks = {n: (i["native_vlan"], i["allowed_vlans"]) for n, i in self.ports.items() if i["mode"] == "trunk"}
+        self.assertEqual(trunks, {
+            "gi1/0/1": (10, "1-9,11-4096"),   # M = T: a Gigabit port is a trunk too (not inferred from the name)
+            "te1/0/1": (10, "1-9,11-4096"),
+            "te1/0/2": (10, "1-9,11-4096"),
+            "te1/0/3": (1, "2-4096"),
+            "te1/0/4": (1, "2-4096"),
+        })
+        for name in trunks:
+            self.assertIsNone(self.ports[name]["access_vlan"])
+
+    def test_full_descriptions_from_configuration(self):
+        self.assertEqual(self.ports["gi1/0/1"]["description"], "InterConnect_HARO_SW_1/2")  # status: "InterConnect_HA"
+        self.assertEqual(self.ports["te1/0/1"]["description"], "UPLINK_HARO_HQ")
+        self.assertIsNone(self.ports["gi1/0/2"]["description"])
+
+    def test_mode_comes_only_from_evidence(self):
+        status = load_real_os6()[OS6_STATUS]
+        # Remove the M value of Gi1/0/1: its mode becomes unknown, never guessed from speed/name/VLAN list.
+        line = next(l for l in status.splitlines() if l.startswith("Gi1/0/1 "))
+        mode_at = status.splitlines()[1].index(" M ") + 1  # the "M" column of the real header
+        self.assertEqual(line[mode_at], "T")
+        status = status.replace(line, line[:mode_at] + " " + line[mode_at + 1:])
+        ports = by_name(parse_interfaces("dell_os6", {**load_real_os6(), OS6_STATUS: status}))
+        self.assertIsNone(ports["gi1/0/1"]["mode"])
+        self.assertEqual(ports["te1/0/1"]["mode"], "trunk")
+
+    def test_configured_lag_in_real_layout_is_inventoried(self):
+        outputs = load_real_os6()
+        # Columns of the real "Port / Channel" status table: 0, 8, 39, 47, 50.
+        lag = "Po1".ljust(8) + "UPLINK-LAG".ljust(31) + "Up".ljust(8) + "T".ljust(3) + "(1),2-100"
+        outputs[OS6_STATUS] = outputs[OS6_STATUS].rstrip("\n") + "\n" + lag + "\n"
+        zero = "Po1".ljust(10) + " ".join("0".rjust(16) for _ in range(4))
+        self.assertIn(zero, outputs[OS6_COUNTERS])
+        values = "Po1".ljust(10) + " ".join(v.rjust(16) for v in ("1234567890", "9000", "100", "10"))
+        counters = outputs[OS6_COUNTERS].replace(zero, values, 1)  # first match = the InOctets table
+        ports = by_name(parse_interfaces("dell_os6", {**outputs, OS6_COUNTERS: counters}))
+        po1 = ports["po1"]
+        self.assertEqual((po1["interface_type"], po1["oper_status"], po1["mode"], po1["native_vlan"], po1["allowed_vlans"]),
+                         ("port_channel", "up", "trunk", 1, "2-100"))
+        self.assertEqual(po1["rx_bytes"], 1234567890)  # octets exist for port-channels in this command
+        self.assertEqual(len(ports), 29)
+
+
 class Os10Tests(unittest.TestCase):
     def setUp(self):
         self.outputs = load("dell_os10")

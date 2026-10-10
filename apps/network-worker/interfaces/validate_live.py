@@ -36,6 +36,9 @@ from interfaces.utilization import status_of
 from vault.client import get_device_credentials
 
 CAPTURE_DIR = "/tmp/interface_capture"
+# Capture-only extras may name one interface (e.g. "show interfaces counters gigabitethernet 1/0/2");
+# still `show` only, no pipes or other punctuation. Collection commands use parsers.SAFE_COMMAND.
+CAPTURE_EXTRA = re.compile(r"^show [a-z0-9 \-/:]+$")
 
 
 def _slug(command):
@@ -48,10 +51,10 @@ def _query(sql, args=()):
         return cur.fetchall()
 
 
-def cmd_capture(device, extra):
-    commands = list(INTERFACE_COMMANDS.get(device["platform"], ())) + list(extra)
+def cmd_capture(device, extra, only_extra=False):
+    commands = ([] if only_extra else list(INTERFACE_COMMANDS.get(device["platform"], ()))) + list(extra)
     for command in commands:
-        if not SAFE_COMMAND.match(command):
+        if not (SAFE_COMMAND.match(command) or (command in extra and CAPTURE_EXTRA.match(command))):
             raise SystemExit(f"Refusing non-show command: {command!r}")
     print(f"\n######## {device['hostname']} ({device['platform']}) commands: {commands}")
     tcp_ok, tcp_error = _tcp_reachable(device["management_ip"])
@@ -147,12 +150,13 @@ def main():
     parser.add_argument("mode", choices=("capture", "dry-run", "record"))
     parser.add_argument("hostnames", nargs="+")
     parser.add_argument("--extra", action="append", default=[], help='capture only: extra read-only "show ..." command')
+    parser.add_argument("--only-extra", action="store_true", help="capture only the --extra commands (one session)")
     args = parser.parse_args()
     ok = True
     for hostname in args.hostnames:
         device = get_device_by_hostname(hostname)
         if args.mode == "capture":
-            ok = cmd_capture(device, args.extra) and ok
+            ok = cmd_capture(device, args.extra, only_extra=args.only_extra) and ok
         elif args.mode == "dry-run":
             ok = cmd_dry_run(device) and ok
         else:

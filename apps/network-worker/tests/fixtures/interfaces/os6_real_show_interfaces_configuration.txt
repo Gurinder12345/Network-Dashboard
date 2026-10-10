@@ -1,0 +1,103 @@
+
+Port      Description                    Duplex Speed   Neg  MTU   Admin
+                                                                   State
+--------- ------------------------------ ------ ------- ---- ----- -----
+Gi1/0/1   InterConnect_HARO_SW_1/2       Full   1000    Auto 1518  Up
+Gi1/0/2                                  Full   1000    Auto 1518  Up
+Gi1/0/3                                  N/A    Unknown Auto 1518  Up
+Gi1/0/4                                  N/A    Unknown Auto 1518  Up
+Gi1/0/5                                  N/A    Unknown Auto 1518  Up
+Gi1/0/6                                  Full   100     Auto 1518  Up
+Gi1/0/7                                  Full   1000    Auto 1518  Up
+Gi1/0/8                                  Full   1000    Auto 1518  Up
+Gi1/0/9                                  Full   1000    Auto 1518  Up
+Gi1/0/10                                 N/A    Unknown Auto 1518  Up
+Gi1/0/11                                 Full   1000    Auto 1518  Up
+Gi1/0/12                                 N/A    Unknown Auto 1518  Up
+Gi1/0/13                                 Full   1000    Auto 1518  Up
+Gi1/0/14                                 N/A    Unknown Auto 1518  Up
+Gi1/0/15                                 Full   1000    Auto 1518  Up
+Gi1/0/16                                 Full   1000    Auto 1518  Up
+Gi1/0/17                                 Full   1000    Auto 1518  Up
+Gi1/0/18                                 N/A    Unknown Auto 1518  Up
+Gi1/0/19                                 Full   1000    Auto 1518  Up
+Gi1/0/20                                 N/A    Unknown Auto 1518  Up
+Gi1/0/21                                 Full   100     Auto 1518  Up
+Gi1/0/22                                 N/A    Unknown Auto 1518  Up
+Gi1/0/23                                 N/A    Unknown Auto 1518  Up
+Gi1/0/24                                 N/A    Unknown Auto 1518  Up
+Te1/0/1   UPLINK_HARO_HQ                 Full   1000    Auto 1518  Up
+Te1/0/2                                  Full   10000   Off  1518  Up
+Te1/0/3   HARO_IDF_A                     Full   10000   Off  1518  Up
+Te1/0/4   HARO_IDF_B                     Full   1000    Off  1518  Up
+
+
+Port    Description                    MTU   Admin
+Channel                                      State
+------- ------------------------------ ----- -----
+Po1                                    1518  Up
+Po2                                    1518  Up
+Po3                                    1518  Up
+Po4                                    1518  Up
+Po5                                    1518  Up
+Po6                                    1518  Up
+Po7                                    1518  Up
+Po8                                    1518  Up
+Po9                                    1518  Up
+Po10                                   1518  Up
+Po11                                   1518  Up
+Po12                                   1518  Up
+Po13                                   1518  Up
+Po14                                   1518  Up
+Po15                                   1518  Up
+Po16                                   1518  Up
+Po17                                   1518  Up
+Po18                                   1518  Up
+Po19                                   1518  Up
+Po20                                   1518  Up
+Po21                                   1518  Up
+Po22                                   1518  Up
+Po23                                   1518  Up
+Po24                                   1518  Up
+Po25                                   1518  Up
+Po26                                   1518  Up
+Po27                                   1518  Up
+Po28                                   1518  Up
+Po29                                   1518  Up
+Po30                                   1518  Up
+Po31                                   1518  Up
+Po32                                   1518  Up
+Po33                                   1518  Up
+Po34                                   1518  Up
+Po35                                   1518  Up
+Po36                                   1518  Up
+Po37                                   1518  Up
+Po38                                   1518  Up
+Po39                                   1518  Up
+Po40                                   1518  Up
+Po41                                   1518  Up
+Po42                                   1518  Up
+Po43                                   1518  Up
+Po44                                   1518  Up
+Po45                                   1518  Up
+Po46                                   1518  Up
+Po47                                   1518  Up
+Po48                                   1518  Up
+Po49                                   1518  Up
+Po50                                   1518  Up
+Po51                                   1518  Up
+Po52                                   1518  Up
+Po53                                   1518  Up
+Po54                                   1518  Up
+Po55                                   1518  Up
+Po56                                   1518  Up
+Po57                                   1518  Up
+Po58                                   1518  Up
+Po59                                   1518  Up
+Po60                                   1518  Up
+Po61                                   1518  Up
+Po62                                   1518  Up
+Po63                                   1518  Up
+Po64                                   1518  Up
+
+

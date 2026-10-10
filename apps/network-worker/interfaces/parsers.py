@@ -1,19 +1,32 @@
 """
 Read-only interface parsers for Dell OS6 and Dell OS10 -> one normalized model.
 
-STATUS OF THESE PARSERS: written from the documented OS6 (N-series 6.x) and OS10 (10.5)
-output layouts; NO real interface output from this lab has been captured yet. They read
-tables by column NAME (interfaces/tables.py), not by position, and every field that is
-not found stays None (never 0). Before scheduled polling is enabled, capture real output
-with `python -m interfaces.validate_live capture <host>` and add it under
-tests/fixtures/interfaces/ (test_interface_parsers.py then parses it).
+STATUS OF THESE PARSERS: OS6 is verified against REAL output from Kenda-HARO-SW-01
+(tests/fixtures/interfaces/os6_real_*.txt, N-series 6.x). OS10 is still written from the
+documented 10.5 layout: capture real output with `python -m interfaces.validate_live
+capture <host>` before relying on it. Tables are read by column NAME
+(interfaces/tables.py), not by position, and every field that is not found stays None
+(never 0).
+
+Real OS6 facts (Kenda-HARO-SW-01):
+  * `show interfaces status` has a mode column "M" (A = access, T = trunk, G = general)
+    and a "VLAN" column: access -> "10"; trunk/general -> "(10),1-9,11-4096", where the
+    parenthesised VLAN is the native/untagged VLAN and the rest the tagged VLANs.
+    Descriptions there are truncated to 15 characters; `show interfaces configuration`
+    has them in full (30) and is preferred.
+  * `show interfaces counters` gives PACKET counters only for physical ports
+    (InTotalPkts / OutTotalPkts + unicast/multicast/broadcast). Octet (byte) counters
+    appear only in its port-channel tables ("Ch ... InOctets / OutOctets"). Physical-port
+    rx_bytes / tx_bytes -- and therefore utilization -- stay None; bytes are never derived
+    from packets.
+  * port-channel tables use a two-line "Port / Channel" header.
 
 Commands (all `show`; one SSH session per device collection, run in this order):
 
   dell_os6   show interfaces status            REQUIRED  name, description, link state,
                                                          speed, duplex, VLAN / mode
              show interfaces configuration     optional  admin state, MTU
-             show interfaces counters          optional  octets, packets
+             show interfaces counters          optional  packets (octets for port-channels only)
              show interfaces counters errors   optional  FCS/CRC, receive/transmit errors,
                                                          discards
   dell_os10  show interface                    primary   admin + line-protocol state,
@@ -129,7 +142,7 @@ def _usable(outputs, command):
     return text, None
 
 
-def _port_rows(text, platform, name_columns=("Port", "Interface", "Ch", "Name")):
+def _port_rows(text, platform, name_columns=("Port", "Interface", "Ch", "Port Channel", "Name")):
     """{canonical: (display name, row)} for rows that look like monitored interfaces."""
     found = {}
     for table in parse_tables(text):
@@ -153,17 +166,38 @@ def _sum(row, *names):
 
 
 # ---- Dell OS6 -----------------------------------------------------------------------------------
-def _os6_mode(vlan_cell):
-    value = (vlan_cell or "").strip().lower()
-    if not value:
-        return None, None
+_NATIVE = re.compile(r"^\((\d{1,4})\)\s*,?\s*(.*)$")
+
+
+def _split_native(vlan_cell):
+    """'(10),1-9,11-4096' -> (10, '1-9,11-4096'); '(1)' -> (1, None); '1-20' -> (None, '1-20')."""
+    value = (vlan_cell or "").strip()
+    match = _NATIVE.match(value)
+    if match:
+        return vlan_id(match.group(1)), (match.group(2).strip() or None)
+    return None, value or None
+
+
+def _os6_mode(row):
+    """Mode/VLAN fields from a status row; only what the switch states (never inferred)."""
+    code = (first_value(row, "M") or "").strip().upper()
+    vlan = first_value(row, "VLAN", "Vlan")
+    if code == "A":
+        return {"mode": "access", "access_vlan": vlan_id(vlan)}
+    if code in ("T", "G"):
+        native, tagged = _split_native(vlan)
+        return {"mode": "trunk" if code == "T" else "general", "native_vlan": native, "allowed_vlans": tagged}
+    if code:
+        return {}  # an unknown mode code: leave mode unknown rather than guess
+    # Layout without an "M" column: the VLAN cell itself ("10" / "Trnk" / "Gen").
+    value = (vlan or first_value(row, "Mode") or "").strip().lower()
     if value.isdigit():
-        return "access", vlan_id(value)
+        return {"mode": "access", "access_vlan": vlan_id(value)}
     if value.startswith("tr"):
-        return "trunk", None
+        return {"mode": "trunk"}
     if value.startswith("gen"):
-        return "general", None
-    return None, None
+        return {"mode": "general"}
+    return {}
 
 
 def parse_os6(outputs):
@@ -180,7 +214,7 @@ def parse_os6(outputs):
         item["oper_status"] = updown(first_value(row, "Link State", "Link", "State", "Link Status", "Status"))
         item["speed_bps"] = speed_bps(first_value(row, "Speed", "Oper Speed"))
         item["duplex"] = duplex(first_value(row, "Duplex", "Oper Duplex"))
-        item["mode"], item["access_vlan"] = _os6_mode(first_value(row, "Vlan", "VLAN", "Mode"))
+        item.update(_os6_mode(row))
         interfaces[canonical] = item
     if not interfaces:
         raise InterfaceParseError(f"'{OS6_STATUS}' contained no interface rows")
@@ -203,6 +237,8 @@ def parse_os6(outputs):
 
     def configuration(item, row):
         item["admin_status"] = updown(first_value(row, "Admin State", "Admin", "Admin Status", "Admin Mode"))
+        # Untruncated here (status cuts descriptions to 15 characters on N-series).
+        item["description"] = first_value(row, "Description", "Desc") or item["description"]
         mtu = count(first_value(row, "MTU", "Max Frame"))
         item["mtu"] = mtu if mtu else None
 

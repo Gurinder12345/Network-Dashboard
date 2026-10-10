@@ -202,6 +202,42 @@ class RealSshTests(Base):
         self.assertEqual(snap["summary"]["erroring"], 1)
         self.assertEqual(fake.connections, 2)  # one per collection
 
+    def test_real_os6_capture_end_to_end(self):
+        """Kenda-HARO-SW-01's real output: two collections 300 s apart."""
+        def real():
+            outputs = {}
+            for command in INTERFACE_COMMANDS["dell_os6"]:
+                with open(os.path.join(FIXTURES, f"os6_real_{command.replace(' ', '_')}.txt")) as handle:
+                    outputs[command] = handle.read()
+            return outputs
+
+        fake = self.use(InterfaceOS6(real(), hostname="Kenda-HARO-SW-01"))
+        first = collector.collect_and_record(OS6_DEV)
+        self.assertEqual((first["status"], first["interfaces_seen"], first["commands_run"]), ("success", 28, 4))
+        snap = self.snapshot(1)
+        self.assertEqual(snap["summary"], {"total": 28, "up": 16, "down": 12, "admin_down": 0, "unknown": 0,
+                                           "erroring": 0, "trunks": 5, "access_ports": 23})
+        for sample in self.store.last.values():
+            sample["collected_at"] -= timedelta(seconds=300)
+        later = real()
+        errors = later[OS6_ERRORS]
+        later[OS6_ERRORS] = errors.replace("Gi1/0/18  1          8          0          9",
+                                           "Gi1/0/18  1          11         0          12")
+        fake.outputs = later
+        collector.collect_and_record(OS6_DEV)
+        snap = self.snapshot(1)
+        items = {i["canonical_name"]: i for i in snap["interfaces"]}
+        for item in items.values():  # no octet counters for physical ports: no utilization, never 0 %
+            self.assertIsNone(item["rx_utilization_pct"], item["name"])
+            self.assertIsNone(item["tx_utilization_pct"], item["name"])
+            self.assertIsNone(item["rx_bytes"], item["name"])
+        gi18 = items["gi1/0/18"]
+        self.assertEqual((gi18["crc_delta"], gi18["errors_delta"], gi18["erroring"]), (3, 3, True))
+        self.assertEqual(snap["summary"]["erroring"], 1)
+        self.assertEqual(items["gi1/0/1"]["description"], "InterConnect_HARO_SW_1/2")
+        self.assertEqual(fake.connections, 2)
+        self.assertEqual(fake.config_writes(), [])
+
     def test_os10_two_commands_one_session(self):
         fake = self.use(InterfaceOS10(fixture_outputs("dell_os10")))
         self.lldp.return_value = ["ethernet1/1/25"]  # topology: managed neighbor on this port

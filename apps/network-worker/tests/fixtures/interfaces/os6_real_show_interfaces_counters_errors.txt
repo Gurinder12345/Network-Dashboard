@@ -1,0 +1,43 @@
+
+Align-Err:  Alignment errors
+FCS-Err:    FCS errors
+Xmit-Err:   Total transmit errors
+Rcv-Err:    Total packets received with MAC errors
+UnderSize:  Fragments/undersize received
+OutDiscard: Total transmit packets discarded
+
+Port      Align-Err  FCS-Err    Xmit-Err   Rcv-Err    UnderSize  OutDiscard
+--------- ---------- ---------- ---------- ---------- ---------- ----------
+Gi1/0/1   0          0          0          0          0          4847244
+Gi1/0/2   0          0          0          0          0          0
+Gi1/0/3   0          0          0          0          0          0
+Gi1/0/4   0          0          0          0          0          0
+Gi1/0/5   0          0          0          0          0          0
+Gi1/0/6   0          0          0          0          0          9068956
+Gi1/0/7   0          0          0          0          0          3659945
+Gi1/0/8   0          0          0          1          0          0
+Gi1/0/9   0          0          0          0          0          3660123
+Gi1/0/10  0          0          0          0          0          315610
+Gi1/0/11  0          0          0          0          0          3660187
+Gi1/0/12  0          0          0          0          0          2572515
+Gi1/0/13  0          0          0          0          0          3660094
+Gi1/0/14  0          0          0          0          0          905915
+Gi1/0/15  0          0          0          0          0          3660040
+Gi1/0/16  0          0          0          0          0          191872
+Gi1/0/17  0          0          0          0          0          3718606
+Gi1/0/18  1          8          0          9          0          27954
+Gi1/0/19  0          0          0          0          0          3660188
+Gi1/0/20  0          0          0          0          0          41062
+Gi1/0/21  0          0          0          0          0          3748834
+Gi1/0/22  0          0          0          0          0          850790
+Gi1/0/23  0          0          0          0          0          41479
+Gi1/0/24  0          0          0          0          0          0
+Te1/0/1   0          1          0          1          0          5157
+Te1/0/2   0          0          0          0          0          0
+Te1/0/3   0          2          0          2          0          0
+Te1/0/4   0          0          0          0          0          0
+
+Port
+Channel   Align-Err  FCS-Err    Xmit-Err   Rcv-Err    UnderSize  OutDiscard
+--------- ---------- ---------- ---------- ---------- ---------- ----------
+
