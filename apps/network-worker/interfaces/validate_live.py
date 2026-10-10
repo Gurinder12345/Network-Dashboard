@@ -26,6 +26,7 @@ import re
 import sys
 import time
 
+from coordination import device_ops as coord
 from db.client import get_connection
 from db.devices import get_device_by_hostname
 from health.cache import _redis
@@ -51,6 +52,29 @@ def _query(sql, args=()):
         return cur.fetchall()
 
 
+def _holder(device_id):
+    """Who holds the device slot now (operation, owner host:pid:thread, started/expires), for diagnostics."""
+    try:
+        holder = coord.current_operation(device_id)
+    except Exception as exc:
+        return f"unavailable ({type(exc).__name__})"
+    if not holder:
+        return "none"
+    return {k: holder.get(k) for k in ("operation", "owner", "started_at", "expires_at")}
+
+
+def _device_slot(device):
+    """Take the same coordination slot as a scheduled poll (priority 4, no wait); None = skip."""
+    if coord.change_in_progress(device["id"]):
+        print(f"SKIPPED: a configuration change is in progress on {device['hostname']}; no SSH opened")
+        return None
+    acq = coord.acquire_device_operation(device["id"], "interface_poll", hostname=device["hostname"])
+    if not acq.acquired:
+        print(f"SKIPPED ({acq.reason}): device slot held by {_holder(device['id'])}; no SSH opened. Retry later.")
+        return None
+    return acq.lease
+
+
 def cmd_capture(device, extra, only_extra=False):
     commands = ([] if only_extra else list(INTERFACE_COMMANDS.get(device["platform"], ()))) + list(extra)
     for command in commands:
@@ -64,6 +88,14 @@ def cmd_capture(device, extra, only_extra=False):
     credentials = get_device_credentials(device["credential_path"])
     secrets = [s for s in (credentials.get("password"), credentials.get("secret")) if s]
     os.makedirs(CAPTURE_DIR, mode=0o700, exist_ok=True)
+    lease = _device_slot(device)
+    if lease is None:
+        return False
+    with lease:
+        return _capture_session(device, commands, credentials, secrets)
+
+
+def _capture_session(device, commands, credentials, secrets):
     started = time.monotonic()
     session = _open_session(device, credentials)
     print(f"ssh sessions opened: 1 (login {time.monotonic() - started:.1f} s)")
@@ -100,7 +132,11 @@ def _print_interfaces(interfaces):
 
 
 def cmd_dry_run(device):
-    result = collector.collect_device(device)
+    lease = _device_slot(device)
+    if lease is None:
+        return False
+    with lease:
+        result = collector.collect_device(device)
     print(f"\n{device['hostname']}: status={result['status']} commands={result['commands_run']} "
           f"interfaces={len(result['interfaces'])} duration_ms={result['duration_ms']} error={result['error']}")
     for problem in result["problems"]:
@@ -123,6 +159,9 @@ def cmd_record(device):
     rows_before = _query("SELECT count(*) FROM interface_metrics WHERE device_id = %s", (device["id"],))[0][0]
     outcome = collector.collect_and_record(device, trigger="validate")
     print(f"\noutcome: {json.dumps({k: v for k, v in outcome.items() if k != 'hostname'}, default=str)}")
+    if outcome["status"].startswith("skipped"):
+        print(f"device slot held by: {_holder(device['id'])} -- nothing was collected; retry later")
+        return False
     rows_after = _query("SELECT count(*) FROM interface_metrics WHERE device_id = %s", (device["id"],))[0][0]
     inventory = _query("SELECT count(*), max(last_seen) FROM interface_inventory WHERE device_id = %s", (device["id"],))[0]
     print(f"interface_metrics rows added: {rows_after - rows_before}  inventory rows: {inventory[0]} last_seen: {inventory[1]}")

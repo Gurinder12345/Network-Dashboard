@@ -114,26 +114,32 @@ if TOPOLOGY_BEAT_ENABLED:
 # metrics:fleet:lock prevents overlap. Set back to False to stop scheduled collection.
 TELEMETRY_BEAT_ENABLED = True
 
-# Interface Monitoring V1 (read-only `show` commands, 5-minute default). DISABLED by default:
-# the OS6/OS10 interface parsers follow the documented layouts but have not yet been
-# validated against real output from this lab (interfaces/validate_live.py). Enable on the
-# Beat Deployment with INTERFACE_BEAT_ENABLED=true after the single-device validation.
-#   every INTERFACE_POLL_SECONDS (default 300) at +INTERFACE_POLL_OFFSET_SECONDS (default 162):
-#   minutes 2, 7, 12, ... at :42 -- after telemetry (:20, ~21 s fleet run) has finished, away
-#   from topology (minutes 0, 5, ... :40) and early enough to finish before :00 health.
+# Interface Monitoring V1 (read-only `show` commands, 5-minute default). DISABLED unless the
+# Beat Deployment sets INTERFACE_BEAT_ENABLED=true (1/true/yes).
+#
+# Window (wall clock, second-granular offset_schedule): minutes 2, 7, 12, ... 57 at :38
+# (INTERFACE_POLL_OFFSET_SECONDS=158 within the 300 s period). Per-minute SSH load:
+#   :00  health (each device ~5 s OS6 / ~13 s OS10, concurrency 4)
+#   :20  telemetry (fleet tail ends ~:34 on the OS10 cores)
+#   :38  interfaces, OS10 cores first -- after telemetry, ~22 s before the next health sweep
+#   topology runs in minutes 0, 5, ... at :40, never in an interface minute.
+# tests/test_interface_schedule_simulation.py models this with the real coordination code:
+# :36 starts skipping the cores if their telemetry runs 2 s long, :40+ can make health
+# exhaust its wait; :38 collected every device in all modelled variations.
+# `expires` 20 s: a sweep that cannot start by ~:58 is dropped, never run late into the
+# health window and never queued; the fleet lock skips a sweep while the previous one runs.
 INTERFACE_POLL_SECONDS = interface_collector.POLL_SECONDS
-INTERFACE_POLL_OFFSET_SECONDS = int(os.getenv("INTERFACE_POLL_OFFSET_SECONDS", "162")) % INTERFACE_POLL_SECONDS
+INTERFACE_POLL_OFFSET_SECONDS = int(os.getenv("INTERFACE_POLL_OFFSET_SECONDS", "158")) % INTERFACE_POLL_SECONDS
 INTERFACE_SCHEDULE = offset_schedule(INTERFACE_POLL_SECONDS, INTERFACE_POLL_OFFSET_SECONDS)
+INTERFACE_EXPIRES_SECONDS = 20
 INTERFACE_BEAT_ENABLED = os.getenv("INTERFACE_BEAT_ENABLED", "false").strip().lower() in ("1", "true", "yes")
 
 if INTERFACE_BEAT_ENABLED:
-    # A sweep that cannot start within the interval is dropped (no backlog); the fleet lock
-    # skips a sweep while the previous one still runs.
     app.conf.beat_schedule["interface-poll-every-5m"] = {
         "task": "network_worker.collect_fleet_interfaces",
         "schedule": INTERFACE_SCHEDULE,
         "kwargs": {"trigger": "schedule"},
-        "options": {"expires": max(INTERFACE_POLL_SECONDS - 20, 40)},
+        "options": {"expires": INTERFACE_EXPIRES_SECONDS},
     }
 
 # PCAP uploads: hourly cleanup at :00:50 (filesystem/DB only; no SSH, so it cannot load switches).

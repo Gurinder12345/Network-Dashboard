@@ -448,6 +448,70 @@ class CoordinationTests(MockedSessionBase):
         self.assertEqual(collector.collect_and_record(OS6_DEV)["status"], "skipped_busy")
 
 
+class SchedulingCoordinationTests(MockedSessionBase):
+    """Priorities between interface polling and health/telemetry; manual tool respects the slot."""
+
+    def test_interface_poll_skips_immediately_instead_of_waiting(self):
+        telemetry = coord.acquire_device_operation(1, "telemetry")
+        started = time.monotonic()
+        outcome = collector.collect_and_record(OS6_DEV)
+        self.assertLess(time.monotonic() - started, 0.5)  # wait 0: no blocking, no retry
+        self.assertEqual((outcome["status"], outcome["reason"]), ("skipped_busy", "busy:telemetry"))
+        self.opened.assert_not_called()
+        telemetry.lease.release()
+
+    def test_health_still_wins_over_a_running_interface_poll(self):
+        interface = coord.acquire_device_operation(1, "interface_poll")
+        result = {}
+        waiter = threading.Thread(target=lambda: result.update(
+            acq=coord.acquire_device_operation(1, "health", wait_seconds=3)))
+        waiter.start()
+        time.sleep(0.3)  # health is now registered as the waiter
+        # A new interface poll (or topology) yields to the waiting health check.
+        self.assertEqual(coord.acquire_device_operation(1, "interface_poll").status, "yield")
+        self.assertEqual(coord.acquire_device_operation(1, "topology").status, "yield")
+        interface.lease.release()
+        waiter.join(5)
+        self.assertTrue(result["acq"].acquired)  # health took the device as soon as the poll finished
+        self.assertEqual(coord.current_operation(1)["operation"], "health")
+        result["acq"].lease.release()
+
+    def test_concurrent_fleet_sweeps_never_overlap(self):
+        self.delay = 0.1
+        mock.patch.object(collector, "list_enabled_devices", return_value=[OS6_DEV, device(2, "dell_os6", "b")]).start()
+        results = []
+        threads = [threading.Thread(target=lambda: results.append(collector.run_fleet_interfaces())) for _ in range(2)]
+        [t.start() for t in threads]
+        [t.join() for t in threads]
+        self.assertEqual(sorted(r["skipped"] for r in results), [False, True])  # second sweep skipped, not queued
+        self.assertEqual(self.opened.call_count, 2)  # each device collected once
+        self.assertEqual(self.overlaps, [])
+
+    def test_manual_tool_respects_the_device_slot(self):
+        from interfaces import validate_live
+
+        health = coord.acquire_device_operation(1, "health", wait_seconds=0)
+        with mock.patch.object(validate_live, "_open_session") as session, \
+                mock.patch.object(validate_live, "get_device_credentials", return_value={"password": "p"}), \
+                mock.patch.object(validate_live, "_tcp_reachable", return_value=(True, None)), \
+                mock.patch.object(validate_live.collector, "collect_device") as collect:
+            self.assertFalse(validate_live.cmd_dry_run(OS6_DEV))
+            self.assertFalse(validate_live.cmd_capture(OS6_DEV, []))
+            collect.assert_not_called()
+            session.assert_not_called()  # no SSH while health holds the device
+            health.lease.release()
+            collect.return_value = {"status": "success", "commands_run": 4, "interfaces": [], "duration_ms": 1,
+                                    "error": None, "problems": []}
+            self.assertTrue(validate_live.cmd_dry_run(OS6_DEV))
+            self.assertIsNone(coord.current_operation(1))  # released after the dry run
+            lease = coord.acquire_device_operation(1, "apply").lease
+            coord.set_change_in_progress(lease, "c1", "j1", 600)
+            self.assertFalse(validate_live.cmd_dry_run(OS6_DEV))  # change in progress: skipped
+            self.assertEqual(collect.call_count, 1)
+            coord.clear_change_in_progress(lease)
+            lease.release()
+
+
 class FleetTests(MockedSessionBase):
     def test_fleet_orders_os10_first_and_counts(self):
         devices = [OS6_DEV, device(2, "dell_os6", "Kenda-HQ-SW-01"), OS10_DEV]

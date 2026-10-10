@@ -185,28 +185,52 @@ class InterfaceScheduleTests(unittest.TestCase):
         self.assertTrue(out["registered"])
         self.assertNotIn("interface-poll-every-5m", worker.app.conf.beat_schedule)
 
-    def test_enabled_every_five_minutes_at_2m42_offset_without_backlog(self):
+    def test_enabled_minutes_2_7_12_at_38s_offset_from_topology(self):
         out = _worker_with({"INTERFACE_BEAT_ENABLED": "true"})
-        self.assertEqual((out["task"], out["period"], out["offset"]), ("network_worker.collect_fleet_interfaces", 300, 162))
-        self.assertEqual(out["options"], {"expires": 280})  # a sweep that cannot start in time is dropped
+        self.assertEqual((out["task"], out["period"], out["offset"]), ("network_worker.collect_fleet_interfaces", 300, 158))
+        self.assertEqual(out["options"], {"expires": 20})  # start by ~:58 or not at all: never late, never queued
         self.assertEqual(out["kwargs"], {"trigger": "schedule"})
-        times = [datetime.fromisoformat(t) for t in out["fired"]["interface-poll-every-5m"]]
+        fired = {name: [datetime.fromisoformat(t) for t in ts] for name, ts in out["fired"].items()}
+        times = fired["interface-poll-every-5m"]
         self.assertGreaterEqual(len(times), 3)
-        self.assertTrue(all(t.second == 42 and t.minute % 5 == 2 for t in times))
+        self.assertTrue(all(t.second == 38 and t.minute % 5 == 2 for t in times))  # 2, 7, 12, ... 57
         self.assertTrue(all((b - a) == timedelta(seconds=300) for a, b in zip(times, times[1:])))
-        others = [datetime.fromisoformat(t).replace(microsecond=0) for name, ts in out["fired"].items()
-                  if name != "interface-poll-every-5m" for t in ts]
+        topology = fired["topology-discovery-every-5m"]
+        self.assertTrue(all(t.minute % 5 == 0 for t in topology))
+        self.assertFalse({t.minute for t in topology} & {t.minute for t in times})  # never a topology minute
+        others = [t.replace(microsecond=0) for name, ts in fired.items() if name != "interface-poll-every-5m" for t in ts]
         for t in times:
             t = t.replace(microsecond=0)
-            self.assertNotIn(t, others)  # never in the same second as another sweep
-            gap = min(abs((t - o).total_seconds()) for o in others)
-            self.assertGreaterEqual(gap, 8)  # :42 -- telemetry started at :20, cleanup :50 is filesystem-only
-        topology_minutes = {datetime.fromisoformat(t).minute for t in out["fired"]["topology-discovery-every-5m"]}
-        self.assertFalse(topology_minutes & {t.minute for t in times})
+            self.assertNotIn(t, others)
+            before = max(o for o in others if o < t)
+            after = min(o for o in others if o > t)
+            self.assertEqual((t - before).total_seconds(), 18)  # telemetry started at :20
+            self.assertEqual((after - t).total_seconds(), 22)   # next health sweep at :00
+
+    def test_no_backlog_after_missed_slots(self):
+        clock = Clock(datetime(2026, 10, 1, 12, 33, 5, tzinfo=UTC))
+        sched = offset_schedule(300, 158, nowfun=clock)
+        last_run = datetime(2026, 10, 1, 12, 2, 38, tzinfo=UTC)  # Beat was down: six slots missed
+        state = sched.is_due(last_run)
+        self.assertTrue(state.is_due)                       # fires ONCE, not six times
+        self.assertFalse(sched.is_due(clock.now).is_due)    # nothing queued behind it
+        self.assertEqual(sched.next_slot_after(clock.now), datetime(2026, 10, 1, 12, 37, 38, tzinfo=UTC))  # realigned
+
+    def test_flag_values(self):
+        for value in ("true", "TRUE", "1", "yes"):
+            self.assertTrue(_worker_with({"INTERFACE_BEAT_ENABLED": value})["enabled"], value)
+        for value in ("false", "0", "", "no", "enabled"):
+            self.assertFalse(_worker_with({"INTERFACE_BEAT_ENABLED": value})["enabled"], value)
+        env = {k: v for k, v in os.environ.items() if k != "INTERFACE_BEAT_ENABLED"}
+        result = subprocess.run([sys.executable, "-c", _INTERFACE_SCRIPT], capture_output=True, text=True, check=True, env=env,
+                                cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        self.assertFalse(json.loads(result.stdout.strip().splitlines()[-1])["enabled"])  # unset -> disabled
 
     def test_poll_interval_is_configurable(self):
         out = _worker_with({"INTERFACE_BEAT_ENABLED": "true", "INTERFACE_POLL_SECONDS": "600"})
-        self.assertEqual((out["period"], out["offset"], out["options"]), (600, 162, {"expires": 580}))
+        self.assertEqual((out["period"], out["offset"], out["options"]), (600, 158, {"expires": 20}))
+        out = _worker_with({"INTERFACE_BEAT_ENABLED": "true", "INTERFACE_POLL_OFFSET_SECONDS": "160"})
+        self.assertEqual(out["offset"], 160)  # tunable from the Beat Deployment env, no rebuild
 
 
 def timeline(minutes=10):
