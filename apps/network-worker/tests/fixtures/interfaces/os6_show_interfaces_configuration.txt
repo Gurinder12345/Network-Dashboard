@@ -1,0 +1,12 @@
+
+Port      Description   Duplex  Speed    Neg   MTU    Admin
+                                                      State
+--------- ------------- ------- -------- ----- ------ -----
+Gi1/0/1   PRINTER-2F    Full    1000     Auto  1518   Up
+Gi1/0/2                 Auto    Auto     Auto  1518   Up
+Gi1/0/3   SPARE-SHUT    Auto    Auto     Auto  1518   Down
+Te1/0/1   UPLINK-CORE-1 Full    10000    Off   9216   Up
+Te1/0/2   LAG-MEMBER    Full    10000    Off   9216   Up
+Tw1/0/4   MGMT-PATH     Full    25000    Off   1518   Up
+Gi1/0/5   VOICE         Full    100      Auto  1518   Up
+Po1       UPLINK-LAG    Full    20000    Off   9216   Up

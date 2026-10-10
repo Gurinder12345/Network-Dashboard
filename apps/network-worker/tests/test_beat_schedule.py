@@ -5,8 +5,10 @@ same way Beat does (is_due -> run -> last_run_at = now). Run inside the worker i
     python -m unittest tests.test_beat_schedule -v
 """
 
+import json
 import os
 import pickle
+import subprocess
 import sys
 import unittest
 from datetime import datetime, timedelta, timezone
@@ -151,6 +153,60 @@ class OffsetScheduleTests(unittest.TestCase):
         for entry in worker.app.conf.beat_schedule.values():
             restored = pickle.loads(pickle.dumps(entry["schedule"]))
             self.assertEqual(restored, entry["schedule"])
+
+
+_INTERFACE_SCRIPT = """
+import json, sys
+from datetime import datetime, timezone
+sys.path.insert(0, "tests")
+import worker
+from test_beat_schedule import simulate
+entry = worker.app.conf.beat_schedule.get("interface-poll-every-5m")
+out = {"enabled": entry is not None, "registered": "network_worker.collect_fleet_interfaces" in worker.app.tasks}
+if entry:
+    out.update(task=entry["task"], period=entry["schedule"].period, offset=entry["schedule"].offset,
+               options=entry["options"], kwargs=entry["kwargs"])
+    fired = simulate(datetime(2026, 10, 1, 11, 58, 7, 300000, tzinfo=timezone.utc), minutes=16)
+    out["fired"] = {name: [t.isoformat() for t in times] for name, times in fired.items()}
+print(json.dumps(out))
+"""
+
+
+def _worker_with(env):
+    result = subprocess.run([sys.executable, "-c", _INTERFACE_SCRIPT], capture_output=True, text=True, check=True,
+                            env={**os.environ, **env}, cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    return json.loads(result.stdout.strip().splitlines()[-1])
+
+
+class InterfaceScheduleTests(unittest.TestCase):
+    def test_disabled_by_default_but_task_registered(self):
+        out = _worker_with({"INTERFACE_BEAT_ENABLED": "false"})
+        self.assertFalse(out["enabled"])
+        self.assertTrue(out["registered"])
+        self.assertNotIn("interface-poll-every-5m", worker.app.conf.beat_schedule)
+
+    def test_enabled_every_five_minutes_at_2m42_offset_without_backlog(self):
+        out = _worker_with({"INTERFACE_BEAT_ENABLED": "true"})
+        self.assertEqual((out["task"], out["period"], out["offset"]), ("network_worker.collect_fleet_interfaces", 300, 162))
+        self.assertEqual(out["options"], {"expires": 280})  # a sweep that cannot start in time is dropped
+        self.assertEqual(out["kwargs"], {"trigger": "schedule"})
+        times = [datetime.fromisoformat(t) for t in out["fired"]["interface-poll-every-5m"]]
+        self.assertGreaterEqual(len(times), 3)
+        self.assertTrue(all(t.second == 42 and t.minute % 5 == 2 for t in times))
+        self.assertTrue(all((b - a) == timedelta(seconds=300) for a, b in zip(times, times[1:])))
+        others = [datetime.fromisoformat(t).replace(microsecond=0) for name, ts in out["fired"].items()
+                  if name != "interface-poll-every-5m" for t in ts]
+        for t in times:
+            t = t.replace(microsecond=0)
+            self.assertNotIn(t, others)  # never in the same second as another sweep
+            gap = min(abs((t - o).total_seconds()) for o in others)
+            self.assertGreaterEqual(gap, 8)  # :42 -- telemetry started at :20, cleanup :50 is filesystem-only
+        topology_minutes = {datetime.fromisoformat(t).minute for t in out["fired"]["topology-discovery-every-5m"]}
+        self.assertFalse(topology_minutes & {t.minute for t in times})
+
+    def test_poll_interval_is_configurable(self):
+        out = _worker_with({"INTERFACE_BEAT_ENABLED": "true", "INTERFACE_POLL_SECONDS": "600"})
+        self.assertEqual((out["period"], out["offset"], out["options"]), (600, 162, {"expires": 580}))
 
 
 def timeline(minutes=10):

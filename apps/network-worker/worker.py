@@ -15,6 +15,7 @@ from health.checks import check_and_record, run_fleet_health_check
 from db.topology import list_inventory, list_lldp_identities
 from topology.discovery import discover_device, run_fleet_topology_discovery
 from telemetry.collector import collect_and_record, run_fleet_metrics
+from interfaces import collector as interface_collector
 from pcap.task import cleanup as cleanup_pcap, run_analysis as run_pcap_analysis
 from changes.workflow import run_apply as run_change_apply, run_precheck as run_change_precheck
 
@@ -112,6 +113,28 @@ if TOPOLOGY_BEAT_ENABLED:
 # 21 s (OS6 avg 5.7 s, OS10 avg 13.8 s) at concurrency 4, well inside the 60 s interval.
 # metrics:fleet:lock prevents overlap. Set back to False to stop scheduled collection.
 TELEMETRY_BEAT_ENABLED = True
+
+# Interface Monitoring V1 (read-only `show` commands, 5-minute default). DISABLED by default:
+# the OS6/OS10 interface parsers follow the documented layouts but have not yet been
+# validated against real output from this lab (interfaces/validate_live.py). Enable on the
+# Beat Deployment with INTERFACE_BEAT_ENABLED=true after the single-device validation.
+#   every INTERFACE_POLL_SECONDS (default 300) at +INTERFACE_POLL_OFFSET_SECONDS (default 162):
+#   minutes 2, 7, 12, ... at :42 -- after telemetry (:20, ~21 s fleet run) has finished, away
+#   from topology (minutes 0, 5, ... :40) and early enough to finish before :00 health.
+INTERFACE_POLL_SECONDS = interface_collector.POLL_SECONDS
+INTERFACE_POLL_OFFSET_SECONDS = int(os.getenv("INTERFACE_POLL_OFFSET_SECONDS", "162")) % INTERFACE_POLL_SECONDS
+INTERFACE_SCHEDULE = offset_schedule(INTERFACE_POLL_SECONDS, INTERFACE_POLL_OFFSET_SECONDS)
+INTERFACE_BEAT_ENABLED = os.getenv("INTERFACE_BEAT_ENABLED", "false").strip().lower() in ("1", "true", "yes")
+
+if INTERFACE_BEAT_ENABLED:
+    # A sweep that cannot start within the interval is dropped (no backlog); the fleet lock
+    # skips a sweep while the previous one still runs.
+    app.conf.beat_schedule["interface-poll-every-5m"] = {
+        "task": "network_worker.collect_fleet_interfaces",
+        "schedule": INTERFACE_SCHEDULE,
+        "kwargs": {"trigger": "schedule"},
+        "options": {"expires": max(INTERFACE_POLL_SECONDS - 20, 40)},
+    }
 
 # PCAP uploads: hourly cleanup at :00:50 (filesystem/DB only; no SSH, so it cannot load switches).
 app.conf.beat_schedule["pcap-cleanup-hourly"] = {
@@ -266,6 +289,29 @@ def collect_device_metrics(device_id):
 @app.task(name="network_worker.collect_fleet_metrics")
 def collect_fleet_metrics(trigger="schedule"):
     return run_fleet_metrics(trigger=trigger)
+
+
+@app.task(name="network_worker.collect_device_interfaces")
+def collect_device_interfaces(device_id):
+    # Read-only interface collection for one device (coordinated; skips when busy).
+    device = next(
+        (d for d in list_enabled_devices() if d["id"] == int(device_id)),
+        None,
+    )
+
+    if device is None:
+        return {
+            "device_id": device_id,
+            "skipped": True,
+            "reason": "Device not found or disabled",
+        }
+
+    return interface_collector.collect_and_record(device, trigger="manual")
+
+
+@app.task(name="network_worker.collect_fleet_interfaces")
+def collect_fleet_interfaces(trigger="schedule"):
+    return interface_collector.run_fleet_interfaces(trigger=trigger)
 
 
 @app.task(

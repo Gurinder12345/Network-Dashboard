@@ -4009,3 +4009,276 @@ textarea:focus-visible {
     transition: none;
   }
 }
+
+/* ---- Interface Monitoring (Device Detail > Interfaces) ------------------------------------- */
+.iface-tab {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.iface-tab > .banner,
+.iface-tab > .notice-banner {
+  margin: 0;
+}
+
+.iface-freshness {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+}
+
+.iface-freshness strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.iface-kpis {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  margin-bottom: 0;
+}
+
+.iface-charts {
+  margin-bottom: 0;
+}
+
+.iface-toolbar {
+  margin-bottom: 0;
+}
+
+.iface-table td {
+  white-space: nowrap;
+}
+
+.iface-table th,
+.iface-table td {
+  padding-left: 9px;
+  padding-right: 9px;
+}
+
+.iface-table .iface-desc {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.iface-role {
+  margin-left: 8px;
+  font-size: var(--fs-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.iface-erroring {
+  margin-left: 6px;
+}
+
+.data-table th.cell-num-head,
+.mini-table th.cell-num-head {
+  text-align: right;
+}
+
+.data-table th.cell-num-head .sort-button {
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.sort-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+
+.sort-button:hover {
+  color: var(--text-primary);
+}
+
+.sort-indicator {
+  font-size: 9px;
+  opacity: 0.7;
+}
+
+th[aria-sort="ascending"] .sort-button,
+th[aria-sort="descending"] .sort-button {
+  color: var(--accent-hover);
+}
+
+.table-footnote {
+  padding: 10px var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}
+
+.mini-table {
+  width: 100%;
+  font-size: var(--fs-sm);
+}
+
+.mini-table th {
+  text-align: left;
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-muted);
+  padding: 0 0 6px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.mini-table td {
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.mini-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.mini-table .cell-num {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Right-side interface drawer (non-modal; Esc or the close button returns focus to the row). */
+:root {
+  --drawer-width: min(520px, 100vw);
+}
+
+/* Wide screens: the open drawer reserves its width so it never hides the table. */
+@media (min-width: 1280px) {
+  :root {
+    --drawer-width: min(520px, 36vw);
+  }
+
+  .iface-tab.drawer-open {
+    padding-right: calc(var(--drawer-width) + var(--space-3));
+  }
+
+  /* Narrower content while the drawer is open: reflow instead of squeezing. */
+  .iface-tab.drawer-open .iface-kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .iface-tab.drawer-open .iface-charts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .iface-tab.drawer-open .iface-charts > .panel:last-child {
+    grid-column: 1 / -1;
+  }
+}
+
+.drawer {
+  position: fixed;
+  top: var(--header-height);
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  width: var(--drawer-width);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-panel);
+  border-left: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-pop);
+}
+
+.drawer-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.drawer-header h2 {
+  margin: 2px 0 6px;
+  font-size: var(--fs-xl);
+  font-weight: 650;
+}
+
+.drawer-sub {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: var(--fs-sm);
+}
+
+.drawer-tabs {
+  padding: 0 var(--space-4);
+  margin-bottom: 0;
+}
+
+.drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.drawer-charts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.drawer-chart {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  background: var(--bg-inset);
+  padding: 10px 10px 4px;
+}
+
+.drawer-chart h3 {
+  margin: 0 0 4px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.counters-table th {
+  position: static;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+  background: transparent;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.counters-table td {
+  text-align: right;
+}
+
+@media (max-width: 1279px) {
+  .iface-kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .iface-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .drawer {
+    width: 100vw;
+    border-left: 0;
+  }
+}

@@ -1,0 +1,276 @@
+Ethernet 1/1/5 is up, line protocol is up
+Description: SERVER-A
+Hardware is Eth, address is 00:0c:29:d9:ce:2a
+    Current address is 00:0c:29:d9:ce:2a
+Interface index is 17305094
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 10G, Auto-Negotiation on
+Flowcontrol rx off tx off
+ARP type: ARPA, ARP Timeout: 60
+Last clearing of "show interface" counters: 1 weeks 1 days 03:03:29
+Queuing strategy: fifo
+Input statistics:
+     7154 packets, 595610 octets
+     0 64-byte pkts, 6966 over 64-byte pkts, 188 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     7153 Multicasts, 1 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     8476 packets, 2024142 octets
+     0 64-byte pkts, 6924 over 64-byte pkts, 1552 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     8474 Multicasts, 2 Broadcasts, 0 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wreds
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 1 weeks 1 days 03:02:50
+
+Ethernet 1/1/18 is up, line protocol is down
+Description: 
+Hardware is Eth, address is 00:0c:29:d9:ce:2a
+    Current address is 00:0c:29:d9:ce:2a
+Interface index is 17305094
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+MTU 1532 bytes, IP MTU 1500 bytes
+LineSpeed 0, Auto-Negotiation on
+Flowcontrol rx off tx off
+ARP type: ARPA, ARP Timeout: 60
+Last clearing of "show interface" counters: 1 weeks 1 days 03:03:29
+Queuing strategy: fifo
+Input statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 6966 over 64-byte pkts, 188 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     7153 Multicasts, 1 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 6924 over 64-byte pkts, 1552 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     8474 Multicasts, 2 Broadcasts, 0 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wreds
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 00:12:30
+
+Ethernet 1/1/25 is up, line protocol is up
+Description: TO-kenda-core-02
+Hardware is Eth, address is 00:0c:29:d9:ce:2a
+    Current address is 00:0c:29:d9:ce:2a
+Interface index is 17305094
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 100G, Auto-Negotiation on
+Flowcontrol rx off tx off
+ARP type: ARPA, ARP Timeout: 60
+Last clearing of "show interface" counters: 1 weeks 1 days 03:03:29
+Queuing strategy: fifo
+Input statistics:
+     912345678 packets, 812345678901 octets
+     0 64-byte pkts, 6966 over 64-byte pkts, 188 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     7153 Multicasts, 1 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     4 CRC, 0 overrun, 2 discarded
+Output statistics:
+     812345678 packets, 712345678901 octets
+     0 64-byte pkts, 6924 over 64-byte pkts, 1552 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     8474 Multicasts, 2 Broadcasts, 0 Unicasts
+     0 throttles, 9 discarded, 0 Collisions,  wreds
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 1 weeks 1 days 03:02:50
+
+Ethernet 1/1/26:1 is up, line protocol is up
+Hardware is Eth, address is 00:0c:29:d9:ce:2a
+    Current address is 00:0c:29:d9:ce:2a
+Interface index is 17305094
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 25G, Auto-Negotiation on
+Flowcontrol rx off tx off
+ARP type: ARPA, ARP Timeout: 60
+Last clearing of "show interface" counters: 1 weeks 1 days 03:03:29
+Queuing strategy: fifo
+Input statistics:
+     1000 packets, 64000 octets
+     0 64-byte pkts, 6966 over 64-byte pkts, 188 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     7153 Multicasts, 1 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     2000 packets, 128000 octets
+     0 64-byte pkts, 6924 over 64-byte pkts, 1552 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     8474 Multicasts, 2 Broadcasts, 0 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wreds
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 1 weeks 1 days 03:02:50
+
+Ethernet 1/1/30:2 is up, line protocol is up
+Description: UPLINK-DO-NOT-TOUCH
+Hardware is Eth, address is 00:0c:29:d9:ce:2a
+    Current address is 00:0c:29:d9:ce:2a
+Interface index is 17305094
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 25G, Auto-Negotiation on
+Flowcontrol rx off tx off
+ARP type: ARPA, ARP Timeout: 60
+Last clearing of "show interface" counters: 1 weeks 1 days 03:03:29
+Queuing strategy: fifo
+Input statistics:
+     5000 packets, 640000 octets
+     0 64-byte pkts, 6966 over 64-byte pkts, 188 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     7153 Multicasts, 1 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     6000 packets, 768000 octets
+     0 64-byte pkts, 6924 over 64-byte pkts, 1552 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     8474 Multicasts, 2 Broadcasts, 0 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wreds
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 1 weeks 1 days 03:02:50
+
+Ethernet 1/1/31 is down, line protocol is down
+Description: SPARE
+Hardware is Eth, address is 00:0c:29:d9:ce:2a
+    Current address is 00:0c:29:d9:ce:2a
+Interface index is 17305094
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+MTU 1532 bytes, IP MTU 1500 bytes
+LineSpeed 0, Auto-Negotiation on
+Flowcontrol rx off tx off
+ARP type: ARPA, ARP Timeout: 60
+Last clearing of "show interface" counters: 1 weeks 1 days 03:03:29
+Queuing strategy: fifo
+Input statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 6966 over 64-byte pkts, 188 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     7153 Multicasts, 1 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 6924 over 64-byte pkts, 1552 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     8474 Multicasts, 2 Broadcasts, 0 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wreds
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 2 days 01:00:00
+
+Port-channel 10 is up, line protocol is up
+Description: LAG-TO-ARRAY
+Hardware is Eth, address is 00:0c:29:d9:ce:2a
+    Current address is 00:0c:29:d9:ce:2a
+Interface index is 17305094
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 25G, Auto-Negotiation on
+Flowcontrol rx off tx off
+ARP type: ARPA, ARP Timeout: 60
+Members in this channel: ethernet1/1/30:2(U)
+Last clearing of "show interface" counters: 1 weeks 1 days 03:03:29
+Queuing strategy: fifo
+Input statistics:
+     5000 packets, 640000 octets
+     0 64-byte pkts, 6966 over 64-byte pkts, 188 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     7153 Multicasts, 1 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     6000 packets, 768000 octets
+     0 64-byte pkts, 6924 over 64-byte pkts, 1552 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     8474 Multicasts, 2 Broadcasts, 0 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wreds
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 1 weeks 1 days 03:02:50
+
+Management 1/1/1 is up, line protocol is up
+Hardware is Eth, address is 00:0c:29:d9:ce:2a
+    Current address is 00:0c:29:d9:ce:2a
+Interface index is 17305094
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+MTU 1532 bytes, IP MTU 1500 bytes
+LineSpeed 1000M, Auto-Negotiation on
+Flowcontrol rx off tx off
+ARP type: ARPA, ARP Timeout: 60
+Last clearing of "show interface" counters: 1 weeks 1 days 03:03:29
+Queuing strategy: fifo
+Input statistics:
+     100 packets, 6400 octets
+     0 64-byte pkts, 6966 over 64-byte pkts, 188 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     7153 Multicasts, 1 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     200 packets, 12800 octets
+     0 64-byte pkts, 6924 over 64-byte pkts, 1552 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     8474 Multicasts, 2 Broadcasts, 0 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wreds
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 1 weeks 1 days 03:02:50
+
+Vlan 1 is up, line protocol is up
+Hardware is Eth, address is 00:0c:29:d9:ce:2a
+    Current address is 00:0c:29:d9:ce:2a
+Interface index is 17305094
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+MTU 1532 bytes, IP MTU 1500 bytes
+LineSpeed auto, Auto-Negotiation on
+Flowcontrol rx off tx off
+ARP type: ARPA, ARP Timeout: 60
+Last clearing of "show interface" counters: 1 weeks 1 days 03:03:29
+Queuing strategy: fifo
+Input statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 6966 over 64-byte pkts, 188 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     7153 Multicasts, 1 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 6924 over 64-byte pkts, 1552 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     8474 Multicasts, 2 Broadcasts, 0 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wreds
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 1 weeks 1 days 03:02:50

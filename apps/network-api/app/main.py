@@ -14,6 +14,7 @@ from app.job_actions import router as job_actions_router
 from app.approval_actions import router as approval_actions_router
 from app.health import devices_with_health, router as health_router
 from app.topology import router as topology_router
+from app.interfaces import router as interfaces_router
 
 app = FastAPI(title="Network Management API")
 
@@ -37,6 +38,7 @@ app.include_router(job_actions_router)
 app.include_router(approval_actions_router)
 app.include_router(health_router)
 app.include_router(topology_router)
+app.include_router(interfaces_router)
 
 
 @app.get("/health")

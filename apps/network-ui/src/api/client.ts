@@ -7,9 +7,11 @@ import type {
   BackupRequested,
   Device,
   DeviceDetail,
+  DeviceInterfaces,
   DeviceTelemetry,
   FleetHealth,
   HealthCheckRequested,
+  InterfaceHistory,
   Job,
   JobDetail,
   MetricsHistory,
@@ -43,8 +45,8 @@ async function errorMessage(response: Response, path: string): Promise<string> {
   return `${path} failed with status ${response.status}`;
 }
 
-async function getJson<T>(path: string): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`);
+async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, signal ? { signal } : undefined);
 
   if (!response.ok) {
     throw new Error(await errorMessage(response, path));
@@ -310,4 +312,21 @@ export async function deleteJob(jobId: string): Promise<void> {
   if (!response.ok) {
     throw new ApiRequestError(await errorMessage(response, path), response.status);
   }
+}
+
+// ---- Interface Monitoring V1 ------------------------------------------------------------------
+// Latest state of every interface (Redis snapshot, PostgreSQL fallback): ONE request draws
+// the whole Interfaces tab. Never polls the switch.
+export function getDeviceInterfaces(deviceId: number, signal?: AbortSignal): Promise<DeviceInterfaces> {
+  return getJson<DeviceInterfaces>(`/api/v1/devices/${deviceId}/interfaces`, signal);
+}
+
+// History of ONE interface; only requested when its Graphs tab is open.
+export function getInterfaceMetrics(
+  deviceId: number,
+  interfaceId: number,
+  range: MetricsRange,
+  signal?: AbortSignal,
+): Promise<InterfaceHistory> {
+  return getJson<InterfaceHistory>(`/api/v1/devices/${deviceId}/interfaces/${interfaceId}/metrics?range=${range}`, signal);
 }

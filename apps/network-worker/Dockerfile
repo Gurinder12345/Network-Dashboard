@@ -23,6 +23,7 @@ COPY db ./db
 COPY health ./health
 COPY topology ./topology
 COPY telemetry ./telemetry
+COPY interfaces ./interfaces
 COPY pcap ./pcap
 COPY changes ./changes
 COPY coordination ./coordination

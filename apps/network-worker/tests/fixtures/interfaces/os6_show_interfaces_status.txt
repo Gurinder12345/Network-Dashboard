@@ -1,0 +1,22 @@
+
+Port       Description               Vlan  Duplex Speed   Neg  Link  Flow Ctrl
+                                                               State Status
+---------- ------------------------- ----- ------ ------- ---- ----- ---------
+Gi1/0/1    PRINTER-2F                10    Full   1000    Auto Up    Inactive
+Gi1/0/2                              10    N/A    Unknown Auto Down  Inactive
+Gi1/0/3    SPARE-SHUT                20    N/A    Unknown Auto Down  Inactive
+Te1/0/1    UPLINK-CORE-1             Trnk  Full   10000   Off  Up    Active
+Te1/0/2    LAG-MEMBER                Trnk  Full   10000   Off  Up    Active
+Tw1/0/4    MGMT-PATH                 1     Full   25000   Off  Up    Inactive
+Gi1/0/5    VOICE                     Gen   Full   100     Auto Up    Inactive
+
+
+Ch   Description                    Link  Vlan  Ch Type
+                                    State
+---- ------------------------------ ----- ----- --------
+Po1  UPLINK-LAG                     Up    Trnk  Dynamic
+
+Oob       Type                                    Link
+                                                  State
+---       ------------------------------          -----
+oob       Out-Of-Band                             Up

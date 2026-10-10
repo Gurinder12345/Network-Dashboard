@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { MetricSample } from "../api/types";
-
 /**
- * Single-series 0-100% time chart (plain SVG, no chart dependency).
+ * Single-series time chart (plain SVG, no chart dependency): 0-100 % by default, or
+ * counts per interval (unit "count", y-axis scaled to the data).
  *
  * - The x-domain is the whole selected window, so missing history shows as empty space.
  * - The line breaks at failed samples (null) and wherever two samples are more than
@@ -11,24 +10,35 @@ import type { MetricSample } from "../api/types";
  * - No animation: re-polling only re-renders the path.
  */
 
-type ValueKey = "cpu_percent" | "memory_percent";
-
-interface MetricChartProps {
+interface MetricChartProps<S extends { collected_at: string }> {
   label: string;
-  valueKey: ValueKey;
-  samples: MetricSample[];
+  /** The plotted value of a sample; null = no value (gap). */
+  value: (sample: S) => number | null;
+  samples: S[];
   windowSeconds: number;
   stepSeconds: number;
   /** Window end (ms); the range ends "now" at the last history fetch. */
   endMs: number;
-  thresholds: { warning: number; critical: number };
+  thresholds?: { warning: number; critical: number };
+  /** "%" (0-100, default) or "count" (y-axis from 0 to a rounded maximum). */
+  unit?: "%" | "count";
   /** Extra tooltip line for a sample (e.g. "3.4 GB / 8.0 GB"). */
-  detail?: (sample: MetricSample) => string | null;
+  detail?: (sample: S) => string | null;
+  /** Accessible name of the chart; defaults to "<label> usage, <window>, 0 to 100 percent". */
+  ariaLabel?: string;
 }
 
 const HEIGHT = 220;
 const MARGIN = { top: 12, right: 14, bottom: 26, left: 40 };
-const Y_TICKS = [0, 25, 50, 75, 100];
+const PERCENT_TICKS = [0, 25, 50, 75, 100];
+
+function countTicks(max: number) {
+  // 0..max in four steps of a "nice" size (1, 2, 5 x 10^n).
+  const raw = Math.max(max, 1) / 4;
+  const power = 10 ** Math.floor(Math.log10(raw));
+  const step = [1, 2, 5, 10].map((m) => m * power).find((v) => v >= raw) ?? raw;
+  return [0, 1, 2, 3, 4].map((i) => i * step);
+}
 
 interface Point {
   t: number;
@@ -48,7 +58,18 @@ function formatTooltipTime(ms: number, windowSeconds: number) {
   return windowSeconds > 86400 ? `${date.toLocaleDateString(undefined, { month: "short", day: "numeric" })} ${time}` : time;
 }
 
-export function MetricChart({ label, valueKey, samples, windowSeconds, stepSeconds, endMs, thresholds, detail }: MetricChartProps) {
+export function MetricChart<S extends { collected_at: string }>({
+  label,
+  value,
+  samples,
+  windowSeconds,
+  stepSeconds,
+  endMs,
+  thresholds,
+  unit = "%",
+  detail,
+  ariaLabel,
+}: MetricChartProps<S>) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(640);
   const [hover, setHover] = useState<number | null>(null); // index into `parsed`
@@ -64,17 +85,22 @@ export function MetricChart({ label, valueKey, samples, windowSeconds, stepSecon
   const startMs = endMs - windowSeconds * 1000;
   const plotW = width - MARGIN.left - MARGIN.right;
   const plotH = HEIGHT - MARGIN.top - MARGIN.bottom;
-  const x = (t: number) => MARGIN.left + ((t - startMs) / (endMs - startMs)) * plotW;
-  const y = (v: number) => MARGIN.top + (1 - v / 100) * plotH;
-
   const parsed = useMemo(
     () =>
       samples
-        .map((sample) => ({ sample, t: Date.parse(sample.collected_at), v: sample[valueKey] }))
+        .map((sample) => ({ sample, t: Date.parse(sample.collected_at), v: value(sample) }))
         .filter((item) => item.t >= startMs && item.t <= endMs)
         .sort((a, b) => a.t - b.t),
-    [samples, valueKey, startMs, endMs],
+    [samples, value, startMs, endMs],
   );
+  const yTicks = useMemo(
+    () => (unit === "%" ? PERCENT_TICKS : countTicks(Math.max(0, ...parsed.map((p) => p.v ?? 0)))),
+    [unit, parsed],
+  );
+  const yMax = yTicks[yTicks.length - 1];
+  const x = (t: number) => MARGIN.left + ((t - startMs) / (endMs - startMs)) * plotW;
+  const y = (v: number) => MARGIN.top + (1 - v / yMax) * plotH;
+  const format = (v: number) => (unit === "%" ? `${v.toFixed(1)}%` : v.toLocaleString());
 
   const segments = useMemo(() => {
     const maxGapMs = stepSeconds * 2.5 * 1000;
@@ -136,16 +162,19 @@ export function MetricChart({ label, valueKey, samples, windowSeconds, stepSecon
         width={width}
         height={HEIGHT}
         role="img"
-        aria-label={`${label} usage, ${windowSeconds / 3600 >= 48 ? `${windowSeconds / 86400} days` : `${windowSeconds / 3600} hours`}, 0 to 100 percent`}
+        aria-label={
+          ariaLabel ??
+          `${label} usage, ${windowSeconds / 3600 >= 48 ? `${windowSeconds / 86400} days` : `${windowSeconds / 3600} hours`}, ${unit === "%" ? "0 to 100 percent" : `0 to ${yMax}`}`
+        }
         tabIndex={0}
         onKeyDown={onKey}
         onBlur={() => setHover(null)}
       >
-        {Y_TICKS.map((tick) => (
+        {yTicks.map((tick) => (
           <g key={tick}>
             <line className="chart-gridline" x1={MARGIN.left} x2={width - MARGIN.right} y1={y(tick)} y2={y(tick)} />
             <text className="chart-axis" x={MARGIN.left - 8} y={y(tick)} dy="0.32em" textAnchor="end">
-              {tick}%
+              {unit === "%" ? `${tick}%` : tick.toLocaleString()}
             </text>
           </g>
         ))}
@@ -161,7 +190,7 @@ export function MetricChart({ label, valueKey, samples, windowSeconds, stepSecon
           </text>
         ))}
 
-        {(["warning", "critical"] as const).map((level) => (
+        {thresholds && (["warning", "critical"] as const).map((level) => (
           <g key={level} className={`chart-threshold ${level}`}>
             <line x1={MARGIN.left} x2={width - MARGIN.right} y1={y(thresholds[level])} y2={y(thresholds[level])} />
             <text x={width - MARGIN.right - 2} y={y(thresholds[level]) - 4} textAnchor="end">
@@ -206,7 +235,7 @@ export function MetricChart({ label, valueKey, samples, windowSeconds, stepSecon
         <div className="chart-tooltip" style={{ left: tooltipLeft }} role="status">
           <div className="chart-tooltip-time">{formatTooltipTime(hovered.t, windowSeconds)}</div>
           <div>
-            {label}: <strong>{hovered.v !== null ? `${hovered.v.toFixed(1)}%` : "unavailable"}</strong>
+            {label}: <strong>{hovered.v !== null ? format(hovered.v) : "unavailable"}</strong>
           </div>
           {extra && <div className="chart-tooltip-extra">{extra}</div>}
         </div>
