@@ -238,6 +238,81 @@ class RealSshTests(Base):
         self.assertEqual(fake.connections, 2)
         self.assertEqual(fake.config_writes(), [])
 
+    # ---- OS10 utilization from real byte counters (fixture layout) --------------------------------
+    def os10_with_bytes(self, rx5, tx5, rx25, tx25):
+        outputs = fixture_outputs("dell_os10")
+        text = outputs["show interface"]
+        text = text.replace("7154 packets, 595610 octets", f"7154 packets, {rx5} octets")
+        text = text.replace("8476 packets, 2024142 octets", f"8476 packets, {tx5} octets")
+        text = text.replace("912345678 packets, 812345678901 octets", f"912345678 packets, {rx25} octets")
+        text = text.replace("812345678 packets, 712345678901 octets", f"812345678 packets, {tx25} octets")
+        outputs["show interface"] = text
+        return outputs
+
+    def age_baseline(self, seconds):
+        for sample in self.store.last.values():
+            sample["collected_at"] -= timedelta(seconds=seconds)
+
+    def util(self, name):
+        item = next(i for i in self.snapshot(12)["interfaces"] if i["canonical_name"] == name)
+        return item["rx_utilization_pct"], item["tx_utilization_pct"], item["rx_bytes"]
+
+    def test_os10_two_sample_utilization(self):
+        base = (595610, 2024142, 812345678901, 712345678901)
+        fake = self.use(InterfaceOS10(self.os10_with_bytes(*base)))
+        first = collector.collect_and_record(OS10_DEV)
+        self.assertEqual(first["utilization_values"], 0)                       # first sample: NULL, not 0
+        self.assertGreater(first["byte_counters"], 0)
+        self.assertEqual(self.util("ethernet1/1/5")[:2], (None, None))
+        self.age_baseline(300)
+        # 10G port: +37.5 GB rx in 300 s = 1 Gb/s (10 %), +3.75 GB tx (1 %); 100G port: +375 GB rx (10 %), 0 tx
+        fake.outputs = self.os10_with_bytes(base[0] + 37_500_000_000, base[1] + 3_750_000_000, base[2] + 375 * 10**9, base[3])
+        second = collector.collect_and_record(OS10_DEV)
+        self.assertAlmostEqual(self.util("ethernet1/1/5")[0], 10.0, delta=0.2)
+        self.assertAlmostEqual(self.util("ethernet1/1/5")[1], 1.0, delta=0.05)
+        self.assertAlmostEqual(self.util("ethernet1/1/25")[0], 10.0, delta=0.2)
+        self.assertEqual(self.util("ethernet1/1/25")[1], 0.0)                 # real zero: valid counters, no traffic
+        self.assertIsNone(self.util("ethernet1/1/18")[0])                     # link down, speed 0 -> unknown, not 0 %
+        self.assertGreaterEqual(second["utilization_values"], 2)
+        top = sorted((i for i in self.snapshot(12)["interfaces"] if i["rx_utilization_pct"] is not None),
+                     key=lambda i: -i["rx_utilization_pct"])
+        self.assertTrue(top)  # the cache carries utilization for the top-5 panel
+
+    def test_os10_skipped_poll_keeps_baseline_and_stale_gap_is_null(self):
+        base = (595610, 2024142, 812345678901, 712345678901)
+        fake = self.use(InterfaceOS10(self.os10_with_bytes(*base)))
+        collector.collect_and_record(OS10_DEV)
+        holder = coord.acquire_device_operation(12, "health", wait_seconds=0)
+        self.assertEqual(collector.collect_and_record(OS10_DEV)["status"], "skipped_busy")  # nothing written
+        holder.lease.release()
+        self.age_baseline(600)  # the skipped poll's 5 minutes + the next one
+        fake.outputs = self.os10_with_bytes(base[0] + 75_000_000_000, base[1], base[2], base[3])  # 10 % over 600 s
+        collector.collect_and_record(OS10_DEV)
+        self.assertAlmostEqual(self.util("ethernet1/1/5")[0], 10.0, delta=0.2)  # baseline from before the skip
+        self.age_baseline(901)  # stale baseline
+        fake.outputs = self.os10_with_bytes(base[0] + 90_000_000_000, base[1], base[2], base[3])
+        collector.collect_and_record(OS10_DEV)
+        self.assertIsNone(self.util("ethernet1/1/5")[0])
+
+    def test_os10_counter_reset_short_interval_and_rejection(self):
+        base = (595610, 2024142, 812345678901, 712345678901)
+        fake = self.use(InterfaceOS10(self.os10_with_bytes(*base)))
+        collector.collect_and_record(OS10_DEV)
+        self.age_baseline(300)
+        fake.outputs = self.os10_with_bytes(1000, 1000, base[2], base[3])  # cleared counters / reboot
+        collector.collect_and_record(OS10_DEV)
+        self.assertEqual(self.util("ethernet1/1/5")[:2], (None, None))
+        self.age_baseline(20)  # a manual poll 20 s after the previous one
+        fake.outputs = self.os10_with_bytes(1000 + 10**8, 1000, base[2], base[3])
+        collector.collect_and_record(OS10_DEV)
+        self.assertIsNone(self.util("ethernet1/1/5")[0])
+        self.age_baseline(300)
+        fake.outputs = self.os10_with_bytes(1000 + 10**8 + 500 * 10**9, 1000, base[2], base[3])  # 133 % of 10G
+        with self.assertLogs("network_worker.interfaces", "WARNING") as logs:
+            collector.collect_and_record(OS10_DEV)
+        self.assertIsNone(self.util("ethernet1/1/5")[0])
+        self.assertTrue(any("interface_utilization_rejected" in l and "Ethernet 1/1/5:rx" in l for l in logs.output))
+
     def test_os10_two_commands_one_session(self):
         fake = self.use(InterfaceOS10(fixture_outputs("dell_os10")))
         self.lldp.return_value = ["ethernet1/1/25"]  # topology: managed neighbor on this port

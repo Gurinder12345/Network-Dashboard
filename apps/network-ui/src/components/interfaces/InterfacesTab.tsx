@@ -150,6 +150,11 @@ export function InterfacesTab({ deviceId, refreshToken = 0 }: { deviceId: number
     [interfaces],
   );
 
+  const hasByteCounters = useMemo(
+    () => interfaces.some((i) => i.rx_bytes !== null || i.tx_bytes !== null),
+    [interfaces],
+  );
+
   const topErrors = useMemo(
     () =>
       interfaces
@@ -282,8 +287,12 @@ export function InterfacesTab({ deviceId, refreshToken = 0 }: { deviceId: number
             <BarList rows={topUtilization} ariaLabel="Highest interface utilization in the latest polling interval" />
           ) : (
             <EmptyState
-              title="Utilization not available yet"
-              hint="Needs two consecutive polls with valid counters and a known link speed."
+              title={hasByteCounters ? "Utilization not available yet" : "Byte counters not reported"}
+              hint={
+                hasByteCounters
+                  ? "Waiting for the next poll: utilization is the byte-counter change between two polls with a known link speed."
+                  : "This switch's interface counters (current collector) report packets only. Utilization needs byte counters and is never estimated from packets."
+              }
             />
           )}
         </WidgetCard>
@@ -414,8 +423,8 @@ export function InterfacesTab({ deviceId, refreshToken = 0 }: { deviceId: number
                   </td>
                   <td className="cell-num">{formatSpeed(i.speed_bps)}</td>
                   <td className="nowrap">{vlanText(i)}</td>
-                  <UtilCell value={i.rx_utilization_pct} />
-                  <UtilCell value={i.tx_utilization_pct} />
+                  <UtilCell value={i.rx_utilization_pct} bytes={i.rx_bytes} />
+                  <UtilCell value={i.tx_utilization_pct} bytes={i.tx_bytes} />
                   <td className="cell-num">{formatCount(i.errors_delta)}</td>
                   <td className="cell-num">{formatCount(i.crc_delta)}</td>
                   <td className="cell-num">{formatCount(i.discards_delta)}</td>
@@ -468,10 +477,17 @@ export function InterfacesTab({ deviceId, refreshToken = 0 }: { deviceId: number
   );
 }
 
-function UtilCell({ value }: { value: number | null }) {
+function UtilCell({ value, bytes }: { value: number | null; bytes: number | null }) {
   if (value === null) {
     return (
-      <td className="cell-num" title="No valid counter delta yet (first sample, counter reset or unknown speed)">
+      <td
+        className="cell-num"
+        title={
+          bytes === null
+            ? "No byte counter reported for this port (packets only); utilization is not estimated"
+            : "No valid byte-counter delta yet (first sample, counter reset, short interval or unknown speed)"
+        }
+      >
         <span className="muted">—</span>
       </td>
     );

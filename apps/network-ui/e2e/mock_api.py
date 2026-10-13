@@ -197,6 +197,13 @@ def interfaces_response():
         return {**base, "status": "not_collected", "collected_at": None, "age_seconds": None, "stale": False,
                 "collection_status": None, "summary": None, "interfaces": [],
                 "last_attempt": {"status": "skipped_change", "reason": "change_in_progress", "at": ago(minutes=1)}}
+    if mode in ("nobytes", "firstsample"):  # packets-only switch (OS6) / first sample after start
+        blank = {"rx_utilization_pct": None, "tx_utilization_pct": None}
+        if mode == "nobytes":
+            blank.update(rx_bytes=None, tx_bytes=None)
+        items = [{**i, **blank} for i in IFACES]
+        return {**base, "status": "ok", "collected_at": ago(minutes=1), "age_seconds": 60, "stale": False,
+                "collection_status": "success", "summary": summary(items), "interfaces": items}
     if mode == "large":  # a 52-port switch, for render timing
         items = [iface(100 + n, f"Eth 1/1/{n}", description=f"PORT-{n}", rx=round(n * 1.7 % 97, 2), tx=round(n * 0.9 % 60, 2),
                        mode="trunk" if n % 4 == 0 else "access", status="down" if n % 13 == 0 else "up",

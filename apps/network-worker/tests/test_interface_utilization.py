@@ -80,6 +80,46 @@ class UtilizationTests(unittest.TestCase):
         self.assertIsNone(compute(prev(rx_bytes=None), cur(), T2, MAX_GAP)["rx_utilization_pct"])
 
 
+class LinkSpeedAndIntervalTests(unittest.TestCase):
+    """Formula checks at real link speeds plus interval edge cases (min interval 60 s, max 900 s)."""
+
+    def rate(self, speed, rx_delta, tx_delta, seconds=300, minimum=60):
+        later = T1 + timedelta(seconds=seconds)
+        return compute(prev(rx_bytes=10**12, tx_bytes=10**12),
+                       cur(speed_bps=speed, rx_bytes=10**12 + rx_delta, tx_bytes=10**12 + tx_delta), later, MAX_GAP, minimum)
+
+    def test_1g_10g_40g(self):
+        # bytes = pct/100 * speed * seconds / 8
+        for speed, rx_pct, tx_pct in ((10**9, 25.0, 2.5), (10**10, 40.0, 0.5), (4 * 10**10, 12.5, 90.0)):
+            r = self.rate(speed, int(rx_pct / 100 * speed * 300 / 8), int(tx_pct / 100 * speed * 300 / 8))
+            self.assertEqual((r["rx_utilization_pct"], r["tx_utilization_pct"]), (rx_pct, tx_pct), speed)
+            self.assertEqual(r["utilization_rejected"], [])
+
+    def test_zero_traffic_on_valid_counters_is_a_real_zero(self):
+        r = self.rate(10**9, 0, 0)
+        self.assertEqual((r["rx_utilization_pct"], r["tx_utilization_pct"]), (0.0, 0.0))
+
+    def test_missing_previous_speed_or_bytes(self):
+        self.assertIsNone(compute(None, cur(rx_bytes=10**9), T2, MAX_GAP, 60)["rx_utilization_pct"])
+        self.assertIsNone(self.rate(None, 10**6, 10**6)["rx_utilization_pct"])
+        missing = compute(prev(), cur(rx_bytes=None, tx_bytes=None), T2, MAX_GAP, 60)
+        self.assertEqual((missing["rx_utilization_pct"], missing["tx_utilization_pct"]), (None, None))
+
+    def test_duplicate_timestamp_short_and_long_intervals(self):
+        self.assertIsNone(self.rate(10**9, 10**6, 10**6, seconds=0)["rx_utilization_pct"])     # duplicate timestamp
+        self.assertIsNone(self.rate(10**9, 10**6, 10**6, seconds=30)["rx_utilization_pct"])    # manual poll 30 s later
+        self.assertIsNotNone(self.rate(10**9, 10**6, 10**6, seconds=60)["rx_utilization_pct"]) # boundary accepted
+        self.assertIsNotNone(self.rate(10**9, 10**6, 10**6, seconds=900)["rx_utilization_pct"])  # two skipped polls
+        self.assertIsNone(self.rate(10**9, 10**6, 10**6, seconds=901)["rx_utilization_pct"])   # stale baseline
+
+    def test_rejected_rate_is_flagged_not_stored(self):
+        r = self.rate(10**9, int(2 * 10**9 * 300 / 8), 0)  # 200 % of line rate
+        self.assertIsNone(r["rx_utilization_pct"])
+        self.assertEqual(r["tx_utilization_pct"], 0.0)
+        self.assertEqual(r["utilization_rejected"], ["rx"])
+        self.assertEqual(self.rate(10**9, 0, 0)["utilization_rejected"], [])
+
+
 class ErrorDeltaTests(unittest.TestCase):
     def test_erroring_needs_an_increase(self):
         lifetime = compute(prev(crc_errors=5000), cur(crc_errors=5000), T2, MAX_GAP)

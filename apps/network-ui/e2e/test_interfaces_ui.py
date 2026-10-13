@@ -67,7 +67,7 @@ class InterfacesUiTests(unittest.TestCase):
     def open_tab(self, mode="fresh"):
         self.control("/__iface_mode", {"mode": mode})
         self.page.goto(TAB)
-        if mode in ("fresh", "stale", "partial"):
+        if mode in ("fresh", "stale", "partial", "nobytes", "firstsample"):
             expect(self.page.locator(".iface-table tbody tr")).to_have_count(7, timeout=10000)
 
     def rows(self):
@@ -198,6 +198,19 @@ class InterfacesUiTests(unittest.TestCase):
         expect(self.page.locator(".detail-title h1")).to_have_text("Kenda-Core-1")  # rest of the page still works
         self.page.get_by_role("tab", name="Overview").click()
         expect(self.page.locator(".detail-kpis")).to_be_visible()
+
+    def test_utilization_messages_distinguish_missing_bytes_from_first_sample(self):
+        widget = lambda: self.page.locator("section.widget", has_text="Interface Utilization")  # noqa: E731
+        self.open_tab("nobytes")
+        expect(widget()).to_contain_text("Byte counters not reported")
+        expect(widget()).to_contain_text("never estimated from packets")
+        cell = self.rows().filter(has_text="Eth 1/1/1").locator("td").nth(6)
+        expect(cell).to_have_text("—")
+        self.assertIn("packets only", cell.get_attribute("title"))
+        self.open_tab("firstsample")
+        expect(widget()).to_contain_text("Utilization not available yet")
+        expect(widget()).to_contain_text("Waiting for the next poll")
+        self.assertIn("first sample", self.rows().filter(has_text="Eth 1/1/1").locator("td").nth(6).get_attribute("title"))
 
     def test_render_time_for_a_52_port_switch(self):
         self.control("/__iface_mode", {"mode": "large"})

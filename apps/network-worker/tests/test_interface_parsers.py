@@ -231,6 +231,16 @@ class RealOs6Tests(unittest.TestCase):
         self.assertIsNone(ports["gi1/0/1"]["mode"])
         self.assertEqual(ports["te1/0/1"]["mode"], "trunk")
 
+    def test_port_channel_octets_never_attach_to_physical_ports(self):
+        outputs = load_real_os6()
+        zero = "Po1".ljust(10) + " ".join("0".rjust(16) for _ in range(4))
+        values = "Po1".ljust(10) + " ".join(v.rjust(16) for v in ("987654321", "1", "1", "1"))
+        ports = by_name(parse_interfaces("dell_os6", {**outputs, OS6_COUNTERS: outputs[OS6_COUNTERS].replace(zero, values)}))
+        self.assertNotIn("po1", ports)  # Po1 is not in the status table: not inventory
+        for name, item in ports.items():
+            self.assertIsNone(item["rx_bytes"], name)  # nothing cross-matched, nothing inferred from packets
+            self.assertIsNone(item["tx_bytes"], name)
+
     def test_configured_lag_in_real_layout_is_inventoried(self):
         outputs = load_real_os6()
         # Columns of the real "Port / Channel" status table: 0, 8, 39, 47, 50.

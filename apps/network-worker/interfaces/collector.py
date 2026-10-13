@@ -54,6 +54,8 @@ def _env_int(name, default, minimum=1):
 POLL_SECONDS = _env_int("INTERFACE_POLL_SECONDS", 300, minimum=60)
 # A delta across more than this is not shown as utilization (one missed poll is tolerated).
 MAX_DELTA_SECONDS = _env_int("INTERFACE_MAX_DELTA_SECONDS", 3 * POLL_SECONDS)
+# A shorter interval (e.g. a manual poll right after a scheduled one) gives no utilization.
+MIN_DELTA_SECONDS = _env_int("INTERFACE_MIN_DELTA_SECONDS", 60)
 CACHE_TTL_SECONDS = _env_int("INTERFACE_CACHE_TTL_SECONDS", 3 * POLL_SECONDS)
 CONCURRENCY = _env_int("INTERFACE_CONCURRENCY", 4)
 CLI_TIMEOUT_SECONDS = _env_int("INTERFACE_CLI_TIMEOUT_SECONDS", 60)
@@ -165,7 +167,7 @@ def prepare(interfaces, platform, collected_at, managed_ports):
 
 
 def derive(previous, item, collected_at):
-    return compute(previous, item, collected_at, MAX_DELTA_SECONDS)
+    return compute(previous, item, collected_at, MAX_DELTA_SECONDS, MIN_DELTA_SECONDS)
 
 
 SUMMARY_KEYS = ("total", "up", "down", "admin_down", "unknown", "erroring", "trunks", "access_ports")
@@ -258,16 +260,25 @@ def collect_and_record(device, trigger="schedule"):
             return _failed(device, outcome, _safe_error(f"Database write failed: {type(exc).__name__}"), stage="database")
 
         outcome["samples_written"] = len(rows)
+        outcome["utilization_values"] = sum(1 for r in rows if r.get("rx_utilization_pct") is not None
+                                            or r.get("tx_utilization_pct") is not None)
+        outcome["byte_counters"] = sum(1 for r in rows if r.get("rx_bytes") is not None)
+        rejected = [f"{r['interface_name']}:{'/'.join(r['utilization_rejected'])}" for r in rows if r.get("utilization_rejected")]
+        if rejected:
+            logger.warning("interface_utilization_rejected device_id=%s hostname=%s count=%s interfaces=%s "
+                           "reason=rate_above_line_rate (speed change, mid-interval counter reset or parse mismatch)",
+                           device["id"], device["hostname"], len(rejected), ",".join(rejected[:10]))
         outcome["cache_written"] = cache.write_snapshot(build_snapshot(device, result, rows), CACHE_TTL_SECONDS)
         cache.write_attempt(device["id"], {"at": collected_at.isoformat(), "status": result["status"],
                                            "problems": result["problems"][:10]})
 
     logger.info(
         "interface_collection_completed device_id=%s hostname=%s platform=%s status=%s interfaces_seen=%s "
-        "samples_written=%s commands=%s duration_ms=%s cache_written=%s problems=%s",
+        "samples_written=%s commands=%s duration_ms=%s cache_written=%s problems=%s byte_counters=%s "
+        "utilization_values=%s",
         device["id"], device["hostname"], device["platform"], result["status"], outcome["interfaces_seen"],
         outcome["samples_written"], result["commands_run"], result["duration_ms"], outcome["cache_written"],
-        len(result["problems"]),
+        len(result["problems"]), outcome["byte_counters"], outcome["utilization_values"],
     )
     return outcome
 
