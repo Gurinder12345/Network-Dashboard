@@ -60,6 +60,9 @@ spec:
             - name: PYTHONDONTWRITEBYTECODE
               value: "1"
 
+            - name: INTERFACE_BEAT_ENABLED
+              value: "true"
+
           resources:
             requests:
               cpu: 10m
