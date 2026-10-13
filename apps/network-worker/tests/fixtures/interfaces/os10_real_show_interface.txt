@@ -1,0 +1,2376 @@
+Ethernet 1/1/1 is up, line protocol is down
+Hardware is Eth, address is e8:b5:d0:7a:5c:a4
+    Current address is e8:b5:d0:7a:5c:a4
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 16
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 0, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:40
+Queuing strategy: fifo
+Input statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:50:41
+
+
+Ethernet 1/1/2 is up, line protocol is down
+Hardware is Eth, address is e8:b5:d0:7a:5c:a5
+    Current address is e8:b5:d0:7a:5c:a5
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 17
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 0, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:40
+Queuing strategy: fifo
+Input statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:50:41
+
+
+Ethernet 1/1/3 is up, line protocol is down
+Hardware is Eth, address is e8:b5:d0:7a:5c:a6
+    Current address is e8:b5:d0:7a:5c:a6
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 18
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 0, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:40
+Queuing strategy: fifo
+Input statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:50:40
+
+
+Ethernet 1/1/4 is up, line protocol is down
+Hardware is Eth, address is e8:b5:d0:7a:5c:a7
+    Current address is e8:b5:d0:7a:5c:a7
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 19
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 0, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:40
+Queuing strategy: fifo
+Input statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:50:40
+
+
+Ethernet 1/1/5 is up, line protocol is down
+Hardware is Eth, address is e8:b5:d0:7a:5c:a8
+    Current address is e8:b5:d0:7a:5c:a8
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 20
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 0, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:40
+Queuing strategy: fifo
+Input statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:50:40
+
+
+Ethernet 1/1/6 is up, line protocol is down
+Description: ESXI05-NIC-1/2
+Hardware is Eth, address is e8:b5:d0:7a:5c:a9
+    Current address is e8:b5:d0:7a:5c:a9
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 21
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 0, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:39
+Queuing strategy: fifo
+Input statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:50:39
+
+
+Ethernet 1/1/7 is up, line protocol is down
+Description: ESXI-NIC-2/1
+Hardware is Eth, address is e8:b5:d0:7a:5c:aa
+    Current address is e8:b5:d0:7a:5c:aa
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 22
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 0, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:39
+Queuing strategy: fifo
+Input statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:50:39
+
+
+Ethernet 1/1/8 is up, line protocol is down
+Description: esxi05-NIC-3/1
+Hardware is Eth, address is e8:b5:d0:7a:5c:ab
+    Current address is e8:b5:d0:7a:5c:ab
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 23
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 0, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:39
+Queuing strategy: fifo
+Input statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:50:39
+
+
+Ethernet 1/1/9 is up, line protocol is down
+Description: ESXI05-NIC-3/3
+Hardware is Eth, address is e8:b5:d0:7a:5c:ac
+    Current address is e8:b5:d0:7a:5c:ac
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 24
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 0, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:39
+Queuing strategy: fifo
+Input statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:50:38
+
+
+Ethernet 1/1/10 is up, line protocol is up
+Description: ESXI09-MGMT
+Hardware is Eth, address is e8:b5:d0:7a:5c:ad
+    Current address is e8:b5:d0:7a:5c:ad
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 25
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 1000M, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:40
+Queuing strategy: fifo
+Input statistics:
+     1174026280 packets, 1136935830743 octets
+     158878926 64-byte pkts, 90423993 over 64-byte pkts, 179689836 over 127-byte pkts
+     15718550 over 255-byte pkts, 12064652 over 511-byte pkts, 717250323 over 1023-byte pkts
+     61773 Multicasts, 105954 Broadcasts, 1173858552 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     1258052347 packets, 1313250247691 octets
+     193860367 64-byte pkts, 109075010 over 64-byte pkts, 77899509 over 127-byte pkts
+     20284249 over 255-byte pkts, 8950426 over 511-byte pkts, 847982786 over 1023-byte pkts
+     14335192 Multicasts, 7843772 Broadcasts, 1235873383 Unicasts
+     0 throttles, 3056 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 8 Mbits/sec, 1925 packets/sec, 0% of line rate
+     Output 27 Mbits/sec, 2750 packets/sec, 2% of line rate
+Time since last interface status change: 2 weeks 23:49:18
+
+
+Ethernet 1/1/11 is up, line protocol is down
+Description: ESXI09-vMotion
+Hardware is Eth, address is e8:b5:d0:7a:5c:ae
+    Current address is e8:b5:d0:7a:5c:ae
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 26
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 0, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:40
+Queuing strategy: fifo
+Input statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:50:38
+
+
+Ethernet 1/1/12 is up, line protocol is down
+Description: ESXI-07-Network
+Hardware is Eth, address is e8:b5:d0:7a:5c:af
+    Current address is e8:b5:d0:7a:5c:af
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 27
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 0, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:39
+Queuing strategy: fifo
+Input statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:50:37
+
+
+Ethernet 1/1/13 is up, line protocol is up
+Description: ESXI09-Network
+Hardware is Eth, address is e8:b5:d0:7a:5c:b0
+    Current address is e8:b5:d0:7a:5c:b0
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 28
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 10G, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:39
+Queuing strategy: fifo
+Input statistics:
+     1028742837 packets, 1139012818126 octets
+     83424168 64-byte pkts, 72374949 over 64-byte pkts, 94667255 over 127-byte pkts
+     37117356 over 255-byte pkts, 10930298 over 511-byte pkts, 730228811 over 1023-byte pkts
+     117168 Multicasts, 125596 Broadcasts, 1028499389 Unicasts
+     0 runts, 0 giants, 684 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     531551698 packets, 274896755820 octets
+     164810397 64-byte pkts, 80572028 over 64-byte pkts, 89115363 over 127-byte pkts
+     40378508 over 255-byte pkts, 8572171 over 511-byte pkts, 148103231 over 1023-byte pkts
+     14361599 Multicasts, 7824141 Broadcasts, 509365958 Unicasts
+     0 throttles, 335 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 12 Mbits/sec, 1225 packets/sec, 0% of line rate
+     Output 2 Mbits/sec, 522 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:49:18
+
+
+Ethernet 1/1/14 is up, line protocol is up
+Description: NIMBLE_NIC_1/2
+Hardware is Eth, address is e8:b5:d0:7a:5c:b1
+    Current address is e8:b5:d0:7a:5c:b1
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 29
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 10G, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:39
+Queuing strategy: fifo
+Input statistics:
+     68210 packets, 10448469 octets
+     22172 64-byte pkts, 2873 over 64-byte pkts, 43140 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 25 over 1023-byte pkts
+     43140 Multicasts, 21433 Broadcasts, 3637 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     1416039 packets, 106037893 octets
+     724525 64-byte pkts, 647426 over 64-byte pkts, 893 over 127-byte pkts
+     43156 over 255-byte pkts, 39 over 511-byte pkts, 0 over 1023-byte pkts
+     1332220 Multicasts, 79991 Broadcasts, 3828 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:49:18
+
+
+Ethernet 1/1/15 is up, line protocol is up
+Description: NIBMLE_NIC_2/1
+Hardware is Eth, address is e8:b5:d0:7a:5c:b2
+    Current address is e8:b5:d0:7a:5c:b2
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 30
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 10G, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:39
+Queuing strategy: fifo
+Input statistics:
+     6726369 packets, 4060919499 octets
+     2204832 64-byte pkts, 231905 over 64-byte pkts, 64264 over 127-byte pkts
+     1387532 over 255-byte pkts, 1289572 over 511-byte pkts, 1548264 over 1023-byte pkts
+     43184 Multicasts, 59958 Broadcasts, 6623227 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     17358879 packets, 19799184502 octets
+     2117847 64-byte pkts, 1399958 over 64-byte pkts, 101482 over 127-byte pkts
+     244676 over 255-byte pkts, 1151931 over 511-byte pkts, 12342985 over 1023-byte pkts
+     1332178 Multicasts, 41464 Broadcasts, 15985237 Unicasts
+     0 throttles, 3 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:49:17
+
+
+Ethernet 1/1/16 is up, line protocol is up
+Description: HONEYWELL_DEVICE
+Hardware is Eth, address is e8:b5:d0:7a:5c:b3
+    Current address is e8:b5:d0:7a:5c:b3
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 31
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 100M, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:39
+Queuing strategy: fifo
+Input statistics:
+     424390 packets, 27242870 octets
+     422824 64-byte pkts, 1351 over 64-byte pkts, 204 over 127-byte pkts
+     0 over 255-byte pkts, 11 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 419251 Broadcasts, 5139 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     15293226 packets, 1605418458 octets
+     5067392 64-byte pkts, 8709191 over 64-byte pkts, 232701 over 127-byte pkts
+     1040099 over 255-byte pkts, 235497 over 511-byte pkts, 8346 over 1023-byte pkts
+     8985312 Multicasts, 6187683 Broadcasts, 120231 Unicasts
+     0 throttles, 319 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 12 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:49:18
+
+
+Ethernet 1/1/17 is up, line protocol is up
+Description: CONSOLE_PORT_0/2
+Hardware is Eth, address is e8:b5:d0:7a:5c:b4
+    Current address is e8:b5:d0:7a:5c:b4
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 32
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 1000M, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:39
+Queuing strategy: fifo
+Input statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     1433786 packets, 107109669 octets
+     745190 64-byte pkts, 645419 over 64-byte pkts, 11 over 127-byte pkts
+     43152 over 255-byte pkts, 14 over 511-byte pkts, 0 over 1023-byte pkts
+     1332216 Multicasts, 101421 Broadcasts, 149 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:49:18
+
+
+Ethernet 1/1/18 is up, line protocol is down
+Description: testing
+Hardware is Eth, address is e8:b5:d0:7a:5c:b5
+    Current address is e8:b5:d0:7a:5c:b5
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 33
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 0, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:39
+Queuing strategy: fifo
+Input statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:50:35
+
+
+Ethernet 1/1/19 is up, line protocol is down
+Hardware is Eth, address is e8:b5:d0:7a:5c:b6
+    Current address is e8:b5:d0:7a:5c:b6
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 34
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 0, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:39
+Queuing strategy: fifo
+Input statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:50:35
+
+
+Ethernet 1/1/20 is up, line protocol is up
+Description: UPS_UNIT_0/2
+Hardware is Eth, address is e8:b5:d0:7a:5c:b7
+    Current address is e8:b5:d0:7a:5c:b7
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 35
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 100M, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:39
+Queuing strategy: fifo
+Input statistics:
+     378975 packets, 79240886 octets
+     5773 64-byte pkts, 191691 over 64-byte pkts, 86529 over 127-byte pkts
+     44646 over 255-byte pkts, 50336 over 511-byte pkts, 0 over 1023-byte pkts
+     10687 Multicasts, 52630 Broadcasts, 315658 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     16059626 packets, 1648513897 octets
+     5486877 64-byte pkts, 8976183 over 64-byte pkts, 319723 over 127-byte pkts
+     1083285 over 255-byte pkts, 185203 over 511-byte pkts, 8355 over 1023-byte pkts
+     8985317 Multicasts, 6554305 Broadcasts, 520004 Unicasts
+     0 throttles, 319 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 13 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:49:18
+
+
+Ethernet 1/1/21 is up, line protocol is up
+Description: UPS_UNIT_0/1
+Hardware is Eth, address is e8:b5:d0:7a:5c:b8
+    Current address is e8:b5:d0:7a:5c:b8
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 36
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 100M, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:39
+Queuing strategy: fifo
+Input statistics:
+     378851 packets, 79111404 octets
+     5718 64-byte pkts, 191650 over 64-byte pkts, 86523 over 127-byte pkts
+     44626 over 255-byte pkts, 50334 over 511-byte pkts, 0 over 1023-byte pkts
+     10687 Multicasts, 52616 Broadcasts, 315548 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     16059527 packets, 1648619368 octets
+     5486852 64-byte pkts, 8976112 over 64-byte pkts, 319720 over 127-byte pkts
+     1083286 over 255-byte pkts, 185202 over 511-byte pkts, 8355 over 1023-byte pkts
+     8985316 Multicasts, 6554315 Broadcasts, 519896 Unicasts
+     0 throttles, 322 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 10 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:49:18
+
+
+Ethernet 1/1/22 is up, line protocol is down
+Hardware is Eth, address is e8:b5:d0:7a:5c:b9
+    Current address is e8:b5:d0:7a:5c:b9
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 37
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 0, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:38
+Queuing strategy: fifo
+Input statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:50:34
+
+
+Ethernet 1/1/23 is up, line protocol is down
+Hardware is Eth, address is e8:b5:d0:7a:5c:ba
+    Current address is e8:b5:d0:7a:5c:ba
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 38
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 0, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:38
+Queuing strategy: fifo
+Input statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:50:34
+
+
+Ethernet 1/1/24 is up, line protocol is up
+Description: ESXI08-IDRAC
+Hardware is Eth, address is e8:b5:d0:7a:5c:bb
+    Current address is e8:b5:d0:7a:5c:bb
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 39
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 1000M, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:39
+Queuing strategy: fifo
+Input statistics:
+     13263 packets, 1543629 octets
+     4 64-byte pkts, 13253 over 64-byte pkts, 6 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     11887 Multicasts, 0 Broadcasts, 1376 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     1434437 packets, 106996809 octets
+     745192 64-byte pkts, 646072 over 64-byte pkts, 7 over 127-byte pkts
+     43152 over 255-byte pkts, 14 over 511-byte pkts, 0 over 1023-byte pkts
+     1331493 Multicasts, 101421 Broadcasts, 1523 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:49:18
+
+
+Ethernet 1/1/25 is up, line protocol is up
+Hardware is Eth, address is e8:b5:d0:7a:5c:bc
+    Current address is e8:b5:d0:7a:5c:bc
+Pluggable media present, QSFP28 type is QSFP28 100GBASE-CR4-1.0M
+    Wavelength is 38
+Interface index is 40
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 40G, Auto-Negotiation off
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:39
+Queuing strategy: fifo
+Input statistics:
+     7738575330 packets, 25329607019487 octets
+     805760298 64-byte pkts, 2164058980 over 64-byte pkts, 708567823 over 127-byte pkts
+     110724638 over 255-byte pkts, 62069933 over 511-byte pkts, 3.887393658e+09 over 1023-byte pkts
+     14619819 Multicasts, 6700715 Broadcasts, 7717254796 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     9436533351 packets, 31914178965203 octets
+     273577036 64-byte pkts, 2066112090 over 64-byte pkts, 531362134 over 127-byte pkts
+     203032656 over 255-byte pkts, 161614357 over 511-byte pkts, 6.200835078e+09 over 1023-byte pkts
+     495973 Multicasts, 921172 Broadcasts, 9435116206 Unicasts
+     0 throttles, 309 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 71 Mbits/sec, 8263 packets/sec, 0% of line rate
+     Output 116 Mbits/sec, 9273 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:49:13
+
+
+Ethernet 1/1/26:1 is up, line protocol is down
+Description: Breakout_to_HQ_user_SW_1
+Hardware is Eth, address is e8:b5:d0:7a:5c:c0
+    Current address is e8:b5:d0:7a:5c:c0
+Pluggable media present, QSFP+ type is QSFP+ 4x(10GBASE-CR)-3.0M
+    Wavelength is 77
+Interface index is 72
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 0, Auto-Negotiation off
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:29
+Queuing strategy: fifo
+Input statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:50:23
+
+
+Ethernet 1/1/26:2 is up, line protocol is up
+Description: Breakout_to_HQ_user_SW_2
+Hardware is Eth, address is e8:b5:d0:7a:5c:c1
+    Current address is e8:b5:d0:7a:5c:c1
+Pluggable media present, QSFP+ type is QSFP+ 4x(10GBASE-CR)-3.0M
+    Wavelength is 77
+Interface index is 73
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 10G, Auto-Negotiation off
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:29
+Queuing strategy: fifo
+Input statistics:
+     87534 packets, 8236653 octets
+     429 64-byte pkts, 86800 over 64-byte pkts, 67 over 127-byte pkts
+     39 over 255-byte pkts, 18 over 511-byte pkts, 181 over 1023-byte pkts
+     86506 Multicasts, 278 Broadcasts, 750 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     23202512 packets, 2200163587 octets
+     5514647 64-byte pkts, 16021898 over 64-byte pkts, 356306 over 127-byte pkts
+     1058939 over 255-byte pkts, 241514 over 511-byte pkts, 9208 over 1023-byte pkts
+     15072730 Multicasts, 8010127 Broadcasts, 119655 Unicasts
+     0 throttles, 643 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 16 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:49:18
+
+
+Ethernet 1/1/26:3 is up, line protocol is up
+Description: Breakout_to_HQ_user_SW_1
+Hardware is Eth, address is e8:b5:d0:7a:5c:c2
+    Current address is e8:b5:d0:7a:5c:c2
+Pluggable media present, QSFP+ type is QSFP+ 4x(10GBASE-CR)-3.0M
+    Wavelength is 77
+Interface index is 74
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 10G, Auto-Negotiation off
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:28
+Queuing strategy: fifo
+Input statistics:
+     86358 packets, 7858454 octets
+     6 64-byte pkts, 86352 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     86358 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     23202581 packets, 2200132298 octets
+     5514509 64-byte pkts, 16022223 over 64-byte pkts, 356248 over 127-byte pkts
+     1058898 over 255-byte pkts, 241514 over 511-byte pkts, 9189 over 1023-byte pkts
+     15072807 Multicasts, 8010254 Broadcasts, 119520 Unicasts
+     0 throttles, 421 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 16 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:49:18
+
+
+Ethernet 1/1/26:4 is up, line protocol is up
+Description: Breakout_to_HQ_user_SW_2
+Hardware is Eth, address is e8:b5:d0:7a:5c:c3
+    Current address is e8:b5:d0:7a:5c:c3
+Pluggable media present, QSFP+ type is QSFP+ 4x(10GBASE-CR)-3.0M
+    Wavelength is 77
+Interface index is 75
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 10G, Auto-Negotiation off
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:28
+Queuing strategy: fifo
+Input statistics:
+     87910 packets, 8078774 octets
+     635 64-byte pkts, 87007 over 64-byte pkts, 145 over 127-byte pkts
+     62 over 255-byte pkts, 20 over 511-byte pkts, 41 over 1023-byte pkts
+     86547 Multicasts, 261 Broadcasts, 1102 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     23203105 packets, 2200429215 octets
+     5514759 64-byte pkts, 16022147 over 64-byte pkts, 356348 over 127-byte pkts
+     1058995 over 255-byte pkts, 241503 over 511-byte pkts, 9353 over 1023-byte pkts
+     15072701 Multicasts, 8010114 Broadcasts, 120290 Unicasts
+     0 throttles, 308 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 16 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:49:18
+
+
+Ethernet 1/1/27 is up, line protocol is down
+Hardware is Eth, address is e8:b5:d0:7a:5c:c4
+    Current address is e8:b5:d0:7a:5c:c4
+Pluggable media not present
+  
+Interface index is 41
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Enabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 0, Auto-Negotiation off
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:39
+Queuing strategy: fifo
+Input statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:50:33
+
+
+Ethernet 1/1/28 is up, line protocol is down
+Hardware is Eth, address is e8:b5:d0:7a:5c:c8
+    Current address is e8:b5:d0:7a:5c:c8
+Pluggable media not present
+  
+Interface index is 42
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Enabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 0, Auto-Negotiation off
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:40
+Queuing strategy: fifo
+Input statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:50:33
+
+
+Ethernet 1/1/29 is up, line protocol is down
+Hardware is Eth, address is e8:b5:d0:7a:5c:cc
+    Current address is e8:b5:d0:7a:5c:cc
+Pluggable media not present
+  
+Interface index is 43
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 0, Auto-Negotiation off
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:40
+Queuing strategy: fifo
+Input statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:50:32
+
+
+Ethernet 1/1/30:1 is up, line protocol is up
+Hardware is Eth, address is e8:b5:d0:7a:5c:d0
+    Current address is e8:b5:d0:7a:5c:d0
+Pluggable media present, QSFP+ type is QSFP+ 4x(10GBASE-CR)-3.0M
+    Wavelength is 77
+Interface index is 68
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 10G, Auto-Negotiation off
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:32
+Queuing strategy: fifo
+Input statistics:
+     43172 packets, 8716328 octets
+     32 64-byte pkts, 0 over 64-byte pkts, 43140 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     43140 Multicasts, 32 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     1430874 packets, 104443419 octets
+     1387550 64-byte pkts, 130 over 64-byte pkts, 9 over 127-byte pkts
+     43158 over 255-byte pkts, 18 over 511-byte pkts, 9 over 1023-byte pkts
+     1330770 Multicasts, 99980 Broadcasts, 124 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:49:18
+
+
+Ethernet 1/1/30:2 is up, line protocol is up
+Hardware is Eth, address is e8:b5:d0:7a:5c:d1
+    Current address is e8:b5:d0:7a:5c:d1
+Pluggable media present, QSFP+ type is QSFP+ 4x(10GBASE-CR)-3.0M
+    Wavelength is 77
+Interface index is 69
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 10G, Auto-Negotiation off
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:32
+Queuing strategy: fifo
+Input statistics:
+     3990719917 packets, 27537738258693 octets
+     102542 64-byte pkts, 513594844 over 64-byte pkts, 38405181 over 127-byte pkts
+     9387943 over 255-byte pkts, 133583387 over 511-byte pkts, 3.29564602e+09 over 1023-byte pkts
+     43174 Multicasts, 59955 Broadcasts, 3990616788 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     2386191789 packets, 4569736123368 octets
+     1370167 64-byte pkts, 1627430622 over 64-byte pkts, 93456655 over 127-byte pkts
+     34395806 over 255-byte pkts, 23005054 over 511-byte pkts, 606533485 over 1023-byte pkts
+     1330745 Multicasts, 40057 Broadcasts, 2384820987 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 269 Mbits/sec, 4468 packets/sec, 2% of line rate
+     Output 25 Mbits/sec, 2258 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:49:18
+
+
+Ethernet 1/1/30:3 is up, line protocol is down
+Hardware is Eth, address is e8:b5:d0:7a:5c:d2
+    Current address is e8:b5:d0:7a:5c:d2
+Pluggable media present, QSFP+ type is QSFP+ 4x(10GBASE-CR)-3.0M
+    Wavelength is 77
+Interface index is 70
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 0, Auto-Negotiation off
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:32
+Queuing strategy: fifo
+Input statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:50:24
+
+
+Ethernet 1/1/30:4 is up, line protocol is down
+Hardware is Eth, address is e8:b5:d0:7a:5c:d3
+    Current address is e8:b5:d0:7a:5c:d3
+Pluggable media present, QSFP+ type is QSFP+ 4x(10GBASE-CR)-3.0M
+    Wavelength is 77
+Interface index is 71
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 0, Auto-Negotiation off
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:32
+Queuing strategy: fifo
+Input statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:50:23
+
+
+Ethernet 1/1/31 is up, line protocol is up
+Description: ESXI07-NIC_2/2
+Hardware is Eth, address is e8:b5:d0:7a:5c:d4
+    Current address is e8:b5:d0:7a:5c:d4
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 44
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 10G, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:40
+Queuing strategy: fifo
+Input statistics:
+     43319 packets, 3768753 octets
+     0 64-byte pkts, 43319 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     43319 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     22433542 packets, 2197396986 octets
+     743781 64-byte pkts, 20034286 over 64-byte pkts, 348818 over 127-byte pkts
+     1056295 over 255-byte pkts, 241176 over 511-byte pkts, 9186 over 1023-byte pkts
+     14364764 Multicasts, 7949538 Broadcasts, 119240 Unicasts
+     0 throttles, 360 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 15 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:49:16
+
+
+Ethernet 1/1/32 is up, line protocol is up
+Description: ESXI07-NIC_1/4
+Hardware is Eth, address is e8:b5:d0:7a:5c:d5
+    Current address is e8:b5:d0:7a:5c:d5
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 45
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 1000M, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:41
+Queuing strategy: fifo
+Input statistics:
+     1292665667 packets, 1384592164319 octets
+     23052574 64-byte pkts, 75793299 over 64-byte pkts, 179473601 over 127-byte pkts
+     120934121 over 255-byte pkts, 19906106 over 511-byte pkts, 873505966 over 1023-byte pkts
+     1883 Multicasts, 10122 Broadcasts, 1292653656 Unicasts
+     0 runts, 0 giants, 6 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     828209948 packets, 180032210817 octets
+     258485397 64-byte pkts, 82819165 over 64-byte pkts, 417590206 over 127-byte pkts
+     11583529 over 255-byte pkts, 6075606 over 511-byte pkts, 51656045 over 1023-byte pkts
+     14364463 Multicasts, 7939579 Broadcasts, 805905906 Unicasts
+     0 throttles, 329 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 11 Mbits/sec, 2037 packets/sec, 1% of line rate
+     Output 3 Mbits/sec, 1755 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:49:17
+
+
+Ethernet 1/1/33 is up, line protocol is up
+Description: ESXI07-NIC_2/3
+Hardware is Eth, address is e8:b5:d0:7a:5c:d6
+    Current address is e8:b5:d0:7a:5c:d6
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 46
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 10G, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:41
+Queuing strategy: fifo
+Input statistics:
+     43330 packets, 3769457 octets
+     11 64-byte pkts, 43319 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     43319 Multicasts, 11 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     22433533 packets, 2197797249 octets
+     643793 64-byte pkts, 20134261 over 64-byte pkts, 348822 over 127-byte pkts
+     1056295 over 255-byte pkts, 241176 over 511-byte pkts, 9186 over 1023-byte pkts
+     14364764 Multicasts, 7949529 Broadcasts, 119240 Unicasts
+     0 throttles, 350 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 15 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:49:16
+
+
+Ethernet 1/1/34 is up, line protocol is up
+Description: ESXI08-NIC_1/1
+Hardware is Eth, address is e8:b5:d0:7a:5c:d7
+    Current address is e8:b5:d0:7a:5c:d7
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 47
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 1000M, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:41
+Queuing strategy: fifo
+Input statistics:
+     147 packets, 97722 octets
+     36 64-byte pkts, 35 over 64-byte pkts, 1 over 127-byte pkts
+     18 over 255-byte pkts, 1 over 511-byte pkts, 56 over 1023-byte pkts
+     14 Multicasts, 48 Broadcasts, 85 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     22433608 packets, 2140293563 octets
+     5485902 64-byte pkts, 15298407 over 64-byte pkts, 344125 over 127-byte pkts
+     1054812 over 255-byte pkts, 241180 over 511-byte pkts, 9182 over 1023-byte pkts
+     14364771 Multicasts, 7949580 Broadcasts, 119257 Unicasts
+     0 throttles, 348 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 15 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:49:17
+
+
+Ethernet 1/1/35 is up, line protocol is down
+Hardware is Eth, address is e8:b5:d0:7a:5c:d8
+    Current address is e8:b5:d0:7a:5c:d8
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 48
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 0, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:40
+Queuing strategy: fifo
+Input statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:50:31
+
+
+Ethernet 1/1/36 is up, line protocol is up
+Description: ESXI08-NIC_1/3
+Hardware is Eth, address is e8:b5:d0:7a:5c:d9
+    Current address is e8:b5:d0:7a:5c:d9
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 49
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 1000M, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:40
+Queuing strategy: fifo
+Input statistics:
+     12541087 packets, 12125260416 octets
+     2339634 64-byte pkts, 1767602 over 64-byte pkts, 278547 over 127-byte pkts
+     479557 over 255-byte pkts, 36725 over 511-byte pkts, 7639022 over 1023-byte pkts
+     32 Multicasts, 2292 Broadcasts, 12538763 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     25392090 packets, 6275995498 octets
+     7205392 64-byte pkts, 11781315 over 64-byte pkts, 444154 over 127-byte pkts
+     3181526 over 255-byte pkts, 781234 over 511-byte pkts, 1998469 over 1023-byte pkts
+     8985352 Multicasts, 6604634 Broadcasts, 9802104 Unicasts
+     0 throttles, 341 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 6 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 17 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:49:17
+
+
+Ethernet 1/1/37 is up, line protocol is down
+Hardware is Eth, address is e8:b5:d0:7a:5c:da
+    Current address is e8:b5:d0:7a:5c:da
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 50
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 0, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:40
+Queuing strategy: fifo
+Input statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:50:30
+
+
+Ethernet 1/1/38 is up, line protocol is down
+Hardware is Eth, address is e8:b5:d0:7a:5c:db
+    Current address is e8:b5:d0:7a:5c:db
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 51
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 0, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:40
+Queuing strategy: fifo
+Input statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:50:30
+
+
+Ethernet 1/1/39 is up, line protocol is down
+Hardware is Eth, address is e8:b5:d0:7a:5c:dc
+    Current address is e8:b5:d0:7a:5c:dc
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 52
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 0, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:41
+Queuing strategy: fifo
+Input statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:50:29
+
+
+Ethernet 1/1/40 is up, line protocol is up
+Description: ESXI07-NIC_1/3
+Hardware is Eth, address is e8:b5:d0:7a:5c:dd
+    Current address is e8:b5:d0:7a:5c:dd
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 53
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 1000M, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:41
+Queuing strategy: fifo
+Input statistics:
+     685797893 packets, 823718003385 octets
+     39753030 64-byte pkts, 58848477 over 64-byte pkts, 29718375 over 127-byte pkts
+     15095332 over 255-byte pkts, 6018608 over 511-byte pkts, 536364071 over 1023-byte pkts
+     383408 Multicasts, 8979 Broadcasts, 685405502 Unicasts
+     0 runts, 0 giants, 4 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     500267447 packets, 239541103542 octets
+     237952577 64-byte pkts, 79246755 over 64-byte pkts, 27380081 over 127-byte pkts
+     13122904 over 255-byte pkts, 8139729 over 511-byte pkts, 134425401 over 1023-byte pkts
+     13984374 Multicasts, 7940593 Broadcasts, 478342480 Unicasts
+     0 throttles, 359 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 3 Mbits/sec, 282 packets/sec, 0% of line rate
+     Output 1 Mbits/sec, 203 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:49:16
+
+
+Ethernet 1/1/41 is up, line protocol is up
+Description: ESXI08-NIC_2/4
+Hardware is Eth, address is e8:b5:d0:7a:5c:de
+    Current address is e8:b5:d0:7a:5c:de
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 54
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 10G, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:40
+Queuing strategy: fifo
+Input statistics:
+     717407741 packets, 2874942235034 octets
+     10786 64-byte pkts, 300593705 over 64-byte pkts, 7480137 over 127-byte pkts
+     6182014 over 255-byte pkts, 16045939 over 511-byte pkts, 387095160 over 1023-byte pkts
+     43320 Multicasts, 10 Broadcasts, 717364410 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     960492736 packets, 5413476791611 octets
+     754553 64-byte pkts, 293482088 over 64-byte pkts, 10958819 over 127-byte pkts
+     3543460 over 255-byte pkts, 25631206 over 511-byte pkts, 626122610 over 1023-byte pkts
+     14364782 Multicasts, 7949384 Broadcasts, 938178571 Unicasts
+     0 throttles, 411 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 23 Mbits/sec, 1812 packets/sec, 0% of line rate
+     Output 258 Mbits/sec, 4025 packets/sec, 2% of line rate
+Time since last interface status change: 2 weeks 23:49:15
+
+
+Ethernet 1/1/42 is up, line protocol is up
+Description: ESXI08-NIC_2/3
+Hardware is Eth, address is e8:b5:d0:7a:5c:df
+    Current address is e8:b5:d0:7a:5c:df
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 55
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 10G, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:40
+Queuing strategy: fifo
+Input statistics:
+     43334 packets, 3769713 octets
+     15 64-byte pkts, 43319 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     43319 Multicasts, 15 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     22433324 packets, 2197778523 octets
+     643791 64-byte pkts, 20134068 over 64-byte pkts, 348812 over 127-byte pkts
+     1056294 over 255-byte pkts, 241173 over 511-byte pkts, 9186 over 1023-byte pkts
+     14364748 Multicasts, 7949343 Broadcasts, 119233 Unicasts
+     0 throttles, 428 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 15 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:49:14
+
+
+Ethernet 1/1/43 is up, line protocol is down
+Hardware is Eth, address is e8:b5:d0:7a:5c:e0
+    Current address is e8:b5:d0:7a:5c:e0
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 56
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 0, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:40
+Queuing strategy: fifo
+Input statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:50:28
+
+
+Ethernet 1/1/44 is up, line protocol is up
+Description: Datto_Server_IDRAC
+Hardware is Eth, address is e8:b5:d0:7a:5c:e1
+    Current address is e8:b5:d0:7a:5c:e1
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 57
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 1000M, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:40
+Queuing strategy: fifo
+Input statistics:
+     6531 packets, 560584 octets
+     4121 64-byte pkts, 2115 over 64-byte pkts, 210 over 127-byte pkts
+     62 over 255-byte pkts, 11 over 511-byte pkts, 12 over 1023-byte pkts
+     749 Multicasts, 57 Broadcasts, 5725 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     15713115 packets, 1632388251 octets
+     5487458 64-byte pkts, 8708955 over 64-byte pkts, 232715 over 127-byte pkts
+     1040138 over 255-byte pkts, 235503 over 511-byte pkts, 8346 over 1023-byte pkts
+     8985073 Multicasts, 6606836 Broadcasts, 121206 Unicasts
+     0 throttles, 318 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 10 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:49:17
+
+
+Ethernet 1/1/45 is up, line protocol is down
+Hardware is Eth, address is e8:b5:d0:7a:5c:e2
+    Current address is e8:b5:d0:7a:5c:e2
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 58
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 0, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:40
+Queuing strategy: fifo
+Input statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:50:27
+
+
+Ethernet 1/1/46 is up, line protocol is down
+Hardware is Eth, address is e8:b5:d0:7a:5c:e3
+    Current address is e8:b5:d0:7a:5c:e3
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 59
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 0, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:40
+Queuing strategy: fifo
+Input statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:50:27
+
+
+Ethernet 1/1/47 is up, line protocol is down
+Hardware is Eth, address is e8:b5:d0:7a:5c:e4
+    Current address is e8:b5:d0:7a:5c:e4
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 60
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 0, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:40
+Queuing strategy: fifo
+Input statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:50:27
+
+
+Ethernet 1/1/48 is up, line protocol is down
+Hardware is Eth, address is e8:b5:d0:7a:5c:e5
+    Current address is e8:b5:d0:7a:5c:e5
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 61
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 0, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:40
+Queuing strategy: fifo
+Input statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:50:26
+
+
+Ethernet 1/1/49 is up, line protocol is up
+Description: ESXI09-ISCSIIIIII
+Hardware is Eth, address is e8:b5:d0:7a:5c:e6
+    Current address is e8:b5:d0:7a:5c:e6
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 62
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 10G, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:40
+Queuing strategy: fifo
+Input statistics:
+     2339814980 packets, 5384601287872 octets
+     24891 64-byte pkts, 1553051265 over 64-byte pkts, 30282928 over 127-byte pkts
+     12896404 over 255-byte pkts, 9898936 over 511-byte pkts, 733660556 over 1023-byte pkts
+     86358 Multicasts, 0 Broadcasts, 2339728621 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     3174183668 packets, 21711286592763 octets
+     768674 64-byte pkts, 574297869 over 64-byte pkts, 22112336 over 127-byte pkts
+     7063532 over 255-byte pkts, 29561936 over 511-byte pkts, 2.540379321e+09 over 1023-byte pkts
+     14364820 Multicasts, 7949492 Broadcasts, 3151869356 Unicasts
+     0 throttles, 387 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 49 Mbits/sec, 1451 packets/sec, 0% of line rate
+     Output 35 Mbits/sec, 1520 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:49:16
+
+
+Ethernet 1/1/50 is up, line protocol is up
+Description: ESXI09-Vmotionnn
+Hardware is Eth, address is e8:b5:d0:7a:5c:e7
+    Current address is e8:b5:d0:7a:5c:e7
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 63
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 10G, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:40
+Queuing strategy: fifo
+Input statistics:
+     86358 packets, 15199008 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 86358 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     86358 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     22433518 packets, 2197882971 octets
+     643804 64-byte pkts, 20134241 over 64-byte pkts, 348816 over 127-byte pkts
+     1056294 over 255-byte pkts, 241177 over 511-byte pkts, 9186 over 1023-byte pkts
+     14364818 Multicasts, 7949463 Broadcasts, 119237 Unicasts
+     0 throttles, 386 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 15 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:49:16
+
+
+Ethernet 1/1/51 is up, line protocol is down
+Hardware is Eth, address is e8:b5:d0:7a:5c:e8
+    Current address is e8:b5:d0:7a:5c:e8
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 64
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 0, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:39
+Queuing strategy: fifo
+Input statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:50:25
+
+
+Ethernet 1/1/52 is up, line protocol is down
+Hardware is Eth, address is e8:b5:d0:7a:5c:e9
+    Current address is e8:b5:d0:7a:5c:e9
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 65
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 0, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:39
+Queuing strategy: fifo
+Input statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:50:25
+
+
+Ethernet 1/1/53 is up, line protocol is down
+Hardware is Eth, address is e8:b5:d0:7a:5c:ea
+    Current address is e8:b5:d0:7a:5c:ea
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 66
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 0, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:40
+Queuing strategy: fifo
+Input statistics:
+     1 packets, 64 octets
+     1 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     1 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     138 packets, 16121 octets
+     59 64-byte pkts, 56 over 64-byte pkts, 4 over 127-byte pkts
+     18 over 255-byte pkts, 1 over 511-byte pkts, 0 over 1023-byte pkts
+     59 Multicasts, 79 Broadcasts, 0 Unicasts
+     0 throttles, 53 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 1 weeks 4 days 22:31:26
+
+
+Ethernet 1/1/54 is up, line protocol is down
+Hardware is Eth, address is e8:b5:d0:7a:5c:eb
+    Current address is e8:b5:d0:7a:5c:eb
+Pluggable media present, RJ45 type is 10GBASE-T-RJ45
+    Wavelength is 0
+Interface index is 67
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Disabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 0, Auto-Negotiation on
+Flowcontrol rx on tx off
+ARP type: ARPA, ARP Timeout: 60
+Tag Protocol IDentifier (TPID) value: 0x8100
+Last clearing of "show interface" counters: 2 weeks 23:50:40
+Queuing strategy: fifo
+Input statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 runts, 0 giants, 0 throttles
+     0 CRC, 0 overrun, 0 discarded
+Output statistics:
+     0 packets, 0 octets
+     0 64-byte pkts, 0 over 64-byte pkts, 0 over 127-byte pkts
+     0 over 255-byte pkts, 0 over 511-byte pkts, 0 over 1023-byte pkts
+     0 Multicasts, 0 Broadcasts, 0 Unicasts
+     0 throttles, 0 discarded, 0 Collisions,  wred drops
+Rate Info(interval 30 seconds):
+     Input 0 Mbits/sec, 0 packets/sec, 0% of line rate
+     Output 0 Mbits/sec, 0 packets/sec, 0% of line rate
+Time since last interface status change: 2 weeks 23:50:24
+
+
+Management 1/1/1 is up, line protocol is down
+Hardware is Eth, address is e8:b5:d0:7a:5c:a3
+    Current address is e8:b5:d0:7a:5c:a3
+Interface index is 10
+Internet address is 192.168.111.12/24
+Mode of IPv4 Address Assignment: MANUAL
+Interface IPv6 oper status: Enabled
+Virtual-IP is not set
+Virtual-IP IPv6 address is not set
+MTU 1532 bytes, IP MTU 1500 bytes
+LineSpeed 0
+Flowcontrol rx off tx off
+ARP type: ARPA, ARP Timeout: 60
+Last clearing of "show interface" counters: 2 weeks 23:51:06
+Queuing strategy: fifo
+Input statistics:
+     Input 0 packets, 0 bytes, 0 multicast
+     Received 0 errors, 0 discarded
+Output statistics:
+     Output 0 packets, 0 bytes, 0 multicast
+     Output 0 errors, Output  invalid protocol
+Time since last interface status change: 2 weeks 23:50:22
+
+
+Vlan 1 is up, line protocol is down
+Address is e8:b5:d0:7a:5d:34, Current address is e8:b5:d0:7a:5d:34
+Interface index is 76
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Enabled
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 0
+ARP type: ARPA, ARP Timeout: 60
+Last clearing of "show interface" counters: 2 weeks 23:50:29
+Queuing strategy: fifo
+Input statistics:
+    16 packets, 1792 octets
+Output statistics:
+    0 packets, 0 octets
+Time since last interface status change: 2 weeks 23:50:10
+
+
+Vlan 10 is up, line protocol is up
+Description: Servers
+Address is e8:b5:d0:7a:5d:34, Current address is e8:b5:d0:7a:5d:34
+Interface index is 77
+Internet address is 10.0.0.20/24
+Mode of IPv4 Address Assignment: MANUAL
+Interface IPv6 oper status: Enabled
+Link local IPv6 address: fe80::eab5:d0ff:fe7a:5d34/64
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 10G
+ARP type: ARPA, ARP Timeout: 60
+Last clearing of "show interface" counters: 2 weeks 23:50:28
+Queuing strategy: fifo
+Input statistics:
+    6084673479 packets, 5623721820735 octets
+Output statistics:
+    6344749952 packets, 5649887936375 octets
+Time since last interface status change: 2 weeks 23:49:18
+
+
+Vlan 11 is up, line protocol is up
+Description: Management
+Address is e8:b5:d0:7a:5d:34, Current address is e8:b5:d0:7a:5d:34
+Interface index is 85
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Enabled
+Link local IPv6 address: fe80::eab5:d0ff:fe7a:5d34/64
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 10G
+ARP type: ARPA, ARP Timeout: 60
+Last clearing of "show interface" counters: 2 weeks 23:50:28
+Queuing strategy: fifo
+Input statistics:
+    23462145 packets, 23881091501 octets
+Output statistics:
+    25318080 packets, 23969854954 octets
+Time since last interface status change: 2 weeks 23:49:18
+
+
+Vlan 12 is up, line protocol is up
+Description: Workstations
+Address is e8:b5:d0:7a:5d:34, Current address is e8:b5:d0:7a:5d:34
+Interface index is 109
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Enabled
+Link local IPv6 address: fe80::eab5:d0ff:fe7a:5d34/64
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 10G
+ARP type: ARPA, ARP Timeout: 60
+Last clearing of "show interface" counters: 2 weeks 23:50:28
+Queuing strategy: fifo
+Input statistics:
+    644153 packets, 46377772 octets
+Output statistics:
+    649641 packets, 46751132 octets
+Time since last interface status change: 2 weeks 23:49:18
+
+
+Vlan 13 is up, line protocol is up
+Description: WiFi Internal
+Address is e8:b5:d0:7a:5d:34, Current address is e8:b5:d0:7a:5d:34
+Interface index is 133
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Enabled
+Link local IPv6 address: fe80::eab5:d0ff:fe7a:5d34/64
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 10G
+ARP type: ARPA, ARP Timeout: 60
+Last clearing of "show interface" counters: 2 weeks 23:50:28
+Queuing strategy: fifo
+Input statistics:
+    1156272 packets, 103321009 octets
+Output statistics:
+    8455712 packets, 898137797 octets
+Time since last interface status change: 2 weeks 23:49:18
+
+
+Vlan 14 is up, line protocol is up
+Description: WiFi Guest
+Address is e8:b5:d0:7a:5d:34, Current address is e8:b5:d0:7a:5d:34
+Interface index is 157
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Enabled
+Link local IPv6 address: fe80::eab5:d0ff:fe7a:5d34/64
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 10G
+ARP type: ARPA, ARP Timeout: 60
+Last clearing of "show interface" counters: 2 weeks 23:50:28
+Queuing strategy: fifo
+Input statistics:
+    765034 packets, 58946423 octets
+Output statistics:
+    1078853 packets, 90250984 octets
+Time since last interface status change: 2 weeks 23:49:18
+
+
+Vlan 15 is up, line protocol is up
+Description: iSCSI-3
+Address is e8:b5:d0:7a:5d:34, Current address is e8:b5:d0:7a:5d:34
+Interface index is 167
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Enabled
+Link local IPv6 address: fe80::eab5:d0ff:fe7a:5d34/64
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 10G
+ARP type: ARPA, ARP Timeout: 60
+Last clearing of "show interface" counters: 2 weeks 23:50:28
+Queuing strategy: fifo
+Input statistics:
+    11867876613 packets, 59220445262581 octets
+Output statistics:
+    11869545271 packets, 59222849105829 octets
+Time since last interface status change: 2 weeks 23:49:18
+
+
+Vlan 16 is up, line protocol is up
+Description: vMotion
+Address is e8:b5:d0:7a:5d:34, Current address is e8:b5:d0:7a:5d:34
+Interface index is 188
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Enabled
+Link local IPv6 address: fe80::eab5:d0ff:fe7a:5d34/64
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 10G
+ARP type: ARPA, ARP Timeout: 60
+Last clearing of "show interface" counters: 2 weeks 23:50:28
+Queuing strategy: fifo
+Input statistics:
+    816800 packets, 69090403 octets
+Output statistics:
+    774078 packets, 62038471 octets
+Time since last interface status change: 2 weeks 23:49:18
+
+
+Vlan 22 is up, line protocol is up
+Description: Citrix
+Address is e8:b5:d0:7a:5d:34, Current address is e8:b5:d0:7a:5d:34
+Interface index is 208
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Enabled
+Link local IPv6 address: fe80::eab5:d0ff:fe7a:5d34/64
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 10G
+ARP type: ARPA, ARP Timeout: 60
+Last clearing of "show interface" counters: 2 weeks 23:50:28
+Queuing strategy: fifo
+Input statistics:
+    1007559131 packets, 759212731378 octets
+Output statistics:
+    1009884344 packets, 759465220875 octets
+Time since last interface status change: 2 weeks 23:49:18
+
+
+Vlan 66 is up, line protocol is up
+Address is e8:b5:d0:7a:5d:34, Current address is e8:b5:d0:7a:5d:34
+Interface index is 232
+Internet address is 10.0.66.2/24
+Mode of IPv4 Address Assignment: MANUAL
+Interface IPv6 oper status: Enabled
+Link local IPv6 address: fe80::eab5:d0ff:fe7a:5d34/64
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 10G
+ARP type: ARPA, ARP Timeout: 60
+Last clearing of "show interface" counters: 2 weeks 23:50:29
+Queuing strategy: fifo
+Input statistics:
+    1307055 packets, 91576067 octets
+Output statistics:
+    10588218 packets, 724269496 octets
+Time since last interface status change: 2 weeks 23:49:18
+
+
+Vlan 101 is up, line protocol is up
+Description: DMZ
+Address is e8:b5:d0:7a:5d:34, Current address is e8:b5:d0:7a:5d:34
+Interface index is 256
+Internet address is not set
+Mode of IPv4 Address Assignment: not set
+Interface IPv6 oper status: Enabled
+Link local IPv6 address: fe80::eab5:d0ff:fe7a:5d34/64
+MTU 9216 bytes, IP MTU 9184 bytes
+LineSpeed 10G
+ARP type: ARPA, ARP Timeout: 60
+Last clearing of "show interface" counters: 2 weeks 23:50:29
+Queuing strategy: fifo
+Input statistics:
+    646117 packets, 46511300 octets
+Output statistics:
+    679114 packets, 48755222 octets
+Time since last interface status change: 2 weeks 23:49:18
+
+
+NULL is up, line protocol is up
+Interface index is 
+Time since last interface status change: 2 weeks 23:50:21
+

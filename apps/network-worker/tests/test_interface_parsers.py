@@ -15,6 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from interfaces import parsers  # noqa: E402
 from interfaces.names import canonical_name, interface_type  # noqa: E402
 from interfaces.parsers import (  # noqa: E402
+    os6_statistics_command, parse_os6_statistics,
     INTERFACE_COMMANDS, OS6_CONFIGURATION, OS6_COUNTERS, OS6_ERRORS, OS6_STATUS, OS10_INTERFACE, OS10_STATUS,
     InterfaceParseError, age_seconds, parse_interfaces, speed_bps,
 )
@@ -256,6 +257,61 @@ class RealOs6Tests(unittest.TestCase):
                          ("port_channel", "up", "trunk", 1, "2-100"))
         self.assertEqual(po1["rx_bytes"], 1234567890)  # octets exist for port-channels in this command
         self.assertEqual(len(ports), 29)
+
+
+class Os6StatisticsTests(unittest.TestCase):
+    """`show statistics <type> <u/s/p>` octet counters (real Gi1/0/2 capture)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.gi = read(os.path.join(FIXTURES, "os6_real_show_statistics_gigabitethernet_1_0_2.txt"))
+
+    def test_real_gigabit_octets(self):
+        self.assertEqual(parse_os6_statistics(self.gi), (963900191, 36708288122))  # RX received, TX transmitted
+
+    def test_tengigabit_same_layout(self):
+        # SYNTHETIC: the validated Gi layout with 10G-sized values (no real Te capture in the repo yet).
+        te = self.gi.replace("963900191", "812345678901234").replace("36708288122", "798765432109876")
+        self.assertEqual(os6_statistics_command("te1/0/1"), "show statistics tengigabitethernet 1/0/1")
+        self.assertEqual(parse_os6_statistics(te), (812345678901234, 798765432109876))
+
+    def test_large_counters(self):
+        big = self.gi.replace("963900191", "9223372036854775000").replace("36708288122", "18446744073709551000")
+        rx, tx = parse_os6_statistics(big)
+        self.assertEqual(rx, 9223372036854775000)  # arbitrary-size Python int
+        self.assertIsNone(tx)                      # beyond PostgreSQL bigint: not stored, never truncated
+
+    def test_never_uses_packet_size_buckets(self):
+        only_buckets = "\n".join(l for l in self.gi.splitlines() if not l.startswith("Total Packets"))
+        self.assertIn("Packets Received 64 Octets", only_buckets)
+        self.assertEqual(parse_os6_statistics(only_buckets), (None, None))
+
+    def test_missing_and_malformed(self):
+        self.assertEqual(parse_os6_statistics(""), (None, None))
+        self.assertEqual(parse_os6_statistics(None), (None, None))
+        self.assertEqual(parse_os6_statistics("% Invalid input detected at '^' marker."), (None, None))
+        rx_only = "\n".join(l for l in self.gi.splitlines() if not l.startswith("Total Packets Transmitted (Octets)"))
+        self.assertEqual(parse_os6_statistics(rx_only), (963900191, None))
+        self.assertEqual(parse_os6_statistics(self.gi.replace("36708288122", "n/a")), (963900191, None))
+
+    def test_command_mapping_only_validated_types(self):
+        self.assertEqual(os6_statistics_command("gi1/0/2"), "show statistics gigabitethernet 1/0/2")
+        self.assertEqual(os6_statistics_command("te1/0/1"), "show statistics tengigabitethernet 1/0/1")
+        for canonical in ("tw1/0/4", "fo1/1/1", "po1", "oob", "gi1/0/2; reload", "gi1/0/2 | include x", "", None):
+            self.assertIsNone(os6_statistics_command(canonical), canonical)
+
+
+class RealOs10Tests(unittest.TestCase):
+    """Real Kenda-Core-2 output: OS10 parsing (and byte counters) unchanged."""
+
+    def test_core2(self):
+        outputs = {c: read(os.path.join(FIXTURES, f"os10_real_{c.replace(' ', '_')}.txt")) for c in INTERFACE_COMMANDS["dell_os10"]}
+        result = parse_interfaces("dell_os10", outputs)
+        items = result["interfaces"]
+        self.assertEqual((result["status"], len(items)), ("success", 61))
+        self.assertEqual(sum(i["rx_bytes"] is not None for i in items), 60)
+        self.assertEqual(sum(bool(i["speed_bps"]) for i in items), 26)
+        self.assertEqual(sum(i["oper_status"] == "up" for i in items), 26)
 
 
 class Os10Tests(unittest.TestCase):

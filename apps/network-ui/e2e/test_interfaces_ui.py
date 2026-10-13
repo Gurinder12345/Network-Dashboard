@@ -206,7 +206,7 @@ class InterfacesUiTests(unittest.TestCase):
         expect(widget()).to_contain_text("never estimated from packets")
         cell = self.rows().filter(has_text="Eth 1/1/1").locator("td").nth(6)
         expect(cell).to_have_text("—")
-        self.assertIn("packets only", cell.get_attribute("title"))
+        self.assertIn("No byte counter for this port", cell.get_attribute("title"))
         self.open_tab("firstsample")
         expect(widget()).to_contain_text("Utilization not available yet")
         expect(widget()).to_contain_text("Waiting for the next poll")

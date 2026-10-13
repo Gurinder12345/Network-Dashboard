@@ -484,7 +484,7 @@ function UtilCell({ value, bytes }: { value: number | null; bytes: number | null
         className="cell-num"
         title={
           bytes === null
-            ? "No byte counter reported for this port (packets only); utilization is not estimated"
+            ? "No byte counter for this port in the latest poll (link down, not sampled this poll, or packets-only counters); utilization is not estimated"
             : "No valid byte-counter delta yet (first sample, counter reset, short interval or unknown speed)"
         }
       >

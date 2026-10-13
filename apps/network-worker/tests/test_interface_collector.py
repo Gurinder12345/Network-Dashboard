@@ -51,6 +51,30 @@ def fixture_outputs(platform):
     return outputs
 
 
+def real_os6(byte_values=None):
+    """Kenda-HARO-SW-01's real base output, plus per-port `show statistics` outputs in the real
+    Gi1/0/2 layout carrying the given octet values ({canonical: (rx, tx)})."""
+    outputs = {}
+    for command in INTERFACE_COMMANDS["dell_os6"]:
+        with open(os.path.join(FIXTURES, f"os6_real_{command.replace(' ', '_')}.txt")) as handle:
+            outputs[command] = handle.read()
+    with open(os.path.join(FIXTURES, "os6_real_show_statistics_gigabitethernet_1_0_2.txt")) as handle:
+        template = handle.read()
+    for canonical, (rx, tx) in (byte_values or {}).items():
+        kind = "gigabitethernet" if canonical.startswith("gi") else "tengigabitethernet"
+        outputs[f"show statistics {kind} {canonical[2:]}"] = template.replace("963900191", str(rx)).replace("36708288122", str(tx))
+    return outputs
+
+
+UP_PORTS = ["gi1/0/1", "gi1/0/2", "gi1/0/6", "gi1/0/7", "gi1/0/8", "gi1/0/9", "gi1/0/11", "gi1/0/13", "gi1/0/15",
+            "gi1/0/16", "gi1/0/17", "gi1/0/19", "gi1/0/21", "te1/0/1", "te1/0/2", "te1/0/3"]  # oper-up in the capture
+TRUNKS_UP = ["gi1/0/1", "te1/0/1", "te1/0/2", "te1/0/3"]
+
+
+def stats_cmd(canonical):
+    return f"show statistics {'gigabitethernet' if canonical.startswith('gi') else 'tengigabitethernet'} {canonical[2:]}"
+
+
 class InterfaceOS6(FakeOS6):
     def __init__(self, outputs, **kw):
         self.outputs = outputs
@@ -149,6 +173,10 @@ class RealSshTests(Base):
 
     def use(self, fake):
         self.addCleanup(fake.close)
+        # Freeze the collection timestamp: intervals are then exactly what a test sets with
+        # age_baseline()/collected_at shifts, however long the simulated SSH session takes.
+        frozen = collector._now()
+        mock.patch.object(collector, "_now", return_value=frozen).start()
 
         def open_session(dev, credentials):
             params = dict(host="127.0.0.1", port=fake.port, username=credentials["username"],
@@ -169,7 +197,9 @@ class RealSshTests(Base):
         outcome = collector.collect_and_record(OS6_DEV)
         self.assertEqual(outcome["status"], "success")
         self.assertEqual(fake.connections, 1)                                     # ONE SSH session
-        self.assertEqual(self.sent_commands(fake), list(INTERFACE_COMMANDS["dell_os6"]))
+        sent = self.sent_commands(fake)
+        self.assertEqual(sent[:4], list(INTERFACE_COMMANDS["dell_os6"]))         # base commands first
+        self.assertTrue(all(c.startswith("show statistics ") for c in sent[4:]))  # then per-port octets (up ports)
         self.assertEqual(fake.config_writes(), [])                               # never configuration mode
         self.assertFalse([l for l in fake.log if "clear" in l.lower()])
 
@@ -213,7 +243,9 @@ class RealSshTests(Base):
 
         fake = self.use(InterfaceOS6(real(), hostname="Kenda-HARO-SW-01"))
         first = collector.collect_and_record(OS6_DEV)
-        self.assertEqual((first["status"], first["interfaces_seen"], first["commands_run"]), ("success", 28, 4))
+        # 4 base commands + `show statistics` for the first 6 oper-up Gi/Te ports (default cap; no
+        # statistics output is simulated here, so byte counters stay None).
+        self.assertEqual((first["status"], first["interfaces_seen"], first["commands_run"]), ("success", 28, 10))
         snap = self.snapshot(1)
         self.assertEqual(snap["summary"], {"total": 28, "up": 16, "down": 12, "admin_down": 0, "unknown": 0,
                                            "erroring": 0, "trunks": 5, "access_ports": 23})
@@ -237,6 +269,80 @@ class RealSshTests(Base):
         self.assertEqual(items["gi1/0/1"]["description"], "InterConnect_HARO_SW_1/2")
         self.assertEqual(fake.connections, 2)
         self.assertEqual(fake.config_writes(), [])
+
+    # ---- OS6 byte counters via per-port `show statistics` (real layouts) ---------------------------
+    def stats_sent(self, fake):
+        return [l for l in fake.log if l.lower().startswith("show statistics")]
+
+    def test_os6_bytes_only_for_up_physical_ports_in_one_session(self):
+        values = {c: (10**9 + n, 2 * 10**9 + n) for n, c in enumerate(UP_PORTS)}
+        fake = self.use(InterfaceOS6(real_os6(values), hostname="Kenda-HARO-SW-01"))
+        mock.patch.object(collector, "OS6_UTIL_MAX_PORTS_PER_POLL", 20).start()   # all 16 up ports
+        mock.patch.object(collector, "OS6_UTIL_TIME_BUDGET_SECONDS", 60).start()
+        outcome = collector.collect_and_record(OS6_DEV)
+        self.assertEqual(fake.connections, 1)                                  # same session for everything
+        self.assertEqual(fake.config_writes(), [])
+        sent = self.stats_sent(fake)
+        self.assertEqual(sent[:4], [stats_cmd(c) for c in TRUNKS_UP])           # trunks first
+        self.assertEqual(sorted(sent), sorted(stats_cmd(c) for c in UP_PORTS))  # down ports / Po / Tw: no command
+        self.assertEqual(outcome["commands_run"], 4 + 16)
+        self.assertEqual({k: outcome["os6_bytes"][k] for k in ("eligible", "queried", "with_bytes", "skipped_cap")},
+                         {"eligible": 16, "queried": 16, "with_bytes": 16, "skipped_cap": 0})
+        snap = {i["canonical_name"]: i for i in self.snapshot(1)["interfaces"]}
+        self.assertEqual((snap["gi1/0/2"]["rx_bytes"], snap["gi1/0/2"]["tx_bytes"]), values["gi1/0/2"])
+        self.assertIsNone(snap["gi1/0/3"]["rx_bytes"])                          # oper-down: not queried
+        self.assertIsNone(snap["gi1/0/2"]["rx_utilization_pct"])                # first sample: NULL, not 0
+        self.assertEqual(outcome["utilization_values"], 0)
+
+    def test_os6_second_sample_reset_and_skipped_poll(self):
+        base = {c: (10**9, 2 * 10**9) for c in UP_PORTS}
+        fake = self.use(InterfaceOS6(real_os6(base), hostname="Kenda-HARO-SW-01"))
+        mock.patch.object(collector, "OS6_UTIL_MAX_PORTS_PER_POLL", 20).start()
+        mock.patch.object(collector, "OS6_UTIL_TIME_BUDGET_SECONDS", 60).start()
+        collector.collect_and_record(OS6_DEV)
+        holder = coord.acquire_device_operation(1, "telemetry")
+        self.assertEqual(collector.collect_and_record(OS6_DEV)["status"], "skipped_busy")  # nothing written
+        holder.lease.release()
+        for sample in self.store.last.values():
+            sample["collected_at"] -= timedelta(seconds=300)
+        later = dict(base)
+        later["gi1/0/2"] = (10**9 + 3_750_000_000, 2 * 10**9 + 375_000_000)  # 1G: 10 % rx, 1 % tx over 300 s
+        later["te1/0/3"] = (10**9 + 37_500_000_000, 2 * 10**9)               # 10G link: 10 % rx, 0 tx
+        later["gi1/0/6"] = (500, 500)                                         # counters cleared
+        fake.outputs = real_os6(later)
+        outcome = collector.collect_and_record(OS6_DEV)
+        snap = {i["canonical_name"]: i for i in self.snapshot(1)["interfaces"]}
+        self.assertEqual((snap["gi1/0/2"]["rx_utilization_pct"], snap["gi1/0/2"]["tx_utilization_pct"]), (10.0, 1.0))
+        self.assertEqual((snap["te1/0/3"]["rx_utilization_pct"], snap["te1/0/3"]["tx_utilization_pct"]), (10.0, 0.0))
+        self.assertEqual((snap["gi1/0/6"]["rx_utilization_pct"], snap["gi1/0/6"]["tx_utilization_pct"]), (None, None))
+        self.assertIsNone(snap["gi1/0/3"]["rx_utilization_pct"])   # down port: no bytes, no utilization
+        self.assertGreaterEqual(outcome["utilization_values"], 14)
+        self.assertEqual(fake.connections, 2)                      # the skipped poll opened no session
+
+    def test_os6_default_cap_queries_uplinks_first(self):
+        values = {c: (10**9, 2 * 10**9) for c in UP_PORTS}
+        fake = self.use(InterfaceOS6(real_os6(values), hostname="Kenda-HARO-SW-01"))
+        self.assertEqual((collector.OS6_UTIL_MAX_PORTS_PER_POLL, collector.OS6_UTIL_TIME_BUDGET_SECONDS), (6, 6))
+        outcome = collector.collect_and_record(OS6_DEV)
+        self.assertEqual(self.stats_sent(fake), [stats_cmd(c) for c in TRUNKS_UP + ["gi1/0/2", "gi1/0/6"]])
+        self.assertEqual((outcome["commands_run"], outcome["os6_bytes"]["skipped_cap"]), (4 + 6, 10))
+        snap = {i["canonical_name"]: i for i in self.snapshot(1)["interfaces"]}
+        self.assertEqual(snap["te1/0/1"]["rx_bytes"], 10**9)
+        self.assertIsNone(snap["gi1/0/7"]["rx_bytes"])  # beyond the cap this poll: NULL, never estimated
+
+    def test_os6_cap_and_disable(self):
+        values = {c: (10**9, 2 * 10**9) for c in UP_PORTS}
+        fake = self.use(InterfaceOS6(real_os6(values), hostname="Kenda-HARO-SW-01"))
+        with mock.patch.object(collector, "OS6_UTIL_MAX_PORTS_PER_POLL", 5):
+            outcome = collector.collect_and_record(OS6_DEV)
+        self.assertEqual(self.stats_sent(fake), [stats_cmd(c) for c in TRUNKS_UP + ["gi1/0/2"]])
+        self.assertEqual((outcome["os6_bytes"]["queried"], outcome["os6_bytes"]["skipped_cap"]), (5, 11))
+        self.assertEqual(outcome["status"], "success")  # enrichment limits never degrade the collection
+        fake.log.clear()
+        with mock.patch.object(collector, "OS6_UTIL_ENABLED", False):
+            outcome = collector.collect_and_record(OS6_DEV)
+        self.assertEqual(self.stats_sent(fake), [])
+        self.assertEqual((outcome["commands_run"], outcome["os6_bytes"]), (4, None))
 
     # ---- OS10 utilization from real byte counters (fixture layout) --------------------------------
     def os10_with_bytes(self, rx5, tx5, rx25, tx25):
@@ -521,6 +627,51 @@ class CoordinationTests(MockedSessionBase):
         self.assertEqual(collector.collect_and_record(OS6_DEV)["status"], "failed")
         self.held("health")
         self.assertEqual(collector.collect_and_record(OS6_DEV)["status"], "skipped_busy")
+
+
+class Os6EnrichmentLimitTests(MockedSessionBase):
+    def setUp(self):
+        super().setUp()
+        self.outputs = real_os6({c: (10**9, 2 * 10**9) for c in UP_PORTS})
+
+    def test_time_budget_stops_enrichment_but_keeps_base_data(self):
+        self.delay = 0.25
+        mock.patch.object(collector, "OS6_UTIL_MAX_PORTS_PER_POLL", 20).start()
+        with mock.patch.object(collector, "OS6_UTIL_TIME_BUDGET_SECONDS", 1), \
+                self.assertLogs("network_worker.interfaces", "WARNING") as logs:
+            outcome = collector.collect_and_record(OS6_DEV)
+        b = outcome["os6_bytes"]
+        self.assertEqual(outcome["status"], "success")
+        self.assertEqual(outcome["interfaces_seen"], 28)
+        self.assertLess(b["queried"], 16)
+        self.assertEqual(b["queried"] + b["skipped_budget"], 16)
+        self.assertTrue(any("interface_os6_bytes" in l and "skipped_budget=" in l for l in logs.output))
+
+    def test_statistics_command_error_stops_enrichment_safely(self):
+        original = self.open_session
+
+        def open_session(dev, credentials):
+            session = original(dev, credentials)
+            send = session.send_command.side_effect
+
+            def failing(command, read_timeout):
+                if command == stats_cmd("te1/0/2"):
+                    raise TimeoutError("read timeout")
+                return send(command, read_timeout)
+
+            session.send_command.side_effect = failing
+            return session
+
+        self.opened.side_effect = open_session
+        outcome = collector.collect_and_record(OS6_DEV)
+        b = outcome["os6_bytes"]
+        self.assertEqual(outcome["status"], "success")
+        self.assertIn("TimeoutError", b["error"])
+        self.assertEqual(b["queried"], 2)  # gi1/0/1, te1/0/1 done; stopped at te1/0/2
+        snap = {i["canonical_name"]: i for i in self.snapshot(1)["interfaces"]}
+        self.assertEqual(snap["te1/0/1"]["rx_bytes"], 10**9)
+        self.assertIsNone(snap["gi1/0/2"]["rx_bytes"])
+        self.assertEqual(snap["gi1/0/18"]["crc_errors"], 8)  # base counters intact
 
 
 class SchedulingCoordinationTests(MockedSessionBase):

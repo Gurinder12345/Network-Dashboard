@@ -20,6 +20,11 @@ Real OS6 facts (Kenda-HARO-SW-01):
     rx_bytes / tx_bytes -- and therefore utilization -- stay None; bytes are never derived
     from packets.
   * port-channel tables use a two-line "Port / Channel" header.
+  * Byte counters for physical ports come from the per-interface
+    `show statistics gigabitethernet|tengigabitethernet <u/s/p>` (validated live on
+    Kenda-HARO-SW-01): "Total Packets Received (Octets)" and "Total Packets Transmitted
+    (Octets)" are the received / transmitted OCTET totals (the packet-size buckets below
+    them are never used). See parse_os6_statistics / collector OS6 byte enrichment.
 
 Commands (all `show`; one SSH session per device collection, run in this order):
 
@@ -411,6 +416,32 @@ def parse_os10(outputs):
 
 
 PARSERS = {"dell_os6": parse_os6, "dell_os10": parse_os10}
+
+
+# ---- OS6 per-interface byte counters (`show statistics <type> <u/s/p>`) ------------------------
+# Only the interface types validated on a real switch; anything else gets no command.
+OS6_STATISTICS_TYPES = {"gi": "gigabitethernet", "te": "tengigabitethernet"}
+OS6_STATISTICS_COMMAND = re.compile(r"^show statistics (gigabitethernet|tengigabitethernet) \d{1,2}/\d{1,2}/\d{1,3}$")
+_OS6_RX_OCTETS = re.compile(r"^[ \t]*Total Packets Received \(Octets\)[. \t]*(\d[\d,]*)[ \t]*$", re.M)
+_OS6_TX_OCTETS = re.compile(r"^[ \t]*Total Packets Transmitted \(Octets\)[. \t]*(\d[\d,]*)[ \t]*$", re.M)
+
+
+def os6_statistics_command(canonical):
+    """'gi1/0/2' -> 'show statistics gigabitethernet 1/0/2'; None for unvalidated types (Tw, Po, ...)."""
+    match = re.fullmatch(r"(gi|te)(\d{1,2}/\d{1,2}/\d{1,3})", canonical or "")
+    if not match:
+        return None
+    command = f"show statistics {OS6_STATISTICS_TYPES[match.group(1)]} {match.group(2)}"
+    return command if OS6_STATISTICS_COMMAND.match(command) else None
+
+
+def parse_os6_statistics(text):
+    """(rx_octets, tx_octets) from one `show statistics` output; None for anything missing/malformed."""
+    if not text or not text.strip() or CLI_ERROR.search(text):
+        return None, None
+    rx = _OS6_RX_OCTETS.search(text)
+    tx = _OS6_TX_OCTETS.search(text)
+    return (count(rx.group(1)) if rx else None), (count(tx.group(1)) if tx else None)
 
 
 def parse_interfaces(platform, outputs):

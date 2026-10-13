@@ -1,0 +1,66 @@
+  
+--------------------------------------------------------------------------------------------------
+Port            Description     Status   Speed    Duplex   Mode Vlan Tagged-Vlans
+--------------------------------------------------------------------------------------------------
+Eth 1/1/1                       down     0        full     T    15   -
+Eth 1/1/2                       down     0        full     T    16   -
+Eth 1/1/3                       down     0        full     T    10   11-16,22,66,101
+Eth 1/1/4                       down     0        full     T    10   11-16,22,66,101
+Eth 1/1/5                       down     0        full     T    11   -
+Eth 1/1/6       ESXI05-NIC-1/.. down     0        full     T    16   -
+Eth 1/1/7       ESXI-NIC-2/1    down     0        full     T    15   -
+Eth 1/1/8       esxi05-NIC-3/.. down     0        full     T    10   11-16,22,66,101
+Eth 1/1/9       ESXI05-NIC-3/.. down     0        full     T    10   11-16,22,66,101
+Eth 1/1/10      ESXI09-MGMT     up       1000M    full     T    10   11-13,15-16,22,66,101
+Eth 1/1/11      ESXI09-vMotio.. down     0        full     T    16   10-13,15,22,66,101
+Eth 1/1/12      ESXI-07-Netwo.. down     0        full     T    10   11-13,15-16,22,66,101
+Eth 1/1/13      ESXI09-Networ.. up       10G      full     T    10   11-13,15-16,22,66,101
+Eth 1/1/14      NIMBLE_NIC_1/.. up       10G      full     T    11   -
+Eth 1/1/15      NIBMLE_NIC_2/.. up       10G      full     T    11   -
+Eth 1/1/16      HONEYWELL_DEV.. up       100M     full     T    10   -
+Eth 1/1/17      CONSOLE_PORT_.. up       1000M    full     T    11   -
+Eth 1/1/18      testing         down     0        full     T    1    -
+Eth 1/1/19                      down     0        full     T    10   -
+Eth 1/1/20      UPS_UNIT_0/2    up       100M     full     T    10   -
+Eth 1/1/21      UPS_UNIT_0/1    up       100M     full     T    10   -
+Eth 1/1/22                      down     0        full     T    10   -
+Eth 1/1/23                      down     0        full     T    11   -
+Eth 1/1/24      ESXI08-IDRAC    up       1000M    full     T    11   -
+Eth 1/1/25                      up       40G      full     T    10   11-16,22,66,101
+Eth 1/1/26:1    Breakout_to_H.. down     0        full     T    10   11-16,22,66,101
+Eth 1/1/26:2    Breakout_to_H.. up       10G      full     T    10   11-16,22,66,101
+Eth 1/1/26:3    Breakout_to_H.. up       10G      full     T    10   11-16,22,66,101
+Eth 1/1/26:4    Breakout_to_H.. up       10G      full     T    10   11-16,22,66,101
+Eth 1/1/27                      down     0        full     -
+Eth 1/1/28                      down     0        full     -
+Eth 1/1/29                      down     0        full     T    10   -
+Eth 1/1/30:1                    up       10G      full     A    15   - 
+Eth 1/1/30:2                    up       10G      full     A    15   - 
+Eth 1/1/30:3                    down     0        full     A    10   - 
+Eth 1/1/30:4                    down     0        full     A    10   - 
+Eth 1/1/31      ESXI07-NIC_2/.. up       10G      full     T    15   10-13,16,22,66,101
+Eth 1/1/32      ESXI07-NIC_1/.. up       1000M    full     T    10   11-13,15-16,22,66,101
+Eth 1/1/33      ESXI07-NIC_2/.. up       10G      full     T    16   10-13,15,22,66,101
+Eth 1/1/34      ESXI08-NIC_1/.. up       1000M    full     T    10   11-13,15-16,22,66,101
+Eth 1/1/35                      down     0        full     T    10   -
+Eth 1/1/36      ESXI08-NIC_1/.. up       1000M    full     T    10   -
+Eth 1/1/37                      down     0        full     T    10   -
+Eth 1/1/38                      down     0        full     T    10   11-13,15-16,22,66,101
+Eth 1/1/39                      down     0        full     T    10   -
+Eth 1/1/40      ESXI07-NIC_1/.. up       1000M    full     T    10   11-13,15-16,22,66,101
+Eth 1/1/41      ESXI08-NIC_2/.. up       10G      full     T    15   10-13,16,22,66,101
+Eth 1/1/42      ESXI08-NIC_2/.. up       10G      full     T    16   10-13,15,22,66,101
+Eth 1/1/43                      down     0        full     T    10   -
+Eth 1/1/44      Datto_Server_.. up       1000M    full     T    10   -
+Eth 1/1/45                      down     0        full     T    10   -
+Eth 1/1/46                      down     0        full     T    10   -
+Eth 1/1/47                      down     0        full     T    10   -
+Eth 1/1/48                      down     0        full     T    10   -
+Eth 1/1/49      ESXI09-ISCSII.. up       10G      full     T    15   10-13,16,22,66,101
+Eth 1/1/50      ESXI09-Vmotio.. up       10G      full     T    16   10-13,15,22,66,101
+Eth 1/1/51                      down     0        full     T    10   -
+Eth 1/1/52                      down     0        full     T    10   -
+Eth 1/1/53                      down     0        full     T    10   -
+Eth 1/1/54                      down     0        full     A    11   - 
+--------------------------------------------------------------------------------------------------
+  

@@ -37,7 +37,15 @@ from health.cache import FleetLock
 from health.checks import _open_session, _safe_error, _tcp_reachable
 from interfaces import cache
 from interfaces.names import canonical_name
-from interfaces.parsers import INTERFACE_COMMANDS, SAFE_COMMAND, InterfaceParseError, parse_interfaces
+from interfaces.parsers import (
+    INTERFACE_COMMANDS,
+    OS6_STATISTICS_COMMAND,
+    SAFE_COMMAND,
+    InterfaceParseError,
+    os6_statistics_command,
+    parse_interfaces,
+    parse_os6_statistics,
+)
 from interfaces.utilization import compute, status_of
 from vault.client import get_device_credentials
 
@@ -65,6 +73,18 @@ DEVICE_BUDGET_SECONDS = min(_env_int("INTERFACE_DEVICE_BUDGET_SECONDS", 120),
                             coord.OPERATIONS["interface_poll"]["ttl"] - 20)
 FLEET_LOCK_KEY = "interfaces:fleet:lock"
 FLEET_LOCK_TTL_SECONDS = _env_int("INTERFACE_FLEET_LOCK_TTL_SECONDS", max(POLL_SECONDS - 10, 60))
+
+# OS6 byte counters: per-port `show statistics <type> <u/s/p>` in the SAME session, oper-up
+# physical Gi/Te ports only, trunk/general ports (uplinks) first, then port order.
+# ~0.5-0.8 s per command (measured on Kenda-HARO-SW-01). Default cap 6 ports / 6 s per poll
+# (~+3-5 s per OS6 device): tests/test_interface_schedule_simulation.py shows larger
+# per-poll additions push the 5-minute sweep into the next minute's health window. Both are
+# tunable on the worker Deployment (OS6_UTIL_MAX_PORTS_PER_POLL, OS6_UTIL_TIME_BUDGET_SECONDS).
+# Ports beyond the cap/budget keep rx/tx_bytes NULL for that poll (no utilization, never 0).
+OS6_UTIL_ENABLED = os.getenv("OS6_UTIL_ENABLED", "true").strip().lower() not in ("0", "false", "no")
+OS6_UTIL_MAX_PORTS_PER_POLL = _env_int("OS6_UTIL_MAX_PORTS_PER_POLL", 6, minimum=0)
+OS6_UTIL_TIME_BUDGET_SECONDS = _env_int("OS6_UTIL_TIME_BUDGET_SECONDS", 6)
+OS6_UTIL_CLI_TIMEOUT_SECONDS = 15
 
 PLATFORM_ORDER = {"dell_os10": 0, "dell_os6": 1}  # slowest login first
 UPLINK_WORDS = re.compile(r"\b(uplink|upstream|up-link|core|spine|distribution|isl)\b", re.I)
@@ -101,14 +121,17 @@ def collect_device(device):
     secrets = (credentials.get("password"), credentials.get("secret"))
     session = None
     outputs = {}
+    parsed = None
     try:
         session = _open_session(device, credentials)
+        base_complete = True
         for command in commands:
             if not SAFE_COMMAND.match(command):  # defense in depth: show commands only
                 raise RuntimeError("refused a non-show command")
             remaining = DEVICE_BUDGET_SECONDS - (time.monotonic() - started)
             if remaining < 5:
                 result["problems"].append(f"'{command}': skipped (device time budget used)")
+                base_complete = False
                 break
             try:
                 outputs[command] = session.send_command(command, read_timeout=min(CLI_TIMEOUT_SECONDS, remaining))
@@ -116,7 +139,13 @@ def collect_device(device):
             except Exception as exc:
                 # A timed-out read can leave the session mid-output: stop, keep what we have.
                 result["problems"].append(_safe_error(f"'{command}': {type(exc).__name__}", secrets))
+                base_complete = False
                 break
+        if base_complete and device["platform"] == "dell_os6" and OS6_UTIL_ENABLED:
+            parsed = _try_parse(device["platform"], outputs)
+            if parsed is not None:
+                result["os6_bytes"] = _os6_byte_enrichment(session, parsed["interfaces"], started, secrets)
+                result["commands_run"] += result["os6_bytes"]["queried"]
     except NetmikoAuthenticationException:
         return finish("SSH authentication failed")
     except Exception as exc:
@@ -130,7 +159,7 @@ def collect_device(device):
                 pass
 
     try:
-        parsed = parse_interfaces(device["platform"], outputs)
+        parsed = parsed or parse_interfaces(device["platform"], outputs)
     except InterfaceParseError as exc:
         return finish(_safe_error(f"Interface output could not be parsed: {exc}", secrets))
     except Exception as exc:  # a parser bug must never escape the collector
@@ -140,6 +169,61 @@ def collect_device(device):
     result["problems"] += [_safe_error(p, secrets) for p in parsed["problems"]]
     result["status"] = "success" if not result["problems"] else "partial"
     return finish()
+
+
+def _try_parse(platform, outputs):
+    try:
+        return parse_interfaces(platform, outputs)
+    except Exception:
+        return None  # parsed again after the session closes, which reports the error
+
+
+def os6_byte_targets(interfaces):
+    """[(item, command)] for oper-up physical Gi/Te ports, trunk/general first, then port order."""
+    targets = []
+    for item in interfaces:
+        if item.get("interface_type") != "ethernet" or item.get("oper_status") != "up":
+            continue
+        command = os6_statistics_command(item.get("canonical_name"))
+        if command:
+            targets.append((item, command))
+
+    def port_key(pair):
+        item = pair[0]
+        numbers = [int(n) for n in re.findall(r"\d+", item["canonical_name"])]
+        return (0 if item.get("mode") in ("trunk", "general") else 1, item["canonical_name"][:2], numbers)
+
+    return sorted(targets, key=port_key)
+
+
+def _os6_byte_enrichment(session, interfaces, started, secrets):
+    """Per-port octet counters in the open session. Never raises; never fails the collection."""
+    t0 = time.monotonic()
+    targets = os6_byte_targets(interfaces)
+    selected = targets[:OS6_UTIL_MAX_PORTS_PER_POLL]
+    stats = {"eligible": len(targets), "queried": 0, "with_bytes": 0, "skipped_cap": len(targets) - len(selected),
+             "skipped_budget": 0, "error": None, "duration_ms": 0}
+    for index, (item, command) in enumerate(selected):
+        device_remaining = DEVICE_BUDGET_SECONDS - (time.monotonic() - started)
+        if time.monotonic() - t0 >= OS6_UTIL_TIME_BUDGET_SECONDS or device_remaining < 5:
+            stats["skipped_budget"] = len(selected) - index
+            break
+        if not OS6_STATISTICS_COMMAND.match(command):  # defense in depth: validated show commands only
+            continue
+        try:
+            output = session.send_command(command, read_timeout=min(OS6_UTIL_CLI_TIMEOUT_SECONDS, device_remaining))
+        except Exception as exc:
+            # The session may be mid-output: stop enriching, keep the base data.
+            stats["error"] = _safe_error(f"'{command}': {type(exc).__name__}", secrets)
+            stats["skipped_budget"] = len(selected) - index - 1
+            break
+        stats["queried"] += 1
+        rx, tx = parse_os6_statistics(output)
+        if rx is not None or tx is not None:
+            item["rx_bytes"], item["tx_bytes"] = rx, tx
+            stats["with_bytes"] += 1
+    stats["duration_ms"] = int((time.monotonic() - t0) * 1000)
+    return stats
 
 
 # ---- normalization for storage -----------------------------------------------------------------
@@ -246,7 +330,7 @@ def collect_and_record(device, trigger="schedule"):
         outcome = {"device_id": device["id"], "hostname": device["hostname"], "status": result["status"],
                    "interfaces_seen": len(result["interfaces"]), "samples_written": 0, "cache_written": False,
                    "commands_run": result["commands_run"], "duration_ms": result["duration_ms"],
-                   "error": result["error"]}
+                   "error": result["error"], "os6_bytes": result.get("os6_bytes")}
 
         if result["status"] == "failed":
             return _failed(device, outcome, result["error"], stage="collect")
@@ -280,6 +364,12 @@ def collect_and_record(device, trigger="schedule"):
         outcome["samples_written"], result["commands_run"], result["duration_ms"], outcome["cache_written"],
         len(result["problems"]), outcome["byte_counters"], outcome["utilization_values"],
     )
+    if result.get("os6_bytes"):
+        b = result["os6_bytes"]
+        log = logger.warning if b["error"] or b["skipped_budget"] else logger.info
+        log("interface_os6_bytes device_id=%s hostname=%s eligible=%s queried=%s with_bytes=%s skipped_cap=%s "
+            "skipped_budget=%s duration_ms=%s error=%s", device["id"], device["hostname"], b["eligible"], b["queried"],
+            b["with_bytes"], b["skipped_cap"], b["skipped_budget"], b["duration_ms"], b["error"])
     return outcome
 
 
