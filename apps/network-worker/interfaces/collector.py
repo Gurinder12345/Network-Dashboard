@@ -42,6 +42,7 @@ from interfaces.parsers import (
     OS6_STATISTICS_COMMAND,
     SAFE_COMMAND,
     InterfaceParseError,
+    diagnose_os6_statistics,
     os6_statistics_command,
     parse_interfaces,
     parse_os6_statistics,
@@ -144,7 +145,7 @@ def collect_device(device):
         if base_complete and device["platform"] == "dell_os6" and OS6_UTIL_ENABLED:
             parsed = _try_parse(device["platform"], outputs)
             if parsed is not None:
-                result["os6_bytes"] = _os6_byte_enrichment(session, parsed["interfaces"], started, secrets)
+                result["os6_bytes"] = _os6_byte_enrichment(session, parsed["interfaces"], started, secrets, device)
                 result["commands_run"] += result["os6_bytes"]["queried"]
     except NetmikoAuthenticationException:
         return finish("SSH authentication failed")
@@ -196,13 +197,39 @@ def os6_byte_targets(interfaces):
     return sorted(targets, key=port_key)
 
 
-def _os6_byte_enrichment(session, interfaces, started, secrets):
-    """Per-port octet counters in the open session. Never raises; never fails the collection."""
+def _resync(session):
+    """After a failed command: flush the channel and confirm we are back at the prompt.
+    Continuing without this could attribute leftover output to the next port (the
+    `show statistics` output does not name the port)."""
+    try:
+        session.clear_buffer()
+        prompt = session.find_prompt()
+        return isinstance(prompt, str) and prompt.strip().endswith(("#", ">"))
+    except Exception:
+        return False
+
+
+def _os6_byte_enrichment(session, interfaces, started, secrets, device=None):
+    """Per-port octet counters in the open session. Never raises; never fails the collection.
+
+    A port whose output has no octet counters is logged with a reason and skipped; the next
+    port is still queried. After a command exception the session is re-synced to its prompt
+    and enrichment continues only if that succeeds. Successful ports are always kept.
+    """
     t0 = time.monotonic()
     targets = os6_byte_targets(interfaces)
     selected = targets[:OS6_UTIL_MAX_PORTS_PER_POLL]
     stats = {"eligible": len(targets), "queried": 0, "with_bytes": 0, "skipped_cap": len(targets) - len(selected),
-             "skipped_budget": 0, "error": None, "duration_ms": 0}
+             "skipped_budget": 0, "error": None, "duration_ms": 0, "failures": {}, "failed_ports": []}
+    device = device or {}
+
+    def failed(item, command, reason):
+        stats["failures"][reason] = stats["failures"].get(reason, 0) + 1
+        if len(stats["failed_ports"]) < OS6_UTIL_MAX_PORTS_PER_POLL:
+            stats["failed_ports"].append(f"{item['interface_name']}:{reason}")
+        logger.warning("interface_os6_bytes_port_failed device_id=%s hostname=%s interface=%s command=%r reason=%s",
+                       device.get("id"), device.get("hostname"), item["interface_name"], command, reason)
+
     for index, (item, command) in enumerate(selected):
         device_remaining = DEVICE_BUDGET_SECONDS - (time.monotonic() - started)
         if time.monotonic() - t0 >= OS6_UTIL_TIME_BUDGET_SECONDS or device_remaining < 5:
@@ -213,15 +240,19 @@ def _os6_byte_enrichment(session, interfaces, started, secrets):
         try:
             output = session.send_command(command, read_timeout=min(OS6_UTIL_CLI_TIMEOUT_SECONDS, device_remaining))
         except Exception as exc:
-            # The session may be mid-output: stop enriching, keep the base data.
             stats["error"] = _safe_error(f"'{command}': {type(exc).__name__}", secrets)
+            failed(item, command, f"command_{type(exc).__name__}")
+            if _resync(session):
+                continue  # back at the prompt: the next port's output cannot be mixed up
             stats["skipped_budget"] = len(selected) - index - 1
             break
         stats["queried"] += 1
-        rx, tx = parse_os6_statistics(output)
-        if rx is not None or tx is not None:
-            item["rx_bytes"], item["tx_bytes"] = rx, tx
+        diagnosis = diagnose_os6_statistics(output)
+        if diagnosis["rx"] is not None or diagnosis["tx"] is not None:
+            item["rx_bytes"], item["tx_bytes"] = diagnosis["rx"], diagnosis["tx"]
             stats["with_bytes"] += 1
+        if diagnosis["reason"] != "ok":
+            failed(item, command, diagnosis["reason"])
     stats["duration_ms"] = int((time.monotonic() - t0) * 1000)
     return stats
 
@@ -366,10 +397,11 @@ def collect_and_record(device, trigger="schedule"):
     )
     if result.get("os6_bytes"):
         b = result["os6_bytes"]
-        log = logger.warning if b["error"] or b["skipped_budget"] else logger.info
+        log = logger.warning if b["error"] or b["skipped_budget"] or b["failures"] else logger.info
         log("interface_os6_bytes device_id=%s hostname=%s eligible=%s queried=%s with_bytes=%s skipped_cap=%s "
-            "skipped_budget=%s duration_ms=%s error=%s", device["id"], device["hostname"], b["eligible"], b["queried"],
-            b["with_bytes"], b["skipped_cap"], b["skipped_budget"], b["duration_ms"], b["error"])
+            "skipped_budget=%s duration_ms=%s error=%s failures=%s", device["id"], device["hostname"], b["eligible"],
+            b["queried"], b["with_bytes"], b["skipped_cap"], b["skipped_budget"], b["duration_ms"], b["error"],
+            ",".join(f"{k}={v}" for k, v in sorted(b["failures"].items())) or "none")
     return outcome
 
 

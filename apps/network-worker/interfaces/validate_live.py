@@ -14,6 +14,9 @@ Run inside a network-worker pod (Vault, devices, PostgreSQL, Redis), ONE device 
         collect + parse exactly like the scheduled task; prints every normalized interface
         and the summary. Writes NOTHING.
     python -m interfaces.validate_live record Kenda-HARO-SW-01
+    python -m interfaces.validate_live bytes Kenda-Access-user-1 Kenda-HQ-IDF-B
+        OS6 byte-counter diagnosis: the production port selection (cap) and its
+        `show statistics` outputs, saved and explained per port. Writes nothing to PostgreSQL/Redis.
         one coordinated collection stored like the scheduled task (PostgreSQL + Redis),
         then checks rows, the Redis snapshot/TTL, and that health/jobs/audit are unchanged.
         Requires migration 009.
@@ -32,7 +35,14 @@ from db.devices import get_device_by_hostname
 from health.cache import _redis
 from health.checks import _open_session, _safe_error, _tcp_reachable
 from interfaces import cache, collector
-from interfaces.parsers import INTERFACE_COMMANDS, SAFE_COMMAND
+from interfaces.parsers import (
+    INTERFACE_COMMANDS,
+    OS6_STATISTICS_COMMAND,
+    OS6_STATUS,
+    SAFE_COMMAND,
+    diagnose_os6_statistics,
+    parse_interfaces,
+)
 from interfaces.utilization import status_of
 from vault.client import get_device_credentials
 
@@ -142,7 +152,90 @@ def cmd_dry_run(device):
     for problem in result["problems"]:
         print(f"  problem: {problem}")
     _print_interfaces(result["interfaces"])
+    b = result.get("os6_bytes")
+    if b:
+        print(f"os6_bytes: eligible={b['eligible']} queried={b['queried']} with_bytes={b['with_bytes']} "
+              f"skipped_cap={b['skipped_cap']} skipped_budget={b['skipped_budget']} duration_ms={b['duration_ms']} "
+              f"error={b['error']} failures={b['failures'] or 'none'} failed_ports={b['failed_ports'] or 'none'}")
     return result["status"] != "failed"
+
+
+VERSION_LINE = re.compile(r"(system description|machine description|machine type|model|software version|"
+                          r"version|serial|system type)", re.I)
+
+
+def cmd_bytes(device):
+    """
+    OS6 byte-counter diagnosis (read-only, one session, under the device lock):
+    `show version` (model/firmware lines only) + `show interfaces status`, the SAME port
+    selection and cap as production, then each port's `show statistics ...`. Saves each
+    output (credentials masked) and prints per port: command, duration, RX/TX octets found,
+    reason code and the octet label lines.
+    """
+    if device["platform"] != "dell_os6":
+        print(f"{device['hostname']}: not dell_os6, nothing to do")
+        return True
+    tcp_ok, tcp_error = _tcp_reachable(device["management_ip"])
+    if not tcp_ok:
+        print(f"{device['hostname']}: UNREACHABLE: {tcp_error}")
+        return False
+    credentials = get_device_credentials(device["credential_path"])
+    secrets = [s for s in (credentials.get("password"), credentials.get("secret")) if s]
+    lease = _device_slot(device)
+    if lease is None:
+        return False
+    os.makedirs(CAPTURE_DIR, mode=0o700, exist_ok=True)
+
+    def save(command, output):
+        for secret in secrets:
+            output = output.replace(secret, "***")
+        path = os.path.join(CAPTURE_DIR, f"{device['hostname']}__{_slug(command)}.txt")
+        with open(path, "w") as handle:
+            handle.write(output)
+        os.chmod(path, 0o600)
+        return output, path
+
+    started = time.monotonic()
+    with lease:
+        session = _open_session(device, credentials)
+        try:
+            print(f"\n######## {device['hostname']} ({device['management_ip']}) ssh sessions opened: 1 "
+                  f"(login {time.monotonic() - started:.1f} s)")
+            version, _ = save("show version", session.send_command("show version", read_timeout=30))
+            for line in [l.strip() for l in version.splitlines() if VERSION_LINE.search(l)][:6]:
+                print(f"  {line[:110]}")
+            status, _ = save(OS6_STATUS, session.send_command(OS6_STATUS, read_timeout=collector.CLI_TIMEOUT_SECONDS))
+            parsed = parse_interfaces("dell_os6", {OS6_STATUS: status})
+            targets = collector.os6_byte_targets(parsed["interfaces"])
+            selected = targets[:collector.OS6_UTIL_MAX_PORTS_PER_POLL]
+            print(f"  eligible oper-up Gi/Te ports: {len(targets)}; selected (cap {collector.OS6_UTIL_MAX_PORTS_PER_POLL}): "
+                  f"{[item['interface_name'] for item, _ in selected]}")
+            ok = 0
+            for item, command in selected:
+                if not OS6_STATISTICS_COMMAND.match(command):
+                    continue
+                t0 = time.monotonic()
+                try:
+                    output = session.send_command(command, read_timeout=collector.OS6_UTIL_CLI_TIMEOUT_SECONDS)
+                except Exception as exc:
+                    print(f"  {command!r}: FAILED after {time.monotonic() - t0:.1f} s: {_safe_error(type(exc).__name__, secrets)}")
+                    if not collector._resync(session):
+                        print("  session not back at the prompt: stopping")
+                        break
+                    continue
+                elapsed = time.monotonic() - t0
+                output, path = save(command, output)
+                d = diagnose_os6_statistics(output)
+                ok += d["reason"] == "ok"
+                print(f"  {command!r}: {elapsed:.2f} s, {len(output.splitlines())} lines -> reason={d['reason']} "
+                      f"rx_octets={d['rx']} tx_octets={d['tx']}  [{path}]")
+                for line in d["octet_lines"]:
+                    print(f"      octet label: {line}")
+        finally:
+            session.disconnect()
+    print(f"  {device['hostname']}: {ok}/{len(selected)} ports with both octet counters; "
+          f"total {time.monotonic() - started:.1f} s (one session, closed)")
+    return True
 
 
 def _snapshot_state():
@@ -186,7 +279,7 @@ def cmd_record(device):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("mode", choices=("capture", "dry-run", "record"))
+    parser.add_argument("mode", choices=("capture", "dry-run", "record", "bytes"))
     parser.add_argument("hostnames", nargs="+")
     parser.add_argument("--extra", action="append", default=[], help='capture only: extra read-only "show ..." command')
     parser.add_argument("--only-extra", action="store_true", help="capture only the --extra commands (one session)")
@@ -196,6 +289,8 @@ def main():
         device = get_device_by_hostname(hostname)
         if args.mode == "capture":
             ok = cmd_capture(device, args.extra, only_extra=args.only_extra) and ok
+        elif args.mode == "bytes":
+            ok = cmd_bytes(device) and ok
         elif args.mode == "dry-run":
             ok = cmd_dry_run(device) and ok
         else:

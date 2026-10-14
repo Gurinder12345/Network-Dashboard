@@ -1,0 +1,77 @@
+
+Total frames received (Octets)................. 374411718318
+Frames received 64 octets...................... 70605953
+Frames received 65-127 octets.................. 216334383
+Frames received 128-255 octets................. 93956066
+Frames received 256-511 octets................. 19558280
+Frames received 512-1023 octets................ 37267359
+Frames received 1024-1518 octets............... 218287633
+Frames received > 1518 octets.................. 1250210
+
+Total frames received without errors........... 657163752
+Unicast frames received........................ 647602200
+Multicast frames received...................... 8844530
+Broadcast frames received...................... 717022
+Receive frames discarded....................... 36
+
+Total frames received with MAC errors.......... 0
+Jabbers received............................... 0
+Fragments/Undersize received................... 0
+Alignment errors............................... 0
+FCS errors received............................ 0
+Overruns....................................... 0
+Unacceptable Frame Type........................ 1094018
+Received frames dropped > MTU.................. 0
+URPF Discards.................................. 0
+
+Total received frames not forwarded............ 1190150
+802.3x pause frames received................... 96132
+
+Total frames transmitted (Octets).............. 1413862619073
+Frames transmitted 64 octets................... 87650017
+Frames transmitted 65-127 octets............... 712999107
+Frames transmitted 128-255 octets.............. 70641790
+Frames transmitted 256-511 octets.............. 34304962
+Frames transmitted 512-1023 octets............. 48623330
+Frames transmitted 1024-1518 octets............ 934699132
+Frames transmitted > 1518 octets............... 0
+Max frame size................................. 1518
+
+Total frames transmitted successfully.......... 1888918338
+Unicast frames transmitted..................... 1277660632
+Multicast frames transmitted................... 432509782
+Broadcast frames transmitted................... 178747924
+Total transmit frames discarded................ 60974455
+
+Total transmit errors.......................... 0
+Single collision frames........................ 0
+Multiple collision frames...................... 0
+Late collision frames.......................... 0
+Excessive collision frames..................... 0
+FCS errors transmitted......................... 0
+
+Frames RX and TX 64 octets..................... 158255970
+Frames RX and TX 65-127 octets................. 929333490
+Frames RX and TX 128-255 octets................ 164597856
+Frames RX and TX 256-511 octets................ 53863242
+Frames RX and TX 512-1023 octets............... 85890689
+Frames RX and TX 1024-1518 octets.............. 1152986765
+Frames RX and TX 1519-2047 octets.............. 0
+Frames RX and TX 2048-4095 octets.............. 0
+Frames RX and TX 4096-9216 octets.............. 0
+
+802.3x pause frames transmitted................ 0
+
+GVRP PDUs received............................. 0
+GVRP PDUs transmitted.......................... 0
+GVRP failed registrations...................... 0
+GMRP PDUs received............................. 0
+GMRP PDUs transmitted.......................... 0
+GMRP failed registrations...................... 0
+BPDUs: Sent: 15997895, Received: 0
+
+
+EAPOL frames transmitted....................... 0
+EAPOL start frames received.................... 0
+
+Time since counters last cleared............... 370 day 7 hr 40 min 32 sec

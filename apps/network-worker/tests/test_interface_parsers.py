@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from interfaces import parsers  # noqa: E402
 from interfaces.names import canonical_name, interface_type  # noqa: E402
 from interfaces.parsers import (  # noqa: E402
-    os6_statistics_command, parse_os6_statistics,
+    diagnose_os6_statistics, os6_statistics_command, parse_os6_statistics,
     INTERFACE_COMMANDS, OS6_CONFIGURATION, OS6_COUNTERS, OS6_ERRORS, OS6_STATUS, OS10_INTERFACE, OS10_STATUS,
     InterfaceParseError, age_seconds, parse_interfaces, speed_bps,
 )
@@ -299,6 +299,111 @@ class Os6StatisticsTests(unittest.TestCase):
         self.assertEqual(os6_statistics_command("te1/0/1"), "show statistics tengigabitethernet 1/0/1")
         for canonical in ("tw1/0/4", "fo1/1/1", "po1", "oob", "gi1/0/2; reload", "gi1/0/2 | include x", "", None):
             self.assertIsNone(os6_statistics_command(canonical), canonical)
+
+
+class Os6StatisticsRobustnessTests(unittest.TestCase):
+    """Formatting tolerance of the current parser and the per-port diagnosis (real Gi layout)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.gi = read(os.path.join(FIXTURES, "os6_real_show_statistics_gigabitethernet_1_0_2.txt"))
+
+    def test_commas_whitespace_and_prompt_noise(self):
+        commas = self.gi.replace("963900191", "963,900,191").replace("36708288122", "36,708,288,122")
+        self.assertEqual(parse_os6_statistics(commas), (963900191, 36708288122))
+        spaced = self.gi.replace("Total Packets Received (Octets)", "  Total Packets Received (Octets)") \
+                        .replace("36708288122", "36708288122   ")
+        self.assertEqual(parse_os6_statistics(spaced), (963900191, 36708288122))
+        noisy = "show statistics gigabitethernet 1/0/2\n" + self.gi + "\nKenda-HARO-SW-01#"
+        self.assertEqual(parse_os6_statistics(noisy), (963900191, 36708288122))
+
+    def test_diagnosis_reasons(self):
+        self.assertEqual(diagnose_os6_statistics(self.gi)["reason"], "ok")
+        self.assertEqual(diagnose_os6_statistics("")["reason"], "empty")
+        self.assertEqual(diagnose_os6_statistics("% Invalid input detected at '^' marker.")["reason"], "cli_error")
+        no_tx = "\n".join(l for l in self.gi.splitlines() if not l.startswith("Total Packets Transmitted (Octets)"))
+        self.assertEqual(diagnose_os6_statistics(no_tx)["reason"], "rx_only")
+        no_rx = "\n".join(l for l in self.gi.splitlines() if not l.startswith("Total Packets Received (Octets)"))
+        self.assertEqual(diagnose_os6_statistics(no_rx)["reason"], "tx_only")
+
+    def test_packets_only_output_is_never_bytes(self):
+        packets_only = "\n".join(l for l in self.gi.splitlines() if not l.startswith("Total Packets") or "Octets" not in l)
+        d = diagnose_os6_statistics(packets_only)
+        self.assertEqual((d["reason"], d["rx"], d["tx"], d["octet_lines"]), ("no_octet_counters", None, None, []))
+        # frame-size buckets ("Packets Received 64 Octets") are counts, not labels for bytes
+        self.assertIn("Packets Received 64 Octets", packets_only)
+
+    def test_unrecognized_label_is_reported_not_guessed(self):
+        variant = self.gi.replace("Total Packets Received (Octets)", "Octets Received").replace(
+            "Total Packets Transmitted (Octets)", "Octets Transmitted")
+        d = diagnose_os6_statistics(variant)
+        self.assertEqual((d["reason"], d["rx"], d["tx"]), ("unrecognized_octet_label", None, None))
+        self.assertTrue(any(l.startswith("Octets Received") for l in d["octet_lines"]))
+
+    def test_malformed_numbers(self):
+        bad = self.gi.replace("963900191", "96x900191").replace("36708288122", "-5")
+        self.assertEqual(parse_os6_statistics(bad), (None, None))
+
+
+class Os6StatisticsFormatTests(unittest.TestCase):
+    """Both real OS6 label families: N1524P "Total Packets ... (Octets)", N32xx "Total frames ... (Octets)"."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.n1524p_gi = read(os.path.join(FIXTURES, "os6_real_show_statistics_gigabitethernet_1_0_2.txt"))
+        cls.n1524p_te = read(os.path.join(FIXTURES, "os6_real_show_statistics_tengigabitethernet_1_0_1.txt"))
+        cls.n3248p = read(os.path.join(FIXTURES, "os6_n3248p_real_show_statistics_gigabitethernet_1_0_7.txt"))
+        cls.n3224px = read(os.path.join(FIXTURES, "os6_n3224px_real_show_statistics_tengigabitethernet_1_0_2.txt"))
+
+    def test_real_formats(self):
+        self.assertEqual(parse_os6_statistics(self.n1524p_gi), (963900191, 36708288122))
+        self.assertEqual(parse_os6_statistics(self.n1524p_te), (8686575666519, 1839067799122))
+        self.assertEqual(parse_os6_statistics(self.n3248p), (374411718318, 1413862619073))
+        self.assertEqual(parse_os6_statistics(self.n3224px), (32287234050, 53835296454))
+        for text in (self.n1524p_gi, self.n1524p_te, self.n3248p, self.n3224px):
+            self.assertEqual(diagnose_os6_statistics(text)["reason"], "ok")
+
+    def test_case_spacing_dot_leaders_and_commas(self):
+        variants = [
+            "TOTAL FRAMES RECEIVED (OCTETS)......... 1,234\ntotal frames transmitted (octets)...... 5,678",
+            "Total  Frames   Received ( Octets )  1234\nTotal\tFrames\tTransmitted (Octets)\t5678",
+            "   Total Packets Received (Octets) 1234   \nTotal Packets Transmitted (Octets)..........5678",
+        ]
+        for text in variants:
+            self.assertEqual(parse_os6_statistics(text), (1234, 5678), text)
+
+    def test_prompt_noise(self):
+        noisy = "show statistics gigabitethernet 1/0/7\n" + self.n3248p + "\nKenda-Access-user-1#"
+        self.assertEqual(parse_os6_statistics(noisy), (374411718318, 1413862619073))
+
+    def test_packet_counts_and_buckets_never_parse(self):
+        def without_totals(text):
+            return "\n".join(l for l in text.splitlines() if "(Octets)" not in l)
+
+        for text in (self.n3248p, self.n3224px, self.n1524p_gi):
+            stripped = without_totals(text)
+            self.assertIn("octets", stripped.lower())             # bucket lines remain
+            self.assertEqual(parse_os6_statistics(stripped), (None, None))
+            d = diagnose_os6_statistics(stripped)
+            self.assertEqual((d["reason"], d["octet_lines"]), ("no_octet_counters", []))
+        packet_like = "Total frames received without errors........... 657163752\nTotal frames transmitted successfully.......... 1888918338"
+        self.assertEqual(parse_os6_statistics(packet_like), (None, None))
+        bucket = "Frames received 64 octets...................... 70605953\nFrames RX and TX 1519-2047 octets.............. 0"
+        self.assertEqual(parse_os6_statistics(bucket), (None, None))
+
+    def test_partial_directions_not_inferred(self):
+        rx_only = "\n".join(l for l in self.n3248p.splitlines() if not l.startswith("Total frames transmitted (Octets)"))
+        tx_only = "\n".join(l for l in self.n3248p.splitlines() if not l.startswith("Total frames received (Octets)"))
+        self.assertEqual(parse_os6_statistics(rx_only), (374411718318, None))
+        self.assertEqual(diagnose_os6_statistics(rx_only)["reason"], "rx_only")
+        self.assertEqual(parse_os6_statistics(tx_only), (None, 1413862619073))
+        self.assertEqual(diagnose_os6_statistics(tx_only)["reason"], "tx_only")
+
+    def test_malformed_values(self):
+        bad = self.n3248p.replace("374411718318", "37441x718318").replace("1413862619073", "n/a")
+        self.assertEqual(parse_os6_statistics(bad), (None, None))
+        self.assertEqual(parse_os6_statistics("Total frames received (Octets)........ -12"), (None, None))
+        self.assertEqual(parse_os6_statistics("Total frames received (Octets)........ 99999999999999999999999"), (None, None))
 
 
 class RealOs10Tests(unittest.TestCase):

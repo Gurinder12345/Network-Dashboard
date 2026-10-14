@@ -21,10 +21,11 @@ Real OS6 facts (Kenda-HARO-SW-01):
     from packets.
   * port-channel tables use a two-line "Port / Channel" header.
   * Byte counters for physical ports come from the per-interface
-    `show statistics gigabitethernet|tengigabitethernet <u/s/p>` (validated live on
-    Kenda-HARO-SW-01): "Total Packets Received (Octets)" and "Total Packets Transmitted
-    (Octets)" are the received / transmitted OCTET totals (the packet-size buckets below
-    them are never used). See parse_os6_statistics / collector OS6 byte enrichment.
+    `show statistics gigabitethernet|tengigabitethernet <u/s/p>` (validated live):
+    N1524P prints "Total Packets Received/Transmitted (Octets)", N3248P-ON / N3224PX-ON
+    print "Total frames received/transmitted (Octets)". These received / transmitted OCTET
+    totals are the only values used (size buckets are never used). See
+    parse_os6_statistics / collector OS6 byte enrichment.
 
 Commands (all `show`; one SSH session per device collection, run in this order):
 
@@ -422,8 +423,13 @@ PARSERS = {"dell_os6": parse_os6, "dell_os10": parse_os10}
 # Only the interface types validated on a real switch; anything else gets no command.
 OS6_STATISTICS_TYPES = {"gi": "gigabitethernet", "te": "tengigabitethernet"}
 OS6_STATISTICS_COMMAND = re.compile(r"^show statistics (gigabitethernet|tengigabitethernet) \d{1,2}/\d{1,2}/\d{1,3}$")
-_OS6_RX_OCTETS = re.compile(r"^[ \t]*Total Packets Received \(Octets\)[. \t]*(\d[\d,]*)[ \t]*$", re.M)
-_OS6_TX_OCTETS = re.compile(r"^[ \t]*Total Packets Transmitted \(Octets\)[. \t]*(\d[\d,]*)[ \t]*$", re.M)
+# Real labels (case-insensitive, any spacing, dot leaders):
+#   N1524P                 "Total Packets Received (Octets)"  / "Total Packets Transmitted (Octets)"
+#   N3248P-ON, N3224PX-ON  "Total frames received (Octets)"   / "Total frames transmitted (Octets)"
+# Only these explicit "Total ... (Octets)" totals; never packet counts or "... 64 octets" buckets.
+_OS6_OCTETS = r"^[ \t]*Total[ \t]+(?:Packets|Frames)[ \t]+{direction}[ \t]*\([ \t]*Octets[ \t]*\)[. \t]*(\d[\d,]*)[ \t]*$"
+_OS6_RX_OCTETS = re.compile(_OS6_OCTETS.format(direction="Received"), re.M | re.I)
+_OS6_TX_OCTETS = re.compile(_OS6_OCTETS.format(direction="Transmitted"), re.M | re.I)
 
 
 def os6_statistics_command(canonical):
@@ -442,6 +448,37 @@ def parse_os6_statistics(text):
     rx = _OS6_RX_OCTETS.search(text)
     tx = _OS6_TX_OCTETS.search(text)
     return (count(rx.group(1)) if rx else None), (count(tx.group(1)) if tx else None)
+
+
+# Size-bucket lines ("Packets Received 64 Octets....", "Packets RX and TX 65-127 Octets") are
+# packet COUNTS per frame size, never byte totals.
+_OS6_SIZE_BUCKET = re.compile(r"\b\d+\s*(?:-\s*\d+)?\s*Octets\b|>\s*\d+\s*Octets|\(\d+\s*Octets\)", re.I)
+
+
+def diagnose_os6_statistics(text):
+    """
+    Why a `show statistics` output did or did not yield octet counters (logs / capture tool only):
+      ok | rx_only | tx_only | empty | cli_error | no_octet_counters | unrecognized_octet_label
+    `octet_lines`: lines mentioning octets that are not frame-size buckets (candidate labels).
+    """
+    if not text or not text.strip():
+        return {"reason": "empty", "rx": None, "tx": None, "octet_lines": []}
+    rx, tx = parse_os6_statistics(text)
+    octet_lines = [line.strip()[:120] for line in text.splitlines()
+                   if "octet" in line.lower() and not _OS6_SIZE_BUCKET.search(line)][:8]
+    if CLI_ERROR.search(text):
+        reason = "cli_error"
+    elif rx is not None and tx is not None:
+        reason = "ok"
+    elif rx is not None:
+        reason = "rx_only"
+    elif tx is not None:
+        reason = "tx_only"
+    elif octet_lines:
+        reason = "unrecognized_octet_label"
+    else:
+        reason = "no_octet_counters"
+    return {"reason": reason, "rx": rx, "tx": tx, "octet_lines": octet_lines}
 
 
 def parse_interfaces(platform, outputs):

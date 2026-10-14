@@ -667,11 +667,139 @@ class Os6EnrichmentLimitTests(MockedSessionBase):
         b = outcome["os6_bytes"]
         self.assertEqual(outcome["status"], "success")
         self.assertIn("TimeoutError", b["error"])
-        self.assertEqual(b["queried"], 2)  # gi1/0/1, te1/0/1 done; stopped at te1/0/2
+        self.assertEqual(b["queried"], 2)  # gi1/0/1, te1/0/1 done; no confirmed resync -> stopped at te1/0/2
         snap = {i["canonical_name"]: i for i in self.snapshot(1)["interfaces"]}
         self.assertEqual(snap["te1/0/1"]["rx_bytes"], 10**9)
         self.assertIsNone(snap["gi1/0/2"]["rx_bytes"])
         self.assertEqual(snap["gi1/0/18"]["crc_errors"], 8)  # base counters intact
+
+
+class Os6PortFailureIsolationTests(MockedSessionBase):
+    """A failing port never discards the others' byte counters; cap and budget unchanged."""
+
+    def setUp(self):
+        super().setUp()
+        self.outputs = real_os6({c: (10**9 + n, 2 * 10**9 + n) for n, c in enumerate(UP_PORTS)})
+        self.behaviour = {}  # command -> "raise" | text
+        self.resync_ok = True
+        original = self.open_session
+
+        def open_session(dev, credentials):
+            session = original(dev, credentials)
+            send = session.send_command.side_effect
+
+            def patched(command, read_timeout):
+                action = self.behaviour.get(command)
+                if action == "raise":
+                    raise TimeoutError("read timeout")
+                return action if action is not None else send(command, read_timeout)
+
+            session.send_command.side_effect = patched
+            session.find_prompt.side_effect = lambda: "Kenda-HARO-SW-01#" if self.resync_ok else (_ for _ in ()).throw(OSError("dead"))
+            self.session = session
+            return session
+
+        self.opened.side_effect = open_session
+
+    def snap(self):
+        return {i["canonical_name"]: i for i in self.snapshot(1)["interfaces"]}
+
+    def test_first_port_unparseable_later_ports_succeed(self):
+        self.behaviour[stats_cmd("gi1/0/1")] = "% Invalid input detected at '^' marker."
+        with self.assertLogs("network_worker.interfaces", "WARNING") as logs:
+            outcome = collector.collect_and_record(OS6_DEV)
+        b = outcome["os6_bytes"]
+        self.assertEqual((b["queried"], b["with_bytes"], b["failures"]), (6, 5, {"cli_error": 1}))
+        self.assertEqual(b["failed_ports"], ["Gi1/0/1:cli_error"])
+        self.assertIsNone(self.snap()["gi1/0/1"]["rx_bytes"])
+        self.assertEqual(self.snap()["te1/0/1"]["rx_bytes"], 10**9 + UP_PORTS.index("te1/0/1"))
+        self.assertTrue(any("interface_os6_bytes_port_failed" in l and "Gi1/0/1" in l and "cli_error" in l for l in logs.output))
+
+    def test_first_port_command_error_resyncs_and_continues(self):
+        self.behaviour[stats_cmd("gi1/0/1")] = "raise"
+        outcome = collector.collect_and_record(OS6_DEV)
+        b = outcome["os6_bytes"]
+        self.session.clear_buffer.assert_called()
+        self.assertEqual((b["queried"], b["with_bytes"], b["skipped_budget"]), (5, 5, 0))
+        self.assertEqual(b["failures"], {"command_TimeoutError": 1})
+        self.assertEqual(outcome["status"], "success")
+
+    def test_command_error_without_resync_stops_but_keeps_partial(self):
+        self.behaviour[stats_cmd("te1/0/2")] = "raise"  # third port in uplinks-first order
+        self.resync_ok = False
+        outcome = collector.collect_and_record(OS6_DEV)
+        b = outcome["os6_bytes"]
+        self.assertEqual((b["queried"], b["with_bytes"], b["skipped_budget"]), (2, 2, 3))
+        snap = self.snap()
+        self.assertIsNotNone(snap["gi1/0/1"]["rx_bytes"])  # earlier successes preserved
+        self.assertIsNotNone(snap["te1/0/1"]["rx_bytes"])
+        self.assertIsNone(snap["te1/0/3"]["rx_bytes"])     # never mixed up with leftover output
+        self.assertEqual(outcome["interfaces_seen"], 28)   # base collection intact
+
+    def test_cap_and_budget_still_enforced(self):
+        self.assertEqual((collector.OS6_UTIL_MAX_PORTS_PER_POLL, collector.OS6_UTIL_TIME_BUDGET_SECONDS), (6, 6))
+        for c in UP_PORTS[:3]:
+            self.behaviour[stats_cmd(c)] = "garbage"
+        outcome = collector.collect_and_record(OS6_DEV)
+        self.assertEqual(outcome["os6_bytes"]["queried"], 6)  # failures do not extend the cap
+        self.behaviour.clear()
+        self.delay = 0.3
+        with mock.patch.object(collector, "OS6_UTIL_TIME_BUDGET_SECONDS", 1):
+            outcome = collector.collect_and_record(OS6_DEV)
+        self.assertGreater(outcome["os6_bytes"]["skipped_budget"], 0)
+
+
+class Os6N32xxFormatTests(MockedSessionBase):
+    """N3248P-ON / N3224PX-ON "Total frames ... (Octets)" through the collector: 6 of 6 with bytes."""
+
+    def test_n3248p_format_enriches_all_selected_ports(self):
+        with open(os.path.join(FIXTURES, "os6_n3248p_real_show_statistics_gigabitethernet_1_0_7.txt")) as handle:
+            template = handle.read()
+        self.outputs = real_os6()
+        for n, canonical in enumerate(UP_PORTS):
+            self.outputs[stats_cmd(canonical)] = template.replace("374411718318", str(10**9 + n)).replace(
+                "1413862619073", str(2 * 10**9 + n))
+        outcome = collector.collect_and_record(OS6_DEV)
+        b = outcome["os6_bytes"]
+        self.assertEqual((b["queried"], b["with_bytes"], b["failures"]), (6, 6, {}))
+        snap = {i["canonical_name"]: i for i in self.snapshot(1)["interfaces"]}
+        self.assertEqual((snap["te1/0/1"]["rx_bytes"], snap["te1/0/1"]["tx_bytes"]),
+                         (10**9 + UP_PORTS.index("te1/0/1"), 2 * 10**9 + UP_PORTS.index("te1/0/1")))
+
+
+class ValidatorBytesModeTests(MockedSessionBase):
+    def test_bytes_mode_lock_cap_show_only_and_masked_files(self):
+        import tempfile
+
+        from interfaces import validate_live
+
+        self.outputs = real_os6({c: (10**9, 2 * 10**9) for c in UP_PORTS})
+        self.outputs["show version"] = "System Description: Dell EMC Networking N3248TE-ON, 6.7.1.x\nsecret-pw-123\n"
+        tmp = tempfile.mkdtemp()
+        sent = []
+        original = self.open_session
+
+        def open_session(dev, credentials):
+            session = original(dev, credentials)
+            send = session.send_command.side_effect
+            session.send_command.side_effect = lambda c, read_timeout: (sent.append(c), send(c, read_timeout))[1]
+            return session
+
+        with mock.patch.object(validate_live, "CAPTURE_DIR", tmp), \
+                mock.patch.object(validate_live, "_open_session", side_effect=open_session), \
+                mock.patch.object(validate_live, "_tcp_reachable", return_value=(True, None)), \
+                mock.patch.object(validate_live, "get_device_credentials", return_value={"password": "secret-pw-123"}):
+            holder = coord.acquire_device_operation(1, "health", wait_seconds=0)
+            self.assertFalse(validate_live.cmd_bytes(OS6_DEV))  # busy: no SSH
+            self.assertEqual(sent, [])
+            holder.lease.release()
+            self.assertTrue(validate_live.cmd_bytes(OS6_DEV))
+        self.assertEqual(sent[:2], ["show version", "show interfaces status"])
+        self.assertEqual(sent[2:], [stats_cmd(c) for c in TRUNKS_UP + ["gi1/0/2", "gi1/0/6"]])  # production selection
+        self.assertTrue(all(c.startswith("show ") for c in sent))
+        with open(os.path.join(tmp, "Kenda-HARO-SW-01__show_version.txt")) as handle:
+            self.assertNotIn("secret-pw-123", handle.read())
+        self.assertIsNone(coord.current_operation(1))  # lock released
 
 
 class SchedulingCoordinationTests(MockedSessionBase):
